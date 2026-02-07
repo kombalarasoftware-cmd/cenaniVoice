@@ -72,6 +72,39 @@ async def get_current_user(
     return user
 
 
+# Optional auth - used for endpoints that work with or without authentication
+security_optional = HTTPBearer(auto_error=False)
+
+
+async def get_current_user_optional(
+    db: Session = Depends(get_db),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional)
+) -> Optional[User]:
+    """Get current user if authenticated, otherwise return default dev user"""
+    if credentials:
+        try:
+            payload = jwt.decode(
+                credentials.credentials,
+                settings.SECRET_KEY,
+                algorithms=[settings.ALGORITHM]
+            )
+            user_id = payload.get("sub")
+            if user_id:
+                user = db.query(User).filter(User.id == user_id).first()
+                if user:
+                    return user
+        except Exception:
+            pass
+    
+    # In dev mode, return first user as default
+    if settings.DEBUG:
+        default_user = db.query(User).first()
+        if default_user:
+            return default_user
+    
+    raise HTTPException(status_code=401, detail="Not authenticated")
+
+
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     """Register a new user"""

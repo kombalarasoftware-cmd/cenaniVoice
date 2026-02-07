@@ -8,16 +8,17 @@ import {
   Bot,
   Megaphone,
   Phone,
-  PhoneCall,
   FileAudio,
   BarChart3,
   Settings,
-  Sparkles,
   ChevronLeft,
   Moon,
   Sun,
   LogOut,
   User,
+  CalendarCheck,
+  UserPlus,
+  ClipboardList,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useState } from 'react';
@@ -34,11 +35,6 @@ const navigation = [
     icon: Bot,
   },
   {
-    name: 'Prompt Maker',
-    href: '/dashboard/prompt-maker',
-    icon: Sparkles,
-  },
-  {
     name: 'Campaigns',
     href: '/dashboard/campaigns',
     icon: Megaphone,
@@ -49,15 +45,24 @@ const navigation = [
     icon: Phone,
   },
   {
-    name: 'Live Calls',
-    href: '/dashboard/calls/live',
-    icon: PhoneCall,
-    badge: true,
-  },
-  {
     name: 'Recordings',
     href: '/dashboard/recordings',
     icon: FileAudio,
+  },
+  {
+    name: 'Appointments',
+    href: '/dashboard/appointments',
+    icon: CalendarCheck,
+  },
+  {
+    name: 'Leads',
+    href: '/dashboard/leads',
+    icon: UserPlus,
+  },
+  {
+    name: 'Surveys',
+    href: '/dashboard/surveys',
+    icon: ClipboardList,
   },
   {
     name: 'Reports',
@@ -145,15 +150,7 @@ export function Sidebar() {
                 {!collapsed && (
                   <span className="flex-1 font-medium">{item.name}</span>
                 )}
-                
-                {/* Live badge */}
-                {item.badge && !collapsed && (
-                  <span className="flex h-5 w-5 items-center justify-center">
-                    <span className="animate-ping absolute h-3 w-3 rounded-full bg-error-500 opacity-75" />
-                    <span className="relative h-2 w-2 rounded-full bg-error-500" />
-                  </span>
-                )}
-                
+
                 {/* Tooltip for collapsed state */}
                 {collapsed && (
                   <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-sm rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">

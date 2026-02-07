@@ -1,14 +1,21 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
+import redis.asyncio as aioredis
+import io
+import struct
+import os
 
 from app.core.database import get_db
-from app.api.v1.auth import get_current_user
+from app.api.v1.auth import get_current_user, get_current_user_optional
 from app.models import CallLog, User
 from app.schemas import RecordingResponse
 
 router = APIRouter(prefix="/recordings", tags=["Recordings"])
+
+REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 
 
 @router.get("", response_model=List[RecordingResponse])
@@ -202,3 +209,134 @@ async def analyze_recording(
     # TODO: Queue analysis task
     
     return {"message": "Analysis queued"}
+
+
+def _build_wav(pcm_data: bytes, sample_rate: int = 24000, channels: int = 1, bits_per_sample: int = 16) -> io.BytesIO:
+    """Build a WAV file from raw PCM data."""
+    data_size = len(pcm_data)
+    byte_rate = sample_rate * channels * bits_per_sample // 8
+    block_align = channels * bits_per_sample // 8
+
+    wav_buf = io.BytesIO()
+    # RIFF header
+    wav_buf.write(b"RIFF")
+    wav_buf.write(struct.pack("<I", data_size + 36))
+    wav_buf.write(b"WAVE")
+    # fmt subchunk
+    wav_buf.write(b"fmt ")
+    wav_buf.write(struct.pack("<I", 16))  # subchunk size
+    wav_buf.write(struct.pack("<H", 1))   # PCM
+    wav_buf.write(struct.pack("<H", channels))
+    wav_buf.write(struct.pack("<I", sample_rate))
+    wav_buf.write(struct.pack("<I", byte_rate))
+    wav_buf.write(struct.pack("<H", block_align))
+    wav_buf.write(struct.pack("<H", bits_per_sample))
+    # data subchunk
+    wav_buf.write(b"data")
+    wav_buf.write(struct.pack("<I", data_size))
+    wav_buf.write(pcm_data)
+    wav_buf.seek(0)
+    return wav_buf
+
+
+def _mix_stereo(input_pcm: bytes, output_pcm: bytes) -> bytes:
+    """
+    Mix input (customer) and output (agent) mono PCM16 streams into a stereo PCM16 stream.
+    Left channel = customer, Right channel = agent.
+    Pads the shorter stream with silence.
+    """
+    # Each sample is 2 bytes (16-bit)
+    input_samples = len(input_pcm) // 2
+    output_samples = len(output_pcm) // 2
+    max_samples = max(input_samples, output_samples)
+
+    # Pad shorter stream with silence
+    input_padded = input_pcm + b"\x00\x00" * (max_samples - input_samples)
+    output_padded = output_pcm + b"\x00\x00" * (max_samples - output_samples)
+
+    # Interleave: L(customer) R(agent) L R ...
+    stereo = bytearray(max_samples * 4)  # 2 channels * 2 bytes per sample
+    for i in range(max_samples):
+        offset_mono = i * 2
+        offset_stereo = i * 4
+        stereo[offset_stereo:offset_stereo + 2] = input_padded[offset_mono:offset_mono + 2]
+        stereo[offset_stereo + 2:offset_stereo + 4] = output_padded[offset_mono:offset_mono + 2]
+
+    return bytes(stereo)
+
+
+@router.get("/{call_uuid}/download")
+async def download_call_recording(
+    call_uuid: str,
+    channel: Optional[str] = Query("stereo", description="Channel: input (customer), output (agent), or stereo (both)"),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """
+    Download recording for a call by UUID.
+    Audio is stored in Redis during the call.
+    
+    channel options:
+    - "input": Customer audio only (mono)
+    - "output": Agent/AI audio only (mono)
+    - "stereo": Both channels mixed (L=customer, R=agent)
+    """
+    try:
+        redis = await aioredis.from_url(REDIS_URL, decode_responses=False)
+
+        input_key = f"call_audio_input:{call_uuid}"
+        output_key = f"call_audio_output:{call_uuid}"
+
+        input_data = await redis.get(input_key)
+        output_data = await redis.get(output_key)
+
+        # Backward compatibility: try old key format
+        if not output_data:
+            legacy_key = f"call_audio:{call_uuid}"
+            output_data = await redis.get(legacy_key)
+
+        await redis.close()
+
+        if not input_data and not output_data:
+            raise HTTPException(status_code=404, detail="Recording not found or expired")
+
+        sample_rate = 24000
+
+        if channel == "input":
+            if not input_data:
+                raise HTTPException(status_code=404, detail="Customer audio not available")
+            wav_file = _build_wav(input_data, sample_rate, channels=1)
+            filename = f"recording-{call_uuid}-customer.wav"
+
+        elif channel == "output":
+            if not output_data:
+                raise HTTPException(status_code=404, detail="Agent audio not available")
+            wav_file = _build_wav(output_data, sample_rate, channels=1)
+            filename = f"recording-{call_uuid}-agent.wav"
+
+        else:  # stereo (default)
+            # If only one channel available, return it as mono
+            if input_data and output_data:
+                stereo_pcm = _mix_stereo(input_data, output_data)
+                wav_file = _build_wav(stereo_pcm, sample_rate, channels=2)
+                filename = f"recording-{call_uuid}-stereo.wav"
+            elif output_data:
+                wav_file = _build_wav(output_data, sample_rate, channels=1)
+                filename = f"recording-{call_uuid}-agent.wav"
+            elif input_data:
+                wav_file = _build_wav(input_data, sample_rate, channels=1)
+                filename = f"recording-{call_uuid}-customer.wav"
+            else:
+                raise HTTPException(status_code=404, detail="No audio available")
+
+        return StreamingResponse(
+            wav_file,
+            media_type="audio/wav",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

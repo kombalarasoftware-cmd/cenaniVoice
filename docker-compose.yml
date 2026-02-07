@@ -78,10 +78,10 @@ services:
     command: celery -A app.tasks.celery_tasks:celery_app beat --loglevel=info
 
   # ===========================================
-  # PostgreSQL Database
+  # PostgreSQL Database (with pgvector for RAG)
   # ===========================================
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     ports:
       - "5432:5432"
     environment:
@@ -155,6 +155,8 @@ services:
       - "9092:9092"
     env_file:
       - .env
+    volumes:
+      - ./backend:/app
     environment:
       - AUDIOSOCKET_HOST=0.0.0.0
       - AUDIOSOCKET_PORT=9092

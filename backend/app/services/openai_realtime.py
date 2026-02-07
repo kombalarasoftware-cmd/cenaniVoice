@@ -394,6 +394,57 @@ def build_system_prompt(agent_config: dict, customer_data: Optional[dict] = None
     if agent_config.get("prompt_rules"):
         sections.append(f"## Important Rules\n{agent_config['prompt_rules']}")
     
+    # =========================================================================
+    # CORE VOICE INTERACTION RULES (compact - added to every agent)
+    # =========================================================================
+    core_voice_rules = """## ⚡ CRITICAL VOICE RULES
+
+### RULE 1: ALWAYS WAIT FOR THE CUSTOMER TO SPEAK
+- After you ask a question, STOP and WAIT for the customer's answer.
+- NEVER answer your own questions. NEVER assume what the customer will say.
+- If there is silence, wait at least 3-4 seconds before prompting again.
+- You are on a PHONE CALL — there is natural latency. Be patient.
+
+### RULE 2: LISTEN BEFORE RESPONDING
+- Process what the customer actually said before responding.
+- If you didn't understand, ask them to repeat: "Tekrar eder misiniz?" / "Könnten Sie das bitte wiederholen?"
+- Never pretend you heard something you didn't.
+
+### RULE 3: ONE QUESTION AT A TIME
+- Ask only ONE question per turn, then wait for the answer.
+- Do not chain multiple questions together.
+- Do not combine greetings with questions.
+
+### RULE 4: NATURAL CONVERSATION PACE
+- Keep responses to 1-3 sentences maximum.
+- Pause briefly after important information to let customer absorb.
+- Match the customer's speaking pace and energy.
+
+### RULE 5: CONFIRM BEFORE PROCEEDING
+- After receiving important info (phone, email, name), repeat it back for confirmation.
+- Wait for explicit "yes/evet/ja" before moving on.
+- Do not assume confirmation from silence.
+"""
+    sections.append(core_voice_rules)
+    
+    # =========================================================================
+    # CONVERSATION MEMORY CONTEXT (dynamically injected)
+    # =========================================================================
+    if agent_config.get("conversation_history"):
+        history = agent_config["conversation_history"]
+        memory_section = f"""## 📚 PREVIOUS INTERACTION HISTORY
+
+You have spoken with this customer before. Here is what you know:
+
+{history}
+
+### RULES FOR USING HISTORY:
+- Reference previous interactions naturally
+- Do NOT re-ask for information you already have
+- If previous data exists, confirm it is still current
+"""
+        sections.append(memory_section)
+    
     prompt = "\n\n".join(sections)
     
     # Inject customer data

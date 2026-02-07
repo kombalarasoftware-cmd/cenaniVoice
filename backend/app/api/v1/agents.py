@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.api.v1.auth import get_current_user, verify_token
+from app.api.v1.auth import get_current_user, verify_token, get_current_user_optional
 from app.models import Agent, User
 from app.models.models import AgentStatus as ModelAgentStatus
 from app.schemas import (
@@ -14,39 +13,6 @@ from app.schemas import (
 from app.schemas.schemas import AgentStatus as SchemaAgentStatus
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
-
-# Optional auth for development mode
-security = HTTPBearer(auto_error=False)
-
-
-async def get_current_user_optional(
-    db: Session = Depends(get_db),
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
-) -> Optional[User]:
-    """Get current user if authenticated, otherwise return default dev user"""
-    if credentials:
-        try:
-            from jose import jwt
-            payload = jwt.decode(
-                credentials.credentials,
-                settings.SECRET_KEY,
-                algorithms=[settings.ALGORITHM]
-            )
-            user_id = payload.get("sub")
-            if user_id:
-                user = db.query(User).filter(User.id == user_id).first()
-                if user:
-                    return user
-        except Exception:
-            pass
-    
-    # In dev mode, return first user as default
-    if settings.DEBUG:
-        default_user = db.query(User).first()
-        if default_user:
-            return default_user
-    
-    raise HTTPException(status_code=401, detail="Not authenticated")
 
 
 @router.get("", response_model=List[AgentResponse])
@@ -59,8 +25,14 @@ async def list_agents(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_optional)
 ):
-    """List all agents for current user"""
-    query = db.query(Agent).filter(Agent.owner_id == current_user.id)
+    """List all agents for current user (including system agents)"""
+    from sqlalchemy import or_
+    query = db.query(Agent).filter(
+        or_(
+            Agent.owner_id == current_user.id,
+            Agent.is_system == True  # System agents visible to all
+        )
+    )
     
     if status:
         query = query.filter(Agent.status == status)
@@ -111,16 +83,28 @@ async def create_agent(
         agent.temperature = agent_data.advanced_settings.temperature
         agent.vad_threshold = agent_data.advanced_settings.vad_threshold
         agent.turn_detection = agent_data.advanced_settings.turn_detection
+        agent.vad_eagerness = agent_data.advanced_settings.vad_eagerness
+        agent.silence_duration_ms = agent_data.advanced_settings.silence_duration_ms
+        agent.prefix_padding_ms = agent_data.advanced_settings.prefix_padding_ms
+        agent.idle_timeout_ms = agent_data.advanced_settings.idle_timeout_ms
+        agent.interrupt_response = agent_data.advanced_settings.interrupt_response
+        agent.create_response = agent_data.advanced_settings.create_response
+        agent.noise_reduction = agent_data.advanced_settings.noise_reduction
+        agent.max_output_tokens = agent_data.advanced_settings.max_output_tokens
+        agent.transcript_model = agent_data.advanced_settings.transcript_model
     
-    # Apply prompt sections
+    # Apply prompt sections (OpenAI Realtime Prompting Guide structure)
     if agent_data.prompt:
         agent.prompt_role = agent_data.prompt.role
         agent.prompt_personality = agent_data.prompt.personality
-        agent.prompt_language = agent_data.prompt.language
-        agent.prompt_flow = agent_data.prompt.flow
+        agent.prompt_context = agent_data.prompt.context
+        agent.prompt_pronunciations = agent_data.prompt.pronunciations
+        agent.prompt_sample_phrases = agent_data.prompt.sample_phrases
         agent.prompt_tools = agent_data.prompt.tools
-        agent.prompt_safety = agent_data.prompt.safety
         agent.prompt_rules = agent_data.prompt.rules
+        agent.prompt_flow = agent_data.prompt.flow
+        agent.prompt_safety = agent_data.prompt.safety
+        agent.prompt_language = agent_data.prompt.language  # Legacy field
     
     db.add(agent)
     db.commit()
@@ -197,16 +181,28 @@ async def update_agent(
         agent.temperature = agent_data.advanced_settings.temperature
         agent.vad_threshold = agent_data.advanced_settings.vad_threshold
         agent.turn_detection = agent_data.advanced_settings.turn_detection
+        agent.vad_eagerness = agent_data.advanced_settings.vad_eagerness
+        agent.silence_duration_ms = agent_data.advanced_settings.silence_duration_ms
+        agent.prefix_padding_ms = agent_data.advanced_settings.prefix_padding_ms
+        agent.idle_timeout_ms = agent_data.advanced_settings.idle_timeout_ms
+        agent.interrupt_response = agent_data.advanced_settings.interrupt_response
+        agent.create_response = agent_data.advanced_settings.create_response
+        agent.noise_reduction = agent_data.advanced_settings.noise_reduction
+        agent.max_output_tokens = agent_data.advanced_settings.max_output_tokens
+        agent.transcript_model = agent_data.advanced_settings.transcript_model
     
-    # Update prompt sections
+    # Update prompt sections (OpenAI Realtime Prompting Guide structure)
     if agent_data.prompt:
         agent.prompt_role = agent_data.prompt.role
         agent.prompt_personality = agent_data.prompt.personality
-        agent.prompt_language = agent_data.prompt.language
-        agent.prompt_flow = agent_data.prompt.flow
+        agent.prompt_context = agent_data.prompt.context
+        agent.prompt_pronunciations = agent_data.prompt.pronunciations
+        agent.prompt_sample_phrases = agent_data.prompt.sample_phrases
         agent.prompt_tools = agent_data.prompt.tools
-        agent.prompt_safety = agent_data.prompt.safety
         agent.prompt_rules = agent_data.prompt.rules
+        agent.prompt_flow = agent_data.prompt.flow
+        agent.prompt_safety = agent_data.prompt.safety
+        agent.prompt_language = agent_data.prompt.language  # Legacy field
     
     # Update greeting settings
     if agent_data.greeting_settings:
@@ -218,6 +214,22 @@ async def update_agent(
     # Update inactivity messages
     if agent_data.inactivity_messages is not None:
         agent.inactivity_messages = [msg.model_dump() for msg in agent_data.inactivity_messages]
+    
+    # Update knowledge base
+    if agent_data.knowledge_base is not None:
+        agent.knowledge_base = agent_data.knowledge_base
+    
+    # Update web sources
+    if agent_data.web_sources is not None:
+        agent.web_sources = agent_data.web_sources
+    
+    # Update smart features (Akıllı Özellikler)
+    if agent_data.smart_features is not None:
+        agent.smart_features = agent_data.smart_features.model_dump() if hasattr(agent_data.smart_features, 'model_dump') else agent_data.smart_features
+    
+    # Update survey config (Anket Yapılandırması)
+    if agent_data.survey_config is not None:
+        agent.survey_config = agent_data.survey_config.model_dump() if hasattr(agent_data.survey_config, 'model_dump') else agent_data.survey_config
     
     db.commit()
     db.refresh(agent)
@@ -240,6 +252,13 @@ async def delete_agent(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     
+    # System agents cannot be deleted
+    if agent.is_system:
+        raise HTTPException(
+            status_code=403, 
+            detail="Sistem agentları silinemez. Bu örnek agent olarak sistemde kalmalıdır."
+        )
+    
     db.delete(agent)
     db.commit()
     
@@ -252,41 +271,74 @@ async def duplicate_agent(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_optional)
 ):
-    """Duplicate an agent"""
-    original = db.query(Agent).filter(
-        Agent.id == agent_id,
-        Agent.owner_id == current_user.id
-    ).first()
+    """Duplicate an agent with all settings"""
+    # System agents can be duplicated by anyone, others only by owner
+    original = db.query(Agent).filter(Agent.id == agent_id).first()
     
     if not original:
         raise HTTPException(status_code=404, detail="Agent not found")
     
-    # Create duplicate
+    # Non-system agents can only be duplicated by owner
+    if not original.is_system and original.owner_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    # Create duplicate with ALL fields
     duplicate = Agent(
-        name=f"{original.name} (Copy)",
+        name=f"{original.name} (Kopya)",
         description=original.description,
         status=ModelAgentStatus.DRAFT,
+        # Model settings
+        model_type=original.model_type,
         voice=original.voice,
         language=original.language,
         speech_speed=original.speech_speed,
+        # Greeting settings
+        first_speaker=original.first_speaker,
+        greeting_message=original.greeting_message,
+        greeting_uninterruptible=original.greeting_uninterruptible,
+        first_message_delay=original.first_message_delay,
+        inactivity_messages=original.inactivity_messages,
+        # Knowledge Base & RAG
+        knowledge_base_enabled=original.knowledge_base_enabled,
+        knowledge_base_ids=original.knowledge_base_ids,
+        knowledge_base=original.knowledge_base,
+        web_sources=original.web_sources,
+        # Prompt sections (all 10 sections)
         prompt_role=original.prompt_role,
         prompt_personality=original.prompt_personality,
-        prompt_language=original.prompt_language,
-        prompt_flow=original.prompt_flow,
+        prompt_context=original.prompt_context,
+        prompt_pronunciations=original.prompt_pronunciations,
+        prompt_sample_phrases=original.prompt_sample_phrases,
         prompt_tools=original.prompt_tools,
-        prompt_safety=original.prompt_safety,
         prompt_rules=original.prompt_rules,
+        prompt_flow=original.prompt_flow,
+        prompt_safety=original.prompt_safety,
+        prompt_language=original.prompt_language,
+        # Call settings
         max_duration=original.max_duration,
         silence_timeout=original.silence_timeout,
         max_retries=original.max_retries,
         retry_delay=original.retry_delay,
+        # Behavior settings
         interruptible=original.interruptible,
         auto_transcribe=original.auto_transcribe,
         record_calls=original.record_calls,
         human_transfer=original.human_transfer,
+        # Advanced settings
         temperature=original.temperature,
         vad_threshold=original.vad_threshold,
         turn_detection=original.turn_detection,
+        vad_eagerness=original.vad_eagerness,
+        silence_duration_ms=original.silence_duration_ms,
+        prefix_padding_ms=original.prefix_padding_ms,
+        idle_timeout_ms=original.idle_timeout_ms,
+        interrupt_response=original.interrupt_response,
+        create_response=original.create_response,
+        noise_reduction=original.noise_reduction,
+        max_output_tokens=original.max_output_tokens,
+        transcript_model=original.transcript_model,
+        # NOT copied: is_system (always False for copies)
+        is_system=False,
         owner_id=current_user.id
     )
     

@@ -3,6 +3,7 @@ Pydantic schemas for request/response validation.
 Enums are imported from models to maintain single source of truth.
 """
 
+import enum
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -16,6 +17,12 @@ from app.models.models import (
     CallStatus,
     CallOutcome,
     RealtimeModel,
+    TranscriptModel,
+    AppointmentStatus,
+    AppointmentType,
+    LeadStatus,
+    LeadInterestType,
+    CallTag,
 )
 
 
@@ -81,13 +88,30 @@ class LoginRequest(BaseModel):
 # ============ Agent Schemas ============
 
 class PromptSections(BaseModel):
-    role: Optional[str] = None
-    personality: Optional[str] = None
-    language: Optional[str] = None
-    flow: Optional[str] = None
-    tools: Optional[str] = None
-    safety: Optional[str] = None
-    rules: Optional[str] = None
+    """
+    Structured prompt sections following OpenAI Realtime Prompting Guide.
+    See: https://cookbook.openai.com/examples/realtime_prompting_guide
+    """
+    # 1. Role & Objective - who you are and what "success" means
+    role: Optional[str] = Field(default=None, description="Role definition and main objective")
+    # 2. Personality & Tone - voice, style, pacing, length, variety
+    personality: Optional[str] = Field(default=None, description="Personality, tone, pacing, response length")
+    # 3. Context - additional info for RAG/KB (optional)
+    context: Optional[str] = Field(default=None, description="Additional context, retrieved info")
+    # 4. Reference Pronunciations - phonetic guides for names/terms
+    pronunciations: Optional[str] = Field(default=None, description="Phonetic guides for brand names, technical terms")
+    # 5. Sample Phrases - anchor examples for style consistency
+    sample_phrases: Optional[str] = Field(default=None, description="Sample phrases for style, brevity, tone")
+    # 6. Tools - function descriptions, usage rules
+    tools: Optional[str] = Field(default=None, description="Tool usage rules, preambles")
+    # 7. Instructions/Rules - do's, don'ts, approach
+    rules: Optional[str] = Field(default=None, description="Instructions, rules, guidelines")
+    # 8. Conversation Flow - states, goals, transitions
+    flow: Optional[str] = Field(default=None, description="Conversation states, goals, exit criteria")
+    # 9. Safety & Escalation - fallback and handoff logic
+    safety: Optional[str] = Field(default=None, description="Safety rules, escalation triggers")
+    # Legacy field (merged into personality)
+    language: Optional[str] = Field(default=None, description="[Legacy] Language constraints")
 
 
 class VoiceSettings(BaseModel):
@@ -113,8 +137,17 @@ class BehaviorSettings(BaseModel):
 
 class AdvancedSettings(BaseModel):
     temperature: float = Field(default=0.7, ge=0, le=1)
-    vad_threshold: float = Field(default=0.5, ge=0, le=1)
-    turn_detection: str = "server_vad"
+    vad_threshold: float = Field(default=0.3, ge=0, le=1)  # Lower = more sensitive to speech
+    turn_detection: str = "server_vad"  # server_vad, semantic_vad, disabled
+    vad_eagerness: str = "auto"  # semantic_vad: low, medium, high, auto
+    silence_duration_ms: int = Field(default=800, ge=100, le=5000)  # server_vad
+    prefix_padding_ms: int = Field(default=500, ge=100, le=2000)  # server_vad
+    idle_timeout_ms: Optional[int] = Field(default=None, ge=0, le=60000)  # VAD idle timeout, None=no timeout
+    interrupt_response: bool = True  # Stop AI when user speaks
+    create_response: bool = True  # Auto-respond when user stops
+    noise_reduction: bool = True
+    max_output_tokens: int = Field(default=500, ge=0, le=4096)  # 0=infinite
+    transcript_model: str = "gpt-4o-transcribe"  # gpt-4o-transcribe, whisper-1
 
 
 class GreetingSettings(BaseModel):
@@ -130,6 +163,198 @@ class InactivityMessage(BaseModel):
     end_behavior: str = "unspecified"  # 'unspecified', 'interruptible_hangup', 'uninterruptible_hangup'
 
 
+# ============ Smart Features ============
+
+class LeadCaptureTrigger(str, enum.Enum):
+    """Triggers for automatic lead capture"""
+    INTERESTED = "interested"  # Customer showed interest
+    CALLBACK = "callback"  # Wants to be called back
+    PURCHASE = "purchase"  # Purchase intent
+    SUBSCRIPTION = "subscription"  # Subscription/membership
+    INFO_REQUEST = "info_request"  # Information request
+    ADDRESS_SHARED = "address_shared"  # Shared address
+
+
+class LeadCaptureSettings(BaseModel):
+    """Lead capture settings"""
+    enabled: bool = False
+    triggers: List[LeadCaptureTrigger] = Field(default_factory=list)
+    default_priority: int = Field(default=2, ge=1, le=3)  # 1=high, 2=medium, 3=low
+    auto_capture_phone: bool = True  # Automatically capture phone number
+    auto_capture_address: bool = False  # Automatically capture address
+    require_confirmation: bool = True  # Ask customer for confirmation
+
+
+class CallTagSettings(BaseModel):
+    """Call tagging settings"""
+    enabled: bool = False
+    auto_tags: List[str] = Field(default_factory=list)  # Tags to add automatically
+    tag_on_interest: bool = True  # Tag when interest shown
+    tag_on_rejection: bool = True  # Tag when rejected
+    tag_on_callback: bool = True  # Tag when callback requested
+
+
+class CallbackSettings(BaseModel):
+    """Callback scheduling settings"""
+    enabled: bool = False
+    default_delay_hours: int = Field(default=24, ge=1, le=168)  # Default callback delay (hours)
+    max_attempts: int = Field(default=3, ge=1, le=10)  # Maximum retry attempts
+    respect_business_hours: bool = True  # Respect business hours
+    ask_preferred_time: bool = True  # Ask customer for preferred time
+
+
+class SmartFeatures(BaseModel):
+    """Smart features - all settings"""
+    lead_capture: Optional[LeadCaptureSettings] = None
+    call_tags: Optional[CallTagSettings] = None
+    callback: Optional[CallbackSettings] = None
+
+
+# ==================== SURVEY SCHEMAS ====================
+
+class SurveyQuestionType(str, enum.Enum):
+    """Survey question types"""
+    YES_NO = "yes_no"  # Yes/No
+    MULTIPLE_CHOICE = "multiple_choice"  # Multiple choice
+    RATING = "rating"  # 1-10 rating
+    OPEN_ENDED = "open_ended"  # Open-ended
+
+
+class SurveyQuestionBase(BaseModel):
+    """Survey question base structure"""
+    id: str = Field(..., description="Unique question ID (e.g.: q1, q2a)")
+    type: SurveyQuestionType
+    text: str = Field(..., description="Question text")
+    required: bool = True
+
+
+class SurveyQuestionYesNo(SurveyQuestionBase):
+    """Yes/No question - with conditional branching support"""
+    type: SurveyQuestionType = SurveyQuestionType.YES_NO
+    next_on_yes: Optional[str] = Field(None, description="Next question ID on Yes answer")
+    next_on_no: Optional[str] = Field(None, description="Next question ID on No answer")
+
+
+class SurveyQuestionMultipleChoice(SurveyQuestionBase):
+    """Multiple choice question"""
+    type: SurveyQuestionType = SurveyQuestionType.MULTIPLE_CHOICE
+    options: List[str] = Field(..., min_length=2, max_length=10, description="Options")
+    allow_multiple: bool = False  # Allow multiple selections
+    next: Optional[str] = Field(None, description="Next question ID")
+    # Option-based branching
+    next_by_option: Optional[Dict[str, str]] = Field(None, description="Next question by option: {'Option A': 'q3a', 'Option B': 'q3b'}")
+
+
+class SurveyQuestionRating(SurveyQuestionBase):
+    """Rating/scoring question"""
+    type: SurveyQuestionType = SurveyQuestionType.RATING
+    min_value: int = Field(1, ge=0, le=10)
+    max_value: int = Field(10, ge=1, le=100)
+    min_label: Optional[str] = None  # e.g.: "Very bad"
+    max_label: Optional[str] = None  # e.g.: "Excellent"
+    next: Optional[str] = Field(None, description="Next question ID")
+    # Score range-based branching
+    next_by_range: Optional[List[Dict[str, Any]]] = Field(
+        None,
+        description="Branching by score range: [{'min': 1, 'max': 5, 'next': 'q_low'}, {'min': 6, 'max': 10, 'next': 'q_high'}]"
+    )
+
+
+class SurveyQuestionOpenEnded(SurveyQuestionBase):
+    """Open-ended question"""
+    type: SurveyQuestionType = SurveyQuestionType.OPEN_ENDED
+    max_length: int = Field(500, ge=10, le=2000)
+    placeholder: Optional[str] = None
+    next: Optional[str] = Field(None, description="Next question ID")
+
+
+class SurveyQuestion(BaseModel):
+    """Unified question model - supports all types"""
+    id: str
+    type: SurveyQuestionType
+    text: str
+    required: bool = True
+    # Options (for multiple_choice)
+    options: Optional[List[str]] = None
+    allow_multiple: bool = False
+    # For rating
+    min_value: int = 1
+    max_value: int = 10
+    min_label: Optional[str] = None
+    max_label: Optional[str] = None
+    # For open ended
+    max_length: int = 500
+    placeholder: Optional[str] = None
+    # Branching
+    next: Optional[str] = None  # Default next question
+    next_on_yes: Optional[str] = None  # For Yes/No
+    next_on_no: Optional[str] = None  # For Yes/No
+    next_by_option: Optional[Dict[str, str]] = None  # Multiple choice option-based
+    next_by_range: Optional[List[Dict[str, Any]]] = None  # Rating score-based
+
+
+class SurveyConfig(BaseModel):
+    """Agent survey configuration"""
+    enabled: bool = False
+    questions: List[SurveyQuestion] = Field(default_factory=list)
+    start_question: Optional[str] = Field(None, description="Start question ID (default: first question)")
+    completion_message: str = Field(
+        default="Thank you for participating in our survey!",
+        description="Message to say when survey is completed"
+    )
+    abort_message: str = Field(
+        default="Survey cancelled, glad if I could help.",
+        description="Message when survey is aborted"
+    )
+    allow_skip: bool = False  # Allow skipping questions
+    show_progress: bool = True  # Show progress (e.g.: "3/5 questions")
+
+
+class SurveyAnswerSubmit(BaseModel):
+    """Survey answer submission (for tool call)"""
+    question_id: str
+    answer: str  # Answer text or value
+    answer_value: Optional[Any] = None  # Numeric value (for rating)
+
+
+class SurveyResponseCreate(BaseModel):
+    """Create survey response"""
+    call_id: Optional[int] = None
+    agent_id: int
+    campaign_id: Optional[int] = None
+    respondent_phone: Optional[str] = None
+    respondent_name: Optional[str] = None
+
+
+class SurveyResponseUpdate(BaseModel):
+    """Update survey response"""
+    status: Optional[str] = None
+    current_question_id: Optional[str] = None
+    answers: Optional[List[Dict[str, Any]]] = None
+
+
+class SurveyResponseResponse(BaseModel):
+    """Anket yanıtı response"""
+    id: int
+    call_id: Optional[int] = None
+    agent_id: int
+    campaign_id: Optional[int] = None
+    respondent_phone: Optional[str] = None
+    respondent_name: Optional[str] = None
+    status: str
+    answers: List[Dict[str, Any]]
+    current_question_id: Optional[str] = None
+    questions_answered: int
+    total_questions: int
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    duration_seconds: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class AgentBase(BaseModel):
     name: str
     description: Optional[str] = None
@@ -141,6 +366,8 @@ class AgentCreate(AgentBase):
     behavior_settings: Optional[BehaviorSettings] = None
     advanced_settings: Optional[AdvancedSettings] = None
     prompt: Optional[PromptSections] = None
+    smart_features: Optional[SmartFeatures] = None
+    survey_config: Optional[SurveyConfig] = None
 
 
 class AgentUpdate(BaseModel):
@@ -154,6 +381,10 @@ class AgentUpdate(BaseModel):
     prompt: Optional[PromptSections] = None
     greeting_settings: Optional[GreetingSettings] = None
     inactivity_messages: Optional[List[InactivityMessage]] = None
+    knowledge_base: Optional[str] = None  # Static knowledge base content
+    web_sources: Optional[List[dict]] = None  # Web URLs: [{"url": "...", "name": "...", "description": "..."}]
+    smart_features: Optional[SmartFeatures] = None  # Akıllı özellikler
+    survey_config: Optional[SurveyConfig] = None  # Anket yapılandırması
 
 
 class AgentResponse(AgentBase):
@@ -164,6 +395,7 @@ class AgentResponse(AgentBase):
     language: str
     total_calls: int
     successful_calls: int
+    is_system: bool = False
     created_at: datetime
 
     class Config:
@@ -179,14 +411,21 @@ class AgentDetailResponse(AgentResponse):
     first_message_delay: float = 0.0
     inactivity_messages: Optional[List[Dict[str, Any]]] = None
     
-    # Prompt sections
-    prompt_role: Optional[str]
-    prompt_personality: Optional[str]
-    prompt_language: Optional[str]
-    prompt_flow: Optional[str]
-    prompt_tools: Optional[str]
-    prompt_safety: Optional[str]
-    prompt_rules: Optional[str]
+    # Prompt sections (ElevenLabs Enterprise Prompting Guide structure)
+    prompt_role: Optional[str] = None  # Personality (who the agent is)
+    prompt_personality: Optional[str] = None  # Environment (conversation context)
+    prompt_context: Optional[str] = None  # Tone (how to speak)
+    prompt_pronunciations: Optional[str] = None  # Goal (workflow steps)
+    prompt_sample_phrases: Optional[str] = None  # Guardrails (non-negotiable rules)
+    prompt_tools: Optional[str] = None  # Tools (when/how/error)
+    prompt_rules: Optional[str] = None  # Character normalization
+    prompt_flow: Optional[str] = None  # Error handling
+    prompt_safety: Optional[str] = None  # Legacy (merged into guardrails)
+    prompt_language: Optional[str] = None  # Legacy
+    knowledge_base: Optional[str] = None  # Static knowledge base content
+    web_sources: Optional[List[Dict[str, Any]]] = None  # Web URLs for dynamic info
+    smart_features: Optional[Dict[str, Any]] = None  # Akıllı özellikler
+    survey_config: Optional[Dict[str, Any]] = None  # Anket yapılandırması
 
     speech_speed: float
     max_duration: int
@@ -200,6 +439,15 @@ class AgentDetailResponse(AgentResponse):
     temperature: float
     vad_threshold: float
     turn_detection: str
+    vad_eagerness: str = "auto"
+    silence_duration_ms: int = 800
+    prefix_padding_ms: int = 500
+    idle_timeout_ms: Optional[int] = None
+    interrupt_response: bool = True
+    create_response: bool = True
+    noise_reduction: bool = True
+    max_output_tokens: int = 500
+    transcript_model: str = "gpt-4o-transcribe"
 
 
 # ============ Campaign Schemas ============
@@ -444,3 +692,237 @@ class APIErrorResponse(BaseModel):
     detail: str
     error_code: Optional[str] = None
     request_id: Optional[str] = None
+
+
+# ============ Agent Document Schemas (RAG) ============
+
+class AgentDocumentCreate(BaseModel):
+    """Used internally when creating document record"""
+    filename: str
+    file_type: str
+    file_size: int
+    file_path: Optional[str] = None
+
+
+class AgentDocumentResponse(BaseModel):
+    """Document response for API"""
+    id: int
+    agent_id: int
+    filename: str
+    file_type: str
+    file_size: int
+    status: str  # pending, processing, ready, error
+    error_message: Optional[str] = None
+    chunk_count: int = 0
+    token_count: int = 0
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DocumentChunkResponse(BaseModel):
+    """Chunk response for search results"""
+    id: int
+    content: str
+    chunk_index: int
+    score: Optional[float] = None  # Similarity score
+    document_filename: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class DocumentSearchRequest(BaseModel):
+    """Search request for document chunks"""
+    query: str
+    limit: int = Field(default=5, ge=1, le=20)
+
+
+class DocumentSearchResponse(BaseModel):
+    """Search response with relevant chunks"""
+    query: str
+    results: List[DocumentChunkResponse]
+    total_found: int
+
+
+# ============ Appointment Schemas ============
+
+class AppointmentCreate(BaseModel):
+    """Create appointment (from AI tool call)"""
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    customer_email: Optional[str] = None
+    customer_address: Optional[str] = None
+    appointment_type: AppointmentType = AppointmentType.CONSULTATION
+    appointment_date: datetime
+    appointment_time: Optional[str] = None
+    duration_minutes: int = 60
+    notes: Optional[str] = None
+    location: Optional[str] = None
+    
+    # Call context
+    call_id: Optional[int] = None
+    agent_id: Optional[int] = None
+    campaign_id: Optional[int] = None
+
+
+class AppointmentUpdate(BaseModel):
+    """Update appointment"""
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    customer_email: Optional[str] = None
+    customer_address: Optional[str] = None
+    appointment_type: Optional[AppointmentType] = None
+    appointment_date: Optional[datetime] = None
+    appointment_time: Optional[str] = None
+    duration_minutes: Optional[int] = None
+    status: Optional[AppointmentStatus] = None
+    notes: Optional[str] = None
+    location: Optional[str] = None
+
+
+class AppointmentResponse(BaseModel):
+    """Appointment response"""
+    id: int
+    call_id: Optional[int] = None
+    agent_id: Optional[int] = None
+    campaign_id: Optional[int] = None
+    
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    customer_email: Optional[str] = None
+    customer_address: Optional[str] = None
+    
+    appointment_type: AppointmentType
+    appointment_date: datetime
+    appointment_time: Optional[str] = None
+    duration_minutes: int
+    
+    status: AppointmentStatus
+    notes: Optional[str] = None
+    location: Optional[str] = None
+    
+    created_at: datetime
+    updated_at: datetime
+    confirmed_at: Optional[datetime] = None
+    
+    # Related info (joined)
+    agent_name: Optional[str] = None
+    campaign_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class AppointmentListResponse(BaseModel):
+    """Paginated appointment list"""
+    items: List[AppointmentResponse]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+
+
+# ============ Lead Schemas ============
+
+class LeadCreate(BaseModel):
+    """Create a new lead"""
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    customer_email: Optional[str] = None
+    customer_address: Optional[str] = None
+    interest_type: LeadInterestType = LeadInterestType.CALLBACK
+    customer_statement: Optional[str] = None
+    notes: Optional[str] = None
+    priority: int = Field(default=1, ge=1, le=3)
+    source: Optional[str] = None
+
+
+class LeadUpdate(BaseModel):
+    """Update lead"""
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    customer_email: Optional[str] = None
+    customer_address: Optional[str] = None
+    interest_type: Optional[LeadInterestType] = None
+    status: Optional[LeadStatus] = None
+    notes: Optional[str] = None
+    priority: Optional[int] = Field(default=None, ge=1, le=3)
+    next_follow_up: Optional[datetime] = None
+
+
+class LeadResponse(BaseModel):
+    """Lead response"""
+    id: int
+    call_id: Optional[int] = None
+    agent_id: Optional[int] = None
+    campaign_id: Optional[int] = None
+    
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    customer_email: Optional[str] = None
+    customer_address: Optional[str] = None
+    
+    interest_type: LeadInterestType
+    status: LeadStatus
+    customer_statement: Optional[str] = None
+    notes: Optional[str] = None
+    priority: int
+    source: Optional[str] = None
+    
+    last_contacted_at: Optional[datetime] = None
+    next_follow_up: Optional[datetime] = None
+    follow_up_count: int
+    
+    created_at: datetime
+    updated_at: datetime
+    converted_at: Optional[datetime] = None
+    
+    # Related info (joined)
+    agent_name: Optional[str] = None
+    campaign_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class LeadListResponse(BaseModel):
+    """Paginated lead list"""
+    items: List[LeadResponse]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+
+
+class LeadStats(BaseModel):
+    """Lead statistics"""
+    total: int
+    today: int
+    by_status: Dict[str, int]
+    by_interest_type: Dict[str, int]
+    by_priority: Dict[str, int]
+
+
+# ============ Call Tags Schemas ============
+
+class CallTagsUpdate(BaseModel):
+    """Update call tags"""
+    tags: List[str] = Field(default_factory=list)
+    
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, v: List[str]) -> List[str]:
+        """Validate tags are valid CallTag enum values"""
+        valid_tags = [t.value for t in CallTag]
+        for tag in v:
+            if tag not in valid_tags:
+                raise ValueError(f"Invalid tag: {tag}. Valid tags: {valid_tags}")
+        return v
+
+
+class CallTagsResponse(BaseModel):
+    """Call tags response"""
+    call_id: int
+    tags: List[str]

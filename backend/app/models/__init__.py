@@ -15,6 +15,9 @@ from app.models.models import (
     WebhookEndpoint,
     APIKey,
     SystemSettings,
+    SurveyQuestionType,
+    SurveyStatus,
+    SurveyResponse,
 )
 
 __all__ = [
@@ -34,4 +37,7 @@ __all__ = [
     "WebhookEndpoint",
     "APIKey",
     "SystemSettings",
+    "SurveyQuestionType",
+    "SurveyStatus",
+    "SurveyResponse",
 ]

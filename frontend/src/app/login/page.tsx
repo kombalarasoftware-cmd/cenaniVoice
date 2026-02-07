@@ -17,7 +17,7 @@ export default function LoginPage() {
     e.preventDefault();
     
     if (!email || !password) {
-      toast.error('Email ve şifre gereklidir');
+      toast.error('Email and password are required');
       return;
     }
 
@@ -33,7 +33,7 @@ export default function LoginPage() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || 'Giriş başarısız');
+        throw new Error(error.detail || 'Login failed');
       }
 
       const data = await response.json();
@@ -41,11 +41,11 @@ export default function LoginPage() {
       // Store token in localStorage
       localStorage.setItem('access_token', data.access_token);
       
-      toast.success('Giriş başarılı!');
+      toast.success('Login successful!');
       router.push('/dashboard');
     } catch (error) {
       console.error('Login error:', error);
-      toast.error(error instanceof Error ? error.message : 'Giriş yapılırken bir hata oluştu');
+      toast.error(error instanceof Error ? error.message : 'An error occurred during login');
     } finally {
       setIsLoading(false);
     }
@@ -66,9 +66,9 @@ export default function LoginPage() {
 
         {/* Login Card */}
         <div className="bg-card border border-border rounded-2xl p-8 shadow-lg">
-          <h1 className="text-2xl font-bold text-center mb-2">Hoş Geldiniz</h1>
+          <h1 className="text-2xl font-bold text-center mb-2">Welcome</h1>
           <p className="text-muted-foreground text-center mb-6">
-            Hesabınıza giriş yapın
+            Sign in to your account
           </p>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -82,7 +82,7 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="ornek@email.com"
+                placeholder="example@email.com"
                 className="w-full px-4 py-3 bg-muted/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
                 disabled={isLoading}
               />
@@ -91,7 +91,7 @@ export default function LoginPage() {
             {/* Password */}
             <div className="space-y-2">
               <label htmlFor="password" className="text-sm font-medium">
-                Şifre
+                Password
               </label>
               <div className="relative">
                 <input
@@ -122,28 +122,28 @@ export default function LoginPage() {
               {isLoading ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  Giriş yapılıyor...
+                  Signing in...
                 </>
               ) : (
-                'Giriş Yap'
+                'Sign In'
               )}
             </button>
           </form>
 
           {/* Demo credentials */}
           <div className="mt-6 p-4 bg-muted/30 rounded-xl border border-border">
-            <p className="text-sm text-muted-foreground text-center mb-2">Demo Hesap:</p>
+            <p className="text-sm text-muted-foreground text-center mb-2">Demo Account:</p>
             <div className="text-sm text-center space-y-1">
               <p><span className="text-muted-foreground">Email:</span> <code className="bg-muted px-2 py-0.5 rounded">test@test.com</code></p>
-              <p><span className="text-muted-foreground">Şifre:</span> <code className="bg-muted px-2 py-0.5 rounded">Test1234</code></p>
+              <p><span className="text-muted-foreground">Password:</span> <code className="bg-muted px-2 py-0.5 rounded">Test1234</code></p>
             </div>
           </div>
 
           {/* Register Link */}
           <p className="text-center text-sm text-muted-foreground mt-6">
-            Hesabınız yok mu?{' '}
+            Don't have an account?{' '}
             <Link href="/register" className="text-primary-500 hover:underline font-medium">
-              Kayıt Olun
+              Sign Up
             </Link>
           </p>
         </div>

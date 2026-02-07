@@ -24,7 +24,7 @@ const mockActivities: ActivityItem[] = [
     id: '1',
     type: 'call_completed',
     title: 'Call Completed',
-    description: '+90 532 XXX XX 12 - Ödeme sözü alındı',
+    description: '+90 532 XXX XX 12 - Payment promise received',
     timestamp: '2 min ago',
   },
   {
@@ -38,7 +38,7 @@ const mockActivities: ActivityItem[] = [
     id: '3',
     type: 'campaign_started',
     title: 'Campaign Started',
-    description: 'Randevu Hatırlatma campaign activated',
+    description: 'Appointment Reminder campaign activated',
     timestamp: '15 min ago',
   },
   {
@@ -52,14 +52,14 @@ const mockActivities: ActivityItem[] = [
     id: '5',
     type: 'number_uploaded',
     title: 'Numbers Uploaded',
-    description: '500 numbers added to Anket campaign',
+    description: '500 numbers added to Survey campaign',
     timestamp: '1 hour ago',
   },
   {
     id: '6',
     type: 'campaign_completed',
     title: 'Campaign Completed',
-    description: 'Müşteri Memnuniyet Anketi finished',
+    description: 'Customer Satisfaction Survey finished',
     timestamp: '2 hours ago',
   },
 ];

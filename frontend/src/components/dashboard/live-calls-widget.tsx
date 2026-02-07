@@ -20,8 +20,8 @@ const mockCalls: LiveCall[] = [
   {
     id: '1',
     phoneNumber: '+90 532 XXX XX 12',
-    customerName: 'Ahmet Yılmaz',
-    campaignName: 'Ödeme Hatırlatma',
+    customerName: 'John Smith',
+    campaignName: 'Payment Reminder',
     duration: 154,
     status: 'talking',
     audioLevel: 0.7,
@@ -29,8 +29,8 @@ const mockCalls: LiveCall[] = [
   {
     id: '2',
     phoneNumber: '+90 535 XXX XX 45',
-    customerName: 'Ayşe Demir',
-    campaignName: 'Ödeme Hatırlatma',
+    customerName: 'Jane Doe',
+    campaignName: 'Payment Reminder',
     duration: 45,
     status: 'connected',
     audioLevel: 0.3,
@@ -38,8 +38,8 @@ const mockCalls: LiveCall[] = [
   {
     id: '3',
     phoneNumber: '+90 542 XXX XX 78',
-    customerName: 'Mehmet Kaya',
-    campaignName: 'Anket',
+    customerName: 'Michael Brown',
+    campaignName: 'Survey',
     duration: 12,
     status: 'ringing',
     audioLevel: 0,
@@ -47,8 +47,8 @@ const mockCalls: LiveCall[] = [
   {
     id: '4',
     phoneNumber: '+90 553 XXX XX 90',
-    customerName: 'Fatma Şahin',
-    campaignName: 'Ödeme Hatırlatma',
+    customerName: 'Emily Johnson',
+    campaignName: 'Payment Reminder',
     duration: 89,
     status: 'talking',
     audioLevel: 0.5,

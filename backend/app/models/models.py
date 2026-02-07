@@ -53,10 +53,86 @@ class CallOutcome(str, enum.Enum):
     CALLBACK_SCHEDULED = "callback_scheduled"
 
 
+class AppointmentStatus(str, enum.Enum):
+    """Appointment confirmation status"""
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    CANCELLED = "cancelled"
+    COMPLETED = "completed"
+    NO_SHOW = "no_show"
+
+
+class AppointmentType(str, enum.Enum):
+    """Types of appointments"""
+    CONSULTATION = "consultation"  # Consultation
+    SITE_VISIT = "site_visit"      # Site visit
+    INSTALLATION = "installation"  # Installation
+    MAINTENANCE = "maintenance"    # Maintenance
+    DEMO = "demo"                  # Demo/Presentation
+    OTHER = "other"
+
+
+class LeadStatus(str, enum.Enum):
+    """Lead/Prospect status"""
+    NEW = "new"                    # Newly captured
+    CONTACTED = "contacted"        # Contacted
+    QUALIFIED = "qualified"        # Qualified lead
+    CONVERTED = "converted"        # Converted to customer
+    LOST = "lost"                  # Lost
+
+
+class LeadInterestType(str, enum.Enum):
+    """Type of interest shown by lead"""
+    CALLBACK = "callback"                    # Requested callback
+    ADDRESS_COLLECTION = "address_collection"  # Shared address info
+    PURCHASE_INTENT = "purchase_intent"      # Purchase intent
+    DEMO_REQUEST = "demo_request"            # Requested demo
+    QUOTE_REQUEST = "quote_request"          # Requested quote
+    SUBSCRIPTION = "subscription"            # Subscription interest
+    INFORMATION = "information"              # Requested info
+    OTHER = "other"
+
+
+class CallTag(str, enum.Enum):
+    """Tags for call categorization"""
+    INTERESTED = "interested"              # Interested
+    NOT_INTERESTED = "not_interested"      # Not interested
+    CALLBACK_REQUESTED = "callback"        # Requested callback
+    HOT_LEAD = "hot_lead"                  # Hot lead
+    COLD_LEAD = "cold_lead"                # Cold lead
+    DO_NOT_CALL = "do_not_call"            # Do not call
+    WRONG_NUMBER = "wrong_number"          # Wrong number
+    VOICEMAIL = "voicemail"                # Voicemail
+    BUSY = "busy"                          # Busy
+    COMPLAINT = "complaint"                # Complaint
+
+
+class SurveyQuestionType(str, enum.Enum):
+    """Types of survey questions"""
+    YES_NO = "yes_no"                      # Yes/No question
+    MULTIPLE_CHOICE = "multiple_choice"    # Multiple choice (A, B, C, D)
+    RATING = "rating"                      # Rating/Score (1-5 or 1-10)
+    OPEN_ENDED = "open_ended"              # Open-ended (free text)
+
+
+class SurveyStatus(str, enum.Enum):
+    """Survey completion status"""
+    NOT_STARTED = "not_started"            # Not started
+    IN_PROGRESS = "in_progress"            # In progress
+    COMPLETED = "completed"                # Completed
+    ABANDONED = "abandoned"                # Abandoned
+
+
 class RealtimeModel(str, enum.Enum):
     """OpenAI Realtime API Model Options"""
     GPT_REALTIME = "gpt-realtime"           # Premium: $32/$64 per 1M tokens
     GPT_REALTIME_MINI = "gpt-realtime-mini"  # Economic: $10/$20 per 1M tokens
+
+
+class TranscriptModel(str, enum.Enum):
+    """User Transcript Model for speech-to-text"""
+    GPT_4O_TRANSCRIBE = "gpt-4o-transcribe"  # Newer, more accurate, higher latency
+    WHISPER_1 = "whisper-1"  # Lower latency, good accuracy
 
 
 class User(Base):
@@ -103,21 +179,36 @@ class Agent(Base):
     first_message_delay: Mapped[float] = mapped_column(Float, default=0.0)  # seconds
     
     # Inactivity messages (JSON array)
-    # Format: [{"duration": 30, "message": "Hala orada mısınız?", "end_behavior": "unspecified"}]
+    # Format: [{"duration": 30, "message": "Are you still there?", "end_behavior": "unspecified"}]
     inactivity_messages: Mapped[Optional[str]] = mapped_column(JSON, default=list)
     
     # Knowledge Base / RAG settings
     knowledge_base_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     knowledge_base_ids: Mapped[Optional[str]] = mapped_column(JSON, default=list)  # List of KB IDs
+    knowledge_base: Mapped[Optional[str]] = mapped_column(Text)  # Static knowledge base content (embedded in prompt)
+    web_sources: Mapped[Optional[str]] = mapped_column(JSON, default=list)  # Web URLs for dynamic info retrieval
     
-    # Prompt sections
-    prompt_role: Mapped[Optional[str]] = mapped_column(Text)
-    prompt_personality: Mapped[Optional[str]] = mapped_column(Text)
-    prompt_language: Mapped[Optional[str]] = mapped_column(Text)
-    prompt_flow: Mapped[Optional[str]] = mapped_column(Text)
+    # Prompt sections (ElevenLabs Enterprise Prompting Guide structure)
+    # 1. Personality - who the agent is, character traits
+    prompt_role: Mapped[Optional[str]] = mapped_column(Text)  # DB column kept as prompt_role for compat
+    # 2. Environment - context of the conversation
+    prompt_personality: Mapped[Optional[str]] = mapped_column(Text)  # DB column kept as prompt_personality for compat
+    # 3. Tone - how to speak (concise, clear, professional)
+    prompt_context: Mapped[Optional[str]] = mapped_column(Text)  # DB column kept as prompt_context for compat
+    # 4. Goal - what to accomplish, numbered workflow steps
+    prompt_pronunciations: Mapped[Optional[str]] = mapped_column(Text)  # DB column kept for compat
+    # 5. Guardrails - non-negotiable rules (models pay extra attention to this heading)
+    prompt_sample_phrases: Mapped[Optional[str]] = mapped_column(Text)  # DB column kept for compat
+    # 6. Tools - tool descriptions with when/how/error handling
     prompt_tools: Mapped[Optional[str]] = mapped_column(Text)
+    # 7. Character normalization - spoken vs written format rules
+    prompt_rules: Mapped[Optional[str]] = mapped_column(Text)  # DB column kept as prompt_rules for compat
+    # 8. Error handling - tool failure recovery instructions
+    prompt_flow: Mapped[Optional[str]] = mapped_column(Text)  # DB column kept as prompt_flow for compat
+    # 9. Safety & Escalation - fallback and handoff logic (legacy, merged into guardrails)
     prompt_safety: Mapped[Optional[str]] = mapped_column(Text)
-    prompt_rules: Mapped[Optional[str]] = mapped_column(Text)
+    # Legacy field
+    prompt_language: Mapped[Optional[str]] = mapped_column(Text)
     
     # Call settings
     max_duration: Mapped[int] = mapped_column(Integer, default=300)
@@ -133,13 +224,50 @@ class Agent(Base):
     
     # Advanced settings
     temperature: Mapped[float] = mapped_column(Float, default=0.7)
-    vad_threshold: Mapped[float] = mapped_column(Float, default=0.5)
-    turn_detection: Mapped[str] = mapped_column(String(50), default="server_vad")
+    vad_threshold: Mapped[float] = mapped_column(Float, default=0.3)  # Lower = more sensitive (0.0-1.0)
+    turn_detection: Mapped[str] = mapped_column(String(50), default="server_vad")  # server_vad, semantic_vad, disabled
+    vad_eagerness: Mapped[str] = mapped_column(String(20), default="auto")  # semantic_vad: low, medium, high, auto
+    silence_duration_ms: Mapped[int] = mapped_column(Integer, default=800)  # server_vad silence detection (ms)
+    prefix_padding_ms: Mapped[int] = mapped_column(Integer, default=500)  # server_vad prefix padding (ms)
+    idle_timeout_ms: Mapped[Optional[int]] = mapped_column(Integer, default=None)  # VAD idle timeout (ms), None = no timeout
+    interrupt_response: Mapped[bool] = mapped_column(Boolean, default=True)  # Allow user to interrupt model
+    create_response: Mapped[bool] = mapped_column(Boolean, default=True)  # Auto create response on speech end
+    noise_reduction: Mapped[bool] = mapped_column(Boolean, default=True)  # Input audio noise reduction
+    max_output_tokens: Mapped[int] = mapped_column(Integer, default=500)  # Max response tokens (0=infinite)
+    
+    # Transcript settings
+    transcript_model: Mapped[str] = mapped_column(String(50), default="gpt-4o-transcribe")  # gpt-4o-transcribe, whisper-1
     
     # Statistics
     total_calls: Mapped[int] = mapped_column(Integer, default=0)
     successful_calls: Mapped[int] = mapped_column(Integer, default=0)
     avg_duration: Mapped[float] = mapped_column(Float, default=0)
+    
+    # System flag (cannot be deleted)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    
+    # Smart Features
+    # JSON structure for lead capture, call tags, callback scheduling settings
+    # Example: {
+    #   "lead_capture": {"enabled": true, "triggers": ["interested", "callback"], "default_priority": 2},
+    #   "call_tags": {"enabled": true, "auto_tags": ["interested", "callback"]},
+    #   "callback": {"enabled": true, "default_delay_hours": 24}
+    # }
+    smart_features: Mapped[Optional[str]] = mapped_column(JSON, default=dict)
+    
+    # Survey Configuration
+    # JSON structure for survey questions with conditional branching
+    # Example: {
+    #   "enabled": true,
+    #   "questions": [
+    #     {"id": "q1", "type": "yes_no", "text": "Are you satisfied?", "next_on_yes": "q2a", "next_on_no": "q2b"},
+    #     {"id": "q2a", "type": "rating", "text": "Would you rate us 1-10?", "min": 1, "max": 10, "next": null},
+    #     {"id": "q2b", "type": "multiple_choice", "text": "What should we improve?", "options": ["Speed", "Price", "Quality"], "next": null}
+    #   ],
+    #   "start_question": "q1",
+    #   "completion_message": "Thank you for participating in our survey!"
+    # }
+    survey_config: Mapped[Optional[str]] = mapped_column(JSON, default=dict)
     
     # Metadata
     owner_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"))
@@ -160,14 +288,17 @@ class PromptTemplate(Base):
     description: Mapped[Optional[str]] = mapped_column(Text)
     category: Mapped[Optional[str]] = mapped_column(String(100))
     
-    # Template content
-    role: Mapped[Optional[str]] = mapped_column(Text)
-    personality: Mapped[Optional[str]] = mapped_column(Text)
-    language: Mapped[Optional[str]] = mapped_column(Text)
-    flow: Mapped[Optional[str]] = mapped_column(Text)
-    tools: Mapped[Optional[str]] = mapped_column(Text)
-    safety: Mapped[Optional[str]] = mapped_column(Text)
-    rules: Mapped[Optional[str]] = mapped_column(Text)
+    # Template content (OpenAI Realtime Prompting Guide structure)
+    role: Mapped[Optional[str]] = mapped_column(Text)  # Role & Objective
+    personality: Mapped[Optional[str]] = mapped_column(Text)  # Personality & Tone
+    context: Mapped[Optional[str]] = mapped_column(Text)  # Context (NEW)
+    pronunciations: Mapped[Optional[str]] = mapped_column(Text)  # Reference Pronunciations (NEW)
+    sample_phrases: Mapped[Optional[str]] = mapped_column(Text)  # Sample Phrases (NEW)
+    tools: Mapped[Optional[str]] = mapped_column(Text)  # Tools
+    rules: Mapped[Optional[str]] = mapped_column(Text)  # Instructions/Rules
+    flow: Mapped[Optional[str]] = mapped_column(Text)  # Conversation Flow
+    safety: Mapped[Optional[str]] = mapped_column(Text)  # Safety & Escalation
+    language: Mapped[Optional[str]] = mapped_column(Text)  # Legacy (merged into personality)
     
     # Metadata
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -312,6 +443,9 @@ class CallLog(Base):
     # Custom notes
     notes: Mapped[Optional[str]] = mapped_column(Text)
     call_metadata: Mapped[Optional[dict]] = mapped_column(JSON)  # renamed from metadata
+    
+    # Tags for categorization (JSON array of strings)
+    tags: Mapped[Optional[list]] = mapped_column(JSON, default=list)  # ["interested", "hot_lead", etc.]
     
     # Relationships
     campaign_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("campaigns.id"))
@@ -459,3 +593,200 @@ class KnowledgeDocument(Base):
     
     # Relationships
     knowledge_base: Mapped["KnowledgeBase"] = relationship("KnowledgeBase", back_populates="documents")
+
+
+class AgentDocument(Base):
+    """Documents uploaded directly to an Agent for RAG search"""
+    __tablename__ = "agent_documents"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    agent_id: Mapped[int] = mapped_column(Integer, ForeignKey("agents.id", ondelete="CASCADE"), index=True)
+    
+    # File info
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_type: Mapped[str] = mapped_column(String(50))  # pdf, txt, docx
+    file_size: Mapped[int] = mapped_column(Integer, default=0)  # bytes
+    file_path: Mapped[Optional[str]] = mapped_column(String(500))  # MinIO path
+    
+    # Processing status
+    status: Mapped[str] = mapped_column(String(50), default="pending")  # pending, processing, ready, error
+    error_message: Mapped[Optional[str]] = mapped_column(Text)
+    
+    # Stats
+    chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    token_count: Mapped[int] = mapped_column(Integer, default=0)
+    
+    # Metadata
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    agent: Mapped["Agent"] = relationship("Agent", backref="documents")
+    chunks: Mapped[List["DocumentChunk"]] = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
+
+
+class DocumentChunk(Base):
+    """Chunks with embeddings for semantic search"""
+    __tablename__ = "document_chunks"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    document_id: Mapped[int] = mapped_column(Integer, ForeignKey("agent_documents.id", ondelete="CASCADE"), index=True)
+    agent_id: Mapped[int] = mapped_column(Integer, ForeignKey("agents.id", ondelete="CASCADE"), index=True)  # Denormalized for fast lookup
+    
+    # Content
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    chunk_index: Mapped[int] = mapped_column(Integer, default=0)  # Order in document
+    
+    # Token count for this chunk
+    token_count: Mapped[int] = mapped_column(Integer, default=0)
+    
+    # Metadata
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    document: Mapped["AgentDocument"] = relationship("AgentDocument", back_populates="chunks")
+    
+    # Note: embedding column is added via migration as vector(1536) type
+    # SQLAlchemy doesn't have native pgvector support, we use raw SQL for vector operations
+
+
+class Appointment(Base):
+    """Appointments confirmed during AI calls"""
+    __tablename__ = "appointments"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    
+    # Relationship to call and agent
+    call_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("call_logs.id"), index=True)
+    agent_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("agents.id"), index=True)
+    campaign_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("campaigns.id"), index=True)
+    
+    # Customer info (from call or campaign contact)
+    customer_name: Mapped[Optional[str]] = mapped_column(String(255))
+    customer_phone: Mapped[Optional[str]] = mapped_column(String(50), index=True)
+    customer_email: Mapped[Optional[str]] = mapped_column(String(255))
+    customer_address: Mapped[Optional[str]] = mapped_column(Text)
+    
+    # Appointment details
+    appointment_type: Mapped[AppointmentType] = mapped_column(
+        SQLEnum(AppointmentType), 
+        default=AppointmentType.CONSULTATION
+    )
+    appointment_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    appointment_time: Mapped[Optional[str]] = mapped_column(String(20))  # e.g., "14:00", "09:00-10:00"
+    duration_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    
+    # Status
+    status: Mapped[AppointmentStatus] = mapped_column(
+        SQLEnum(AppointmentStatus),
+        default=AppointmentStatus.CONFIRMED
+    )
+    
+    # Additional info
+    notes: Mapped[Optional[str]] = mapped_column(Text)  # AI summary or customer notes
+    location: Mapped[Optional[str]] = mapped_column(String(500))  # Visit address if different
+    
+    # Metadata
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)  # When customer confirmed
+    
+    # Relationships
+    call: Mapped[Optional["CallLog"]] = relationship("CallLog", backref="appointments")
+    agent: Mapped[Optional["Agent"]] = relationship("Agent", backref="appointments")
+    campaign: Mapped[Optional["Campaign"]] = relationship("Campaign", backref="appointments")
+
+
+class Lead(Base):
+    """Leads/Prospects captured during AI calls"""
+    __tablename__ = "leads"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    
+    # Relationship to call and agent
+    call_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("call_logs.id"), index=True)
+    agent_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("agents.id"), index=True)
+    campaign_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("campaigns.id"), index=True)
+    
+    # Customer info
+    customer_name: Mapped[Optional[str]] = mapped_column(String(255))
+    customer_phone: Mapped[Optional[str]] = mapped_column(String(50), index=True)
+    customer_email: Mapped[Optional[str]] = mapped_column(String(255))
+    customer_address: Mapped[Optional[str]] = mapped_column(Text)
+    
+    # Lead details
+    interest_type: Mapped[LeadInterestType] = mapped_column(
+        SQLEnum(LeadInterestType), 
+        default=LeadInterestType.CALLBACK
+    )
+    status: Mapped[LeadStatus] = mapped_column(
+        SQLEnum(LeadStatus),
+        default=LeadStatus.NEW
+    )
+    
+    # Customer's exact words (what they said to trigger capture)
+    customer_statement: Mapped[Optional[str]] = mapped_column(Text)
+    
+    # Additional info
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    priority: Mapped[int] = mapped_column(Integer, default=1)  # 1=low, 2=medium, 3=high
+    source: Mapped[Optional[str]] = mapped_column(String(100))  # campaign name, inbound, etc.
+    
+    # Follow-up tracking
+    last_contacted_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    next_follow_up: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    follow_up_count: Mapped[int] = mapped_column(Integer, default=0)
+    
+    # Metadata
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    converted_at: Mapped[Optional[datetime]] = mapped_column(DateTime)  # When lead became customer
+    
+    # Relationships
+    call: Mapped[Optional["CallLog"]] = relationship("CallLog", backref="leads")
+    agent: Mapped[Optional["Agent"]] = relationship("Agent", backref="leads")
+    campaign: Mapped[Optional["Campaign"]] = relationship("Campaign", backref="leads")
+
+
+class SurveyResponse(Base):
+    """Survey responses collected during AI calls"""
+    __tablename__ = "survey_responses"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    
+    # Relationship to call and agent
+    call_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("call_logs.id"), index=True)
+    agent_id: Mapped[int] = mapped_column(Integer, ForeignKey("agents.id"), index=True)
+    campaign_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("campaigns.id"), index=True)
+    
+    # Respondent info
+    respondent_phone: Mapped[Optional[str]] = mapped_column(String(50), index=True)
+    respondent_name: Mapped[Optional[str]] = mapped_column(String(255))
+    
+    # Survey status
+    status: Mapped[SurveyStatus] = mapped_column(
+        SQLEnum(SurveyStatus),
+        default=SurveyStatus.NOT_STARTED
+    )
+    
+    # Answers stored as JSON
+    # Format: [{"question_id": "q1", "question_text": "...", "answer": "...", "answer_value": 5}]
+    answers: Mapped[Optional[str]] = mapped_column(JSON, default=list)
+    
+    # Progress tracking
+    current_question_id: Mapped[Optional[str]] = mapped_column(String(50))
+    questions_answered: Mapped[int] = mapped_column(Integer, default=0)
+    total_questions: Mapped[int] = mapped_column(Integer, default=0)
+    
+    # Completion metrics
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    duration_seconds: Mapped[Optional[int]] = mapped_column(Integer)  # Time to complete
+    
+    # Metadata
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    call: Mapped[Optional["CallLog"]] = relationship("CallLog", backref="survey_responses")
+    agent: Mapped["Agent"] = relationship("Agent", backref="survey_responses")
+    campaign: Mapped[Optional["Campaign"]] = relationship("Campaign", backref="survey_responses")

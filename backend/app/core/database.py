@@ -129,3 +129,29 @@ def get_health_status() -> dict:
         "redis": "connected" if redis_connected else "disconnected",
         "healthy": db_connected and redis_connected
     }
+
+
+# ============================================
+# Async Database Support (for services)
+# ============================================
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+
+# Convert sync URL to async URL (postgresql:// -> postgresql+asyncpg://)
+async_db_url = settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+
+# Create async engine
+async_engine = create_async_engine(
+    async_db_url,
+    pool_size=settings.DATABASE_POOL_SIZE,
+    max_overflow=10,
+    echo=settings.DEBUG,
+)
+
+# Create async session factory
+AsyncSessionLocal = async_sessionmaker(
+    bind=async_engine,
+    class_=AsyncSession,
+    autocommit=False,
+    autoflush=False,
+    expire_on_commit=False,
+)

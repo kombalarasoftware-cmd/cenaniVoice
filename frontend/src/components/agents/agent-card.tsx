@@ -14,8 +14,13 @@ import {
   Clock,
   CheckCircle,
   Phone,
+  Shield,
+  Loader2,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 interface Agent {
   id: string;
@@ -28,14 +33,19 @@ interface Agent {
   successRate: number;
   avgDuration: string;
   lastUsed: string;
+  isSystem?: boolean;
 }
 
 interface AgentCardProps {
   agent: Agent;
+  onRefresh?: () => void;
 }
 
-export function AgentCard({ agent }: AgentCardProps) {
+export function AgentCard({ agent, onRefresh }: AgentCardProps) {
   const [showMenu, setShowMenu] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
 
   const statusConfig = {
     active: {
@@ -53,6 +63,94 @@ export function AgentCard({ agent }: AgentCardProps) {
       color: 'text-warning-500',
       bg: 'bg-warning-500/10',
     },
+  };
+
+  const handleDuplicate = async () => {
+    setIsLoading(true);
+    setShowMenu(false);
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`http://localhost:8000/api/v1/agents/${agent.id}/duplicate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      });
+      
+      if (response.ok) {
+        toast.success('Agent duplicated');
+        onRefresh?.();
+      } else {
+        throw new Error('Duplication failed');
+      }
+    } catch (error) {
+      toast.error('Failed to duplicate agent');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const openDeleteDialog = () => {
+    setShowMenu(false);
+    setDeleteConfirmName('');
+    setShowDeleteDialog(true);
+  };
+
+  const handleDelete = async () => {
+    if (deleteConfirmName !== agent.name) {
+      toast.error('Agent name doesn\'t match');
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`http://localhost:8000/api/v1/agents/${agent.id}`, {
+        method: 'DELETE',
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      });
+      
+      if (response.ok) {
+        toast.success('Agent deleted');
+        setShowDeleteDialog(false);
+        onRefresh?.();
+      } else {
+        const data = await response.json();
+        throw new Error(data.detail || 'Delete failed');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete agent');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleStatusChange = async (action: 'activate' | 'deactivate') => {
+    setIsLoading(true);
+    setShowMenu(false);
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`http://localhost:8000/api/v1/agents/${agent.id}/${action}`, {
+        method: 'POST',
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      });
+      
+      if (response.ok) {
+        toast.success(action === 'activate' ? 'Agent activated' : 'Agent deactivated');
+        onRefresh?.();
+      } else {
+        throw new Error('Operation failed');
+      }
+    } catch (error) {
+      toast.error('Failed to change status');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -93,13 +191,12 @@ export function AgentCard({ agent }: AgentCardProps) {
         </div>
 
         {/* Menu */}
-        <div className="relative">
+        <div className="relative z-20">
           <button
-            onClick={() => setShowMenu(!showMenu)}
+            onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
             className={cn(
               'flex h-8 w-8 items-center justify-center rounded-lg',
-              'hover:bg-muted transition-colors',
-              'opacity-0 group-hover:opacity-100'
+              'hover:bg-muted transition-colors bg-card/80'
             )}
           >
             <MoreVertical className="h-4 w-4 text-muted-foreground" />
@@ -108,12 +205,12 @@ export function AgentCard({ agent }: AgentCardProps) {
           {showMenu && (
             <>
               <div
-                className="fixed inset-0 z-10"
+                className="fixed inset-0 z-30"
                 onClick={() => setShowMenu(false)}
               />
               <div
                 className={cn(
-                  'absolute right-0 top-full mt-1 w-48 z-20',
+                  'absolute right-0 top-full mt-1 w-48 z-40',
                   'rounded-xl border border-border bg-popover shadow-lg',
                   'animate-fade-in'
                 )}
@@ -124,28 +221,51 @@ export function AgentCard({ agent }: AgentCardProps) {
                     className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted text-sm"
                   >
                     <Edit className="h-4 w-4" />
-                    Edit Agent
+                    Edit
                   </Link>
-                  <button className="flex w-full items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted text-sm">
+                  <button 
+                    onClick={handleDuplicate}
+                    disabled={isLoading}
+                    className="flex w-full items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted text-sm disabled:opacity-50"
+                  >
                     <Copy className="h-4 w-4" />
                     Duplicate
                   </button>
                   {agent.status === 'active' ? (
-                    <button className="flex w-full items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted text-sm text-warning-500">
+                    <button 
+                      onClick={() => handleStatusChange('deactivate')}
+                      disabled={isLoading}
+                      className="flex w-full items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted text-sm text-warning-500 disabled:opacity-50"
+                    >
                       <Pause className="h-4 w-4" />
                       Deactivate
                     </button>
                   ) : (
-                    <button className="flex w-full items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted text-sm text-success-500">
+                    <button 
+                      onClick={() => handleStatusChange('activate')}
+                      disabled={isLoading}
+                      className="flex w-full items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted text-sm text-success-500 disabled:opacity-50"
+                    >
                       <Play className="h-4 w-4" />
                       Activate
                     </button>
                   )}
                   <div className="h-px bg-border my-1" />
-                  <button className="flex w-full items-center gap-2 px-3 py-2 rounded-lg hover:bg-error-500/10 text-sm text-error-500">
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </button>
+                  {agent.isSystem ? (
+                    <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+                      <Shield className="h-4 w-4" />
+                      System Agent
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={openDeleteDialog}
+                      disabled={isLoading}
+                      className="flex w-full items-center gap-2 px-3 py-2 rounded-lg hover:bg-error-500/10 text-sm text-error-500 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </button>
+                  )}
                 </div>
               </div>
             </>
@@ -190,7 +310,8 @@ export function AgentCard({ agent }: AgentCardProps) {
         className={cn(
           'absolute inset-0 flex items-center justify-center gap-3',
           'bg-background/80 backdrop-blur-sm rounded-2xl',
-          'opacity-0 group-hover:opacity-100 transition-opacity'
+          'opacity-0 group-hover:opacity-100 transition-opacity',
+          'pointer-events-none z-10'
         )}
       >
         <Link
@@ -198,7 +319,8 @@ export function AgentCard({ agent }: AgentCardProps) {
           className={cn(
             'flex items-center gap-2 px-4 py-2 rounded-lg',
             'bg-primary-500 hover:bg-primary-600 text-white',
-            'font-medium text-sm transition-colors'
+            'font-medium text-sm transition-colors',
+            'pointer-events-auto'
           )}
         >
           <Edit className="h-4 w-4" />
@@ -209,13 +331,87 @@ export function AgentCard({ agent }: AgentCardProps) {
           className={cn(
             'flex items-center gap-2 px-4 py-2 rounded-lg',
             'bg-secondary-500 hover:bg-secondary-600 text-white',
-            'font-medium text-sm transition-colors'
+            'font-medium text-sm transition-colors',
+            'pointer-events-auto'
           )}
         >
           <Play className="h-4 w-4" />
           Test
         </Link>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-fade-in">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-error-500/10">
+                  <AlertTriangle className="h-5 w-5 text-error-500" />
+                </div>
+                <h3 className="font-semibold text-lg">Delete Agent</h3>
+              </div>
+              <button
+                onClick={() => setShowDeleteDialog(false)}
+                className="p-1 rounded-lg hover:bg-muted transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 space-y-4">
+              <div className="p-3 bg-error-500/10 border border-error-500/20 rounded-lg">
+                <p className="text-sm text-error-500">
+                  <strong>Warning:</strong> This action cannot be undone. The agent and all associated data will be permanently deleted.
+                </p>
+              </div>
+
+              <p className="text-sm text-muted-foreground">
+                To delete <strong className="text-foreground">&quot;{agent.name}&quot;</strong>, type the agent name below:
+              </p>
+
+              <input
+                type="text"
+                value={deleteConfirmName}
+                onChange={(e) => setDeleteConfirmName(e.target.value)}
+                placeholder={agent.name}
+                className={cn(
+                  'w-full px-4 py-3 rounded-lg border bg-muted/30',
+                  'focus:outline-none focus:ring-2 focus:ring-error-500',
+                  deleteConfirmName === agent.name ? 'border-error-500' : 'border-border'
+                )}
+              />
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 p-4 border-t border-border">
+              <button
+                onClick={() => setShowDeleteDialog(false)}
+                className="px-4 py-2 rounded-lg border border-border hover:bg-muted transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleteConfirmName !== agent.name || isLoading}
+                className={cn(
+                  'px-4 py-2 rounded-lg font-medium transition-colors',
+                  'bg-error-500 text-white hover:bg-error-600',
+                  'disabled:opacity-50 disabled:cursor-not-allowed'
+                )}
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  'Permanently Delete'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

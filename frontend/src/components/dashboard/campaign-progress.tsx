@@ -16,7 +16,7 @@ interface Campaign {
 const mockCampaigns: Campaign[] = [
   {
     id: '1',
-    name: 'Ödeme Hatırlatma - Ocak',
+    name: 'Payment Reminder - January',
     progress: 67,
     status: 'running',
     totalCalls: 5000,
@@ -25,7 +25,7 @@ const mockCampaigns: Campaign[] = [
   },
   {
     id: '2',
-    name: 'Müşteri Memnuniyet Anketi',
+    name: 'Customer Satisfaction Survey',
     progress: 100,
     status: 'completed',
     totalCalls: 2000,
@@ -34,7 +34,7 @@ const mockCampaigns: Campaign[] = [
   },
   {
     id: '3',
-    name: 'Yeni Ürün Tanıtımı',
+    name: 'New Product Introduction',
     progress: 34,
     status: 'paused',
     totalCalls: 3000,
@@ -43,7 +43,7 @@ const mockCampaigns: Campaign[] = [
   },
   {
     id: '4',
-    name: 'Randevu Hatırlatma',
+    name: 'Appointment Reminder',
     progress: 89,
     status: 'running',
     totalCalls: 500,

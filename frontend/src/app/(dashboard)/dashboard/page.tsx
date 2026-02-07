@@ -6,6 +6,7 @@ import { LiveCallsWidget } from '@/components/dashboard/live-calls-widget';
 import { CampaignProgress } from '@/components/dashboard/campaign-progress';
 import { RecentActivity } from '@/components/dashboard/recent-activity';
 import { PerformanceChart } from '@/components/dashboard/performance-chart';
+import { CustomerProfileCard } from '@/components/dashboard/customer-profile-card';
 import {
   PhoneCall,
   CheckCircle,
@@ -74,8 +75,9 @@ export default function DashboardPage() {
             <LiveCallsWidget />
           </div>
 
-          {/* Recent Activity */}
-          <div>
+          {/* Customer Profile & Recent Activity */}
+          <div className="space-y-6">
+            <CustomerProfileCard />
             <RecentActivity />
           </div>
         </div>

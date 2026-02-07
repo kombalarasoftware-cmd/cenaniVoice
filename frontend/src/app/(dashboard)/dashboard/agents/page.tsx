@@ -32,6 +32,7 @@ interface Agent {
   successRate: number;
   avgDuration: string;
   lastUsed: string;
+  isSystem?: boolean;
 }
 
 export default function AgentsPage() {
@@ -68,6 +69,7 @@ export default function AgentsPage() {
           successRate: agent.total_calls > 0 ? (agent.successful_calls / agent.total_calls * 100) : 0,
           avgDuration: agent.avg_duration ? `${Math.floor(agent.avg_duration / 60)}:${(agent.avg_duration % 60).toString().padStart(2, '0')}` : '-',
           lastUsed: agent.updated_at ? formatLastUsed(agent.updated_at) : 'Henüz kullanılmadı',
+          isSystem: agent.is_system || false,
         }));
         setAgents(mappedAgents);
       }
@@ -165,7 +167,7 @@ export default function AgentsPage() {
 
             {/* Agent cards */}
             {filteredAgents.map((agent) => (
-              <AgentCard key={agent.id} agent={agent} />
+              <AgentCard key={agent.id} agent={agent} onRefresh={fetchAgents} />
             ))}
           </div>
         )}

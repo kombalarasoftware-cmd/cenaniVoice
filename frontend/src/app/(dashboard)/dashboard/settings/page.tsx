@@ -152,14 +152,14 @@ export default function SettingsPage() {
                     <div>
                       <label className="block text-sm font-medium mb-2">Default Model</label>
                       <select
-                        defaultValue="gpt-4o-realtime-preview"
+                        defaultValue="gpt-realtime-mini"
                         className={cn(
                           'w-full px-4 py-2.5 rounded-lg bg-background border border-border',
                           'focus:border-primary-500 focus:outline-none transition-colors'
                         )}
                       >
-                        <option value="gpt-4o-realtime-preview">gpt-4o-realtime-preview</option>
-                        <option value="gpt-4o-realtime-preview-2024-12-17">gpt-4o-realtime-preview-2024-12-17</option>
+                        <option value="gpt-realtime-mini">gpt-realtime-mini</option>
+                        <option value="gpt-realtime">gpt-realtime</option>
                       </select>
                     </div>
                   </div>

@@ -37,132 +37,108 @@ interface PromptSection {
 const initialSections: PromptSection[] = [
   {
     id: 'role',
-    title: 'Role & Objective',
-    description: 'Define who the AI is and its main purpose',
+    title: 'Personality',
+    description: 'Define who the agent is and its character traits',
     icon: BookOpen,
-    placeholder: `You are a professional customer service representative for [Company Name].
+    placeholder: `You are a customer representative for [Company Name].
 
-Your primary objective is to:
-- Call customers to remind them about pending payments
-- Provide clear and accurate payment information
-- Assist with payment processing when requested
-- Schedule callbacks if the customer is unavailable`,
+Character traits:
+- Professional and trustworthy
+- Friendly but maintains formal boundaries
+- Solution-oriented and patient`,
     value: '',
     expanded: true,
   },
   {
     id: 'personality',
-    title: 'Personality & Tone',
-    description: 'Set the communication style and emotional tone',
-    icon: MessageSquare,
-    placeholder: `Tone: Professional yet friendly and understanding
-Communication style: Clear, concise, and empathetic
-
-Key personality traits:
-- Patient and understanding of customer concerns
-- Professional but not robotic
-- Solution-oriented and helpful
-- Respectful of customer's time
-
-Always address the customer by name when provided.`,
+    title: 'Environment',
+    description: 'Define the context and environment conditions of the conversation',
+    icon: Settings2,
+    placeholder: `- Phone customer conversation
+- Customer is being called for the first time
+- Product/service introduction and registration will be done
+- Customer's basic information may be available in the system`,
     value: '',
     expanded: false,
   },
   {
     id: 'language',
-    title: 'Language & Localization',
-    description: 'Configure language preferences and cultural adaptations',
-    icon: Settings2,
-    placeholder: `Primary language: Turkish (Türkçe)
-Fallback language: English
-
-Cultural considerations:
-- Use formal "siz" form unless customer prefers informal
-- Respect local business hours and holidays
-- Be aware of cultural sensitivities around financial topics`,
+    title: 'Tone',
+    description: 'Set conversation tone, response length and language preferences',
+    icon: MessageSquare,
+    placeholder: `- Use a warm, professional and concise tone
+- Keep each response to 1-2 sentences. This step is important.
+- Don't repeat the same confirmation phrases, vary them
+- Speak in the configured language
+- Address the customer formally`,
     value: '',
     expanded: false,
   },
   {
     id: 'flow',
-    title: 'Conversation Flow',
-    description: 'Define the structure and stages of the conversation',
+    title: 'Goal',
+    description: 'Define the workflow and goals with numbered steps',
     icon: Wand2,
-    placeholder: `Opening:
-1. Greet the customer warmly
-2. Introduce yourself and the company
-3. State the purpose of the call briefly
-
-Main conversation:
-1. Verify customer identity (last 4 digits of ID or phone)
-2. Provide payment details (amount, due date)
-3. Ask if they can make the payment today
-4. If yes: Guide through payment options
-5. If no: Understand the reason and offer solutions
-
-Closing:
-1. Summarize any agreements or next steps
-2. Thank the customer for their time
-3. Provide contact information for follow-up`,
-    value: '',
-    expanded: false,
-  },
-  {
-    id: 'tools',
-    title: 'Tools & Functions',
-    description: 'Define available actions the AI can take',
-    icon: Wrench,
-    placeholder: `Available functions:
-1. get_customer_info(phone_number) - Retrieve customer details
-2. get_payment_status(customer_id) - Check payment status
-3. create_payment_promise(customer_id, date, amount) - Record payment promise
-4. schedule_callback(customer_id, datetime, notes) - Schedule follow-up call
-5. transfer_to_human(reason) - Transfer to human agent
-
-Use these functions when:
-- Customer needs specific account information
-- Customer agrees to make a payment
-- Customer requests to speak with a human`,
+    placeholder: `1. Greet the customer and introduce yourself
+2. Briefly explain the purpose of the call
+3. Ask questions to understand the customer's needs. This step is important.
+4. Present the appropriate solution and explain details
+5. Answer the customer's questions
+6. Determine and confirm next steps
+7. Thank and close the conversation`,
     value: '',
     expanded: false,
   },
   {
     id: 'safety',
-    title: 'Safety & Escalation',
-    description: 'Set boundaries and escalation rules',
+    title: 'Guardrails',
+    description: 'Strict rules and restrictions (the model pays extra attention to this section)',
     icon: Shield,
-    placeholder: `Escalate to human agent when:
-- Customer explicitly requests to speak with a human
-- Customer is angry or upset after 2 de-escalation attempts
-- Customer has complex account issues requiring investigation
-- Customer disputes the debt validity
+    placeholder: `- Never provide information on out-of-scope topics. This step is important.
+- Do not share customer information with third parties
+- Do not make negative comments about competitors
+- Do not present uncertain information as fact
+- When audio is unclear: "Sorry, I didn't quite catch that. Could you repeat?"
+- If customer is aggressive or threatening, transfer to human`,
+    value: '',
+    expanded: false,
+  },
+  {
+    id: 'tools',
+    title: 'Tools',
+    description: 'Define available tools in When/Parameters/Usage/Error handling format',
+    icon: Wrench,
+    placeholder: `## save_customer_info
+**When to use:** When customer information needs to be saved
+**Parameters:** name (full name), phone (phone number), email (email address)
+**Usage:**
+1. Get the information from the customer
+2. Repeat and verify the information
+3. Call the tool
+**Error handling:** If save fails, ask customer for the information again
 
-Never:
-- Threaten or use aggressive language
-- Provide legal advice
-- Make promises outside your authority
-- Share information with unauthorized persons
-- Continue if customer refuses to speak`,
+## transfer_to_human
+**When to use:** When customer requests a human agent or issue can't be resolved after 2 attempts
+**Parameters:** reason (transfer reason)
+**Usage:**
+1. Inform the customer about the transfer
+2. Call the tool
+**Error handling:** If transfer fails, ask the customer to wait`,
     value: '',
     expanded: false,
   },
   {
     id: 'rules',
-    title: 'Rules & Constraints',
-    description: 'Define specific rules and limitations',
+    title: 'Character Normalization',
+    description: 'Define voice-to-text and text-to-voice format conversion rules',
     icon: AlertCircle,
-    placeholder: `Strict rules:
-1. Always verify customer identity before discussing account details
-2. Maximum call duration: 5 minutes
-3. Maximum retry attempts: 3 per day
-4. Do not call before 9 AM or after 8 PM local time
-5. Record all payment promises in the system
-6. Never share full account numbers verbally
-
-Compliance requirements:
-- Follow KVKK data protection regulations
-- Announce that the call may be recorded
-- Respect customer's right to opt-out`,
+    placeholder: `Voice ↔ Written format rules:
+- Email: "a-t" → "@", "dot" → "."
+  Example: "john at gmail dot com" → "john@gmail.com"
+- Phone: "five five four" → "554"
+  Example: "five zero five three twenty" → "505320"
+- Currency: "one thousand two hundred fifty dollars" → "$1,250"
+- Dates: "January fifteenth" → "January 15"`,
     value: '',
     expanded: false,
   },

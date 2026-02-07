@@ -29,7 +29,7 @@ const mockConversation: Message[] = [
   {
     id: '1',
     role: 'assistant',
-    content: 'Merhaba, ben VoiceAI asistanınız. Size nasıl yardımcı olabilirim?',
+    content: 'Hello, I\'m your VoiceAI assistant. How can I help you?',
     timestamp: new Date(),
   },
 ];
@@ -71,7 +71,7 @@ export function AgentTestPanel() {
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Bu bir test yanıtıdır. Gerçek entegrasyonda OpenAI Realtime API kullanılacaktır.',
+        content: 'This is a test response. In real integration, OpenAI Realtime API will be used.',
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, aiMessage]);

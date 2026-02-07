@@ -1,18 +1,10 @@
--- VoiceAI Platform Database Initialization
--- This script runs automatically when PostgreSQL container starts
+-- Appointments table migration
+-- Run this script if the database already exists
 
--- Create database if not exists (already created by POSTGRES_DB env var)
--- Just ensure extensions are enabled
-
--- Enable required extensions
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+-- Enable vector extension if not exists
 CREATE EXTENSION IF NOT EXISTS "vector";
 
--- Grant privileges
-GRANT ALL PRIVILEGES ON DATABASE voiceai TO postgres;
-
--- Create appointments table if not exists
+-- Create appointments table
 CREATE TABLE IF NOT EXISTS appointments (
     id SERIAL PRIMARY KEY,
     call_id INTEGER REFERENCES call_logs(id) ON DELETE SET NULL,
@@ -34,14 +26,14 @@ CREATE TABLE IF NOT EXISTS appointments (
     confirmed_at TIMESTAMP WITH TIME ZONE
 );
 
--- Create index on appointments
+-- Create indexes
 CREATE INDEX IF NOT EXISTS idx_appointments_status ON appointments(status);
 CREATE INDEX IF NOT EXISTS idx_appointments_date ON appointments(appointment_date);
 CREATE INDEX IF NOT EXISTS idx_appointments_agent ON appointments(agent_id);
 CREATE INDEX IF NOT EXISTS idx_appointments_campaign ON appointments(campaign_id);
 
--- Log completion
+-- Verify
 DO $$
 BEGIN
-    RAISE NOTICE 'VoiceAI database initialized successfully!';
+    RAISE NOTICE 'Appointments table created successfully!';
 END $$;

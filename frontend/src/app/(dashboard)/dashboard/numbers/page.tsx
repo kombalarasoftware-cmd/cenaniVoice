@@ -34,7 +34,7 @@ interface NumberList {
 const mockLists: NumberList[] = [
   {
     id: '1',
-    name: 'Ödeme Hatırlatma - Şubat',
+    name: 'Payment Reminder - February',
     fileName: 'odeme_subat_2024.xlsx',
     totalNumbers: 5234,
     validNumbers: 5000,
@@ -45,7 +45,7 @@ const mockLists: NumberList[] = [
   },
   {
     id: '2',
-    name: 'Müşteri Anketi Q1',
+    name: 'Customer Survey Q1',
     fileName: 'musteri_anketi_q1.xlsx',
     totalNumbers: 2150,
     validNumbers: 2000,
@@ -56,7 +56,7 @@ const mockLists: NumberList[] = [
   },
   {
     id: '3',
-    name: 'VIP Müşteriler',
+    name: 'VIP Customers',
     fileName: 'vip_customers.csv',
     totalNumbers: 500,
     validNumbers: 498,
@@ -67,7 +67,7 @@ const mockLists: NumberList[] = [
   },
   {
     id: '4',
-    name: 'Yeni Kampanya Listesi',
+    name: 'New Campaign List',
     fileName: 'new_campaign_numbers.xlsx',
     totalNumbers: 3000,
     validNumbers: 0,
@@ -184,13 +184,13 @@ export default function NumbersPage() {
               <tbody className="text-muted-foreground">
                 <tr>
                   <td className="py-2 px-3">+905321234567</td>
-                  <td className="py-2 px-3">Ahmet Yılmaz</td>
+                  <td className="py-2 px-3">John Smith</td>
                   <td className="py-2 px-3">1500 TL</td>
                   <td className="py-2 px-3">15/02/2024</td>
                 </tr>
                 <tr>
                   <td className="py-2 px-3">+905351234567</td>
-                  <td className="py-2 px-3">Ayşe Demir</td>
+                  <td className="py-2 px-3">Jane Doe</td>
                   <td className="py-2 px-3">2300 TL</td>
                   <td className="py-2 px-3">20/02/2024</td>
                 </tr>

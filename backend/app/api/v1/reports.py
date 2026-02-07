@@ -1,7 +1,7 @@
-from typing import Optional
-from fastapi import APIRouter, Depends
+from typing import Optional, List
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, case, Integer
+from sqlalchemy import func, case, Integer, cast, String as SAString, text
 from datetime import datetime, timedelta
 
 from app.core.database import get_db
@@ -320,3 +320,458 @@ async def compare_model_costs(
     from app.services.openai_realtime import compare_model_costs as compare_costs
     
     return compare_costs(duration_minutes * 60)
+
+
+# ===================================================================
+# AI Feature Reports (Sentiment, Quality Score, Tags, Callbacks, etc.)
+# ===================================================================
+
+@router.get("/ai/overview")
+async def get_ai_features_overview(
+    days: int = 30,
+    campaign_id: Optional[int] = None,
+    agent_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    AI Features Overview - Tüm yeni özelliklerin özet raporu.
+    Sentiment dağılımı, ortalama quality score, tag istatistikleri,
+    callback sayıları, action items.
+    """
+    start_date = datetime.utcnow() - timedelta(days=days)
+    
+    query = db.query(CallLog).join(CallLog.campaign).filter(
+        CallLog.campaign.has(owner_id=current_user.id),
+        CallLog.created_at >= start_date
+    )
+    if campaign_id:
+        query = query.filter(CallLog.campaign_id == campaign_id)
+    if agent_id:
+        query = query.filter(CallLog.agent_id == agent_id)
+    
+    calls = query.all()
+    total = len(calls)
+    
+    if total == 0:
+        return {
+            "period_days": days,
+            "total_calls": 0,
+            "sentiment": {"positive": 0, "neutral": 0, "negative": 0, "unset": 0},
+            "quality_score": {"average": 0, "min": 0, "max": 0, "distribution": {}},
+            "tags": {"total_unique": 0, "top_tags": []},
+            "callbacks": {"total": 0, "pending": 0, "completed": 0},
+            "summaries": {"with_summary": 0, "without_summary": 0},
+            "satisfaction": {"positive": 0, "neutral": 0, "negative": 0},
+        }
+    
+    # --- Sentiment Distribution ---
+    sentiment_counts = {"positive": 0, "neutral": 0, "negative": 0, "unset": 0}
+    for c in calls:
+        s = c.sentiment or "unset"
+        sentiment_counts[s] = sentiment_counts.get(s, 0) + 1
+    
+    # --- Quality Score Stats ---
+    quality_scores = []
+    for c in calls:
+        if c.call_metadata and isinstance(c.call_metadata, dict):
+            qs = c.call_metadata.get("quality_score")
+            if qs is not None:
+                quality_scores.append(qs)
+    
+    # Quality score distribution (0-20, 21-40, 41-60, 61-80, 81-100)
+    qs_dist = {"0-20": 0, "21-40": 0, "41-60": 0, "61-80": 0, "81-100": 0}
+    for qs in quality_scores:
+        if qs <= 20: qs_dist["0-20"] += 1
+        elif qs <= 40: qs_dist["21-40"] += 1
+        elif qs <= 60: qs_dist["41-60"] += 1
+        elif qs <= 80: qs_dist["61-80"] += 1
+        else: qs_dist["81-100"] += 1
+    
+    # --- Tags Stats ---
+    tag_counter = {}
+    for c in calls:
+        if c.tags and isinstance(c.tags, list):
+            for tag in c.tags:
+                tag_counter[tag] = tag_counter.get(tag, 0) + 1
+    top_tags = sorted(tag_counter.items(), key=lambda x: x[1], reverse=True)[:15]
+    
+    # --- Callback Stats ---
+    total_callbacks = sum(1 for c in calls if c.callback_scheduled is not None)
+    pending_callbacks = sum(
+        1 for c in calls 
+        if c.callback_scheduled and c.callback_scheduled > datetime.utcnow()
+    )
+    completed_callbacks = total_callbacks - pending_callbacks
+    
+    # --- Summary Stats ---
+    with_summary = sum(1 for c in calls if c.summary and len(c.summary.strip()) > 0)
+    
+    # --- Customer Satisfaction ---
+    satisfaction_counts = {"positive": 0, "neutral": 0, "negative": 0}
+    for c in calls:
+        if c.call_metadata and isinstance(c.call_metadata, dict):
+            sat = c.call_metadata.get("customer_satisfaction", "")
+            if sat in satisfaction_counts:
+                satisfaction_counts[sat] += 1
+    
+    return {
+        "period_days": days,
+        "total_calls": total,
+        "sentiment": sentiment_counts,
+        "quality_score": {
+            "average": round(sum(quality_scores) / len(quality_scores), 1) if quality_scores else 0,
+            "min": min(quality_scores) if quality_scores else 0,
+            "max": max(quality_scores) if quality_scores else 0,
+            "total_scored": len(quality_scores),
+            "distribution": qs_dist,
+        },
+        "tags": {
+            "total_unique": len(tag_counter),
+            "total_tagged_calls": sum(1 for c in calls if c.tags and len(c.tags) > 0),
+            "top_tags": [{"tag": t, "count": cnt} for t, cnt in top_tags],
+        },
+        "callbacks": {
+            "total": total_callbacks,
+            "pending": pending_callbacks,
+            "completed": completed_callbacks,
+        },
+        "summaries": {
+            "with_summary": with_summary,
+            "without_summary": total - with_summary,
+            "coverage_percent": round(with_summary / total * 100, 1) if total > 0 else 0,
+        },
+        "satisfaction": satisfaction_counts,
+    }
+
+
+@router.get("/ai/sentiment-trend")
+async def get_sentiment_trend(
+    days: int = 30,
+    campaign_id: Optional[int] = None,
+    agent_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Sentiment Trend - Günlere göre sentiment dağılımı.
+    Frontend'de line/bar chart olarak gösterilir.
+    """
+    start_date = datetime.utcnow() - timedelta(days=days)
+    
+    query = db.query(CallLog).join(CallLog.campaign).filter(
+        CallLog.campaign.has(owner_id=current_user.id),
+        CallLog.created_at >= start_date
+    )
+    if campaign_id:
+        query = query.filter(CallLog.campaign_id == campaign_id)
+    if agent_id:
+        query = query.filter(CallLog.agent_id == agent_id)
+    
+    calls = query.order_by(CallLog.created_at).all()
+    
+    # Group by date
+    daily = {}
+    for c in calls:
+        day = c.created_at.strftime("%Y-%m-%d")
+        if day not in daily:
+            daily[day] = {"date": day, "positive": 0, "neutral": 0, "negative": 0, "total": 0}
+        daily[day]["total"] += 1
+        s = c.sentiment or "neutral"
+        if s in daily[day]:
+            daily[day][s] += 1
+    
+    return sorted(daily.values(), key=lambda x: x["date"])
+
+
+@router.get("/ai/quality-trend")
+async def get_quality_score_trend(
+    days: int = 30,
+    campaign_id: Optional[int] = None,
+    agent_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Quality Score Trend - Günlere göre ortalama quality score.
+    """
+    start_date = datetime.utcnow() - timedelta(days=days)
+    
+    query = db.query(CallLog).join(CallLog.campaign).filter(
+        CallLog.campaign.has(owner_id=current_user.id),
+        CallLog.created_at >= start_date
+    )
+    if campaign_id:
+        query = query.filter(CallLog.campaign_id == campaign_id)
+    if agent_id:
+        query = query.filter(CallLog.agent_id == agent_id)
+    
+    calls = query.order_by(CallLog.created_at).all()
+    
+    daily = {}
+    for c in calls:
+        day = c.created_at.strftime("%Y-%m-%d")
+        if day not in daily:
+            daily[day] = {"date": day, "scores": [], "count": 0}
+        daily[day]["count"] += 1
+        if c.call_metadata and isinstance(c.call_metadata, dict):
+            qs = c.call_metadata.get("quality_score")
+            if qs is not None:
+                daily[day]["scores"].append(qs)
+    
+    result = []
+    for day, data in sorted(daily.items()):
+        scores = data["scores"]
+        result.append({
+            "date": data["date"],
+            "avg_score": round(sum(scores) / len(scores), 1) if scores else 0,
+            "min_score": min(scores) if scores else 0,
+            "max_score": max(scores) if scores else 0,
+            "total_calls": data["count"],
+            "scored_calls": len(scores),
+        })
+    
+    return result
+
+
+@router.get("/ai/tags-distribution")
+async def get_tags_distribution(
+    days: int = 30,
+    campaign_id: Optional[int] = None,
+    agent_id: Optional[int] = None,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Tags Distribution - En çok kullanılan etiketler ve dağılımı.
+    """
+    start_date = datetime.utcnow() - timedelta(days=days)
+    
+    query = db.query(CallLog).join(CallLog.campaign).filter(
+        CallLog.campaign.has(owner_id=current_user.id),
+        CallLog.created_at >= start_date
+    )
+    if campaign_id:
+        query = query.filter(CallLog.campaign_id == campaign_id)
+    if agent_id:
+        query = query.filter(CallLog.agent_id == agent_id)
+    
+    calls = query.all()
+    
+    tag_counter = {}
+    tag_by_sentiment = {}  # tag -> {positive: X, neutral: Y, negative: Z}
+    
+    for c in calls:
+        if c.tags and isinstance(c.tags, list):
+            for tag in c.tags:
+                tag_counter[tag] = tag_counter.get(tag, 0) + 1
+                if tag not in tag_by_sentiment:
+                    tag_by_sentiment[tag] = {"positive": 0, "neutral": 0, "negative": 0}
+                s = c.sentiment or "neutral"
+                if s in tag_by_sentiment[tag]:
+                    tag_by_sentiment[tag][s] += 1
+    
+    sorted_tags = sorted(tag_counter.items(), key=lambda x: x[1], reverse=True)[:limit]
+    
+    return {
+        "total_unique_tags": len(tag_counter),
+        "tags": [
+            {
+                "tag": tag,
+                "count": cnt,
+                "percentage": round(cnt / len(calls) * 100, 1) if calls else 0,
+                "sentiment_breakdown": tag_by_sentiment.get(tag, {}),
+            }
+            for tag, cnt in sorted_tags
+        ]
+    }
+
+
+@router.get("/ai/callbacks")
+async def get_callback_report(
+    days: int = 30,
+    status: Optional[str] = Query(None, description="Filter: pending, completed, overdue, all"),
+    campaign_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Callback Report - Planlanan geri aramaların detaylı raporu.
+    """
+    start_date = datetime.utcnow() - timedelta(days=days)
+    now = datetime.utcnow()
+    
+    query = db.query(CallLog).join(CallLog.campaign).filter(
+        CallLog.campaign.has(owner_id=current_user.id),
+        CallLog.created_at >= start_date,
+        CallLog.callback_scheduled.isnot(None)
+    )
+    if campaign_id:
+        query = query.filter(CallLog.campaign_id == campaign_id)
+    
+    calls = query.order_by(CallLog.callback_scheduled).all()
+    
+    callbacks = []
+    stats = {"pending": 0, "completed": 0, "overdue": 0}
+    
+    for c in calls:
+        cb_status = "pending"
+        if c.callback_scheduled < now:
+            # Check if a follow-up call was made
+            follow_up = db.query(CallLog).filter(
+                CallLog.to_number == c.to_number,
+                CallLog.created_at > c.callback_scheduled,
+                CallLog.created_at >= start_date
+            ).first()
+            cb_status = "completed" if follow_up else "overdue"
+        
+        stats[cb_status] += 1
+        
+        # Filter by status if requested
+        if status and status != "all" and cb_status != status:
+            continue
+        
+        reason = ""
+        notes = ""
+        if c.call_metadata and isinstance(c.call_metadata, dict):
+            reason = c.call_metadata.get("callback_reason", "")
+            notes = c.call_metadata.get("callback_notes", "")
+        
+        callbacks.append({
+            "call_id": c.id,
+            "call_sid": c.call_sid,
+            "customer_name": c.customer_name or "",
+            "phone_number": c.to_number or c.from_number or "",
+            "scheduled_at": c.callback_scheduled.isoformat() if c.callback_scheduled else None,
+            "status": cb_status,
+            "reason": reason,
+            "notes": notes,
+            "original_sentiment": c.sentiment,
+            "campaign_name": c.campaign.name if c.campaign else "",
+        })
+    
+    return {
+        "stats": stats,
+        "total": len(callbacks),
+        "callbacks": callbacks,
+    }
+
+
+@router.get("/ai/call-details/{call_id}")
+async def get_call_ai_details(
+    call_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Single Call AI Details - Tek bir çağrının tüm AI analiz detayları.
+    Quality score, sentiment, tags, summary, action items vs.
+    """
+    call = db.query(CallLog).join(CallLog.campaign).filter(
+        CallLog.id == call_id,
+        CallLog.campaign.has(owner_id=current_user.id),
+    ).first()
+    
+    if not call:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Call not found")
+    
+    metadata = call.call_metadata or {}
+    
+    return {
+        "call_id": call.id,
+        "call_sid": call.call_sid,
+        "customer_name": call.customer_name,
+        "phone_number": call.to_number or call.from_number,
+        "duration": call.duration,
+        "status": call.status.value if call.status else None,
+        "outcome": call.outcome.value if call.outcome else None,
+        "created_at": call.created_at.isoformat(),
+        "campaign_name": call.campaign.name if call.campaign else "",
+        "agent_name": call.agent.name if call.agent else "",
+        # AI Features
+        "sentiment": call.sentiment,
+        "sentiment_reason": metadata.get("sentiment_reason", ""),
+        "summary": call.summary,
+        "tags": call.tags or [],
+        "quality_score": metadata.get("quality_score", 0),
+        "customer_satisfaction": metadata.get("customer_satisfaction", ""),
+        "action_items": metadata.get("action_items", []),
+        "callback_scheduled": call.callback_scheduled.isoformat() if call.callback_scheduled else None,
+        "callback_reason": metadata.get("callback_reason", ""),
+        "callback_notes": metadata.get("callback_notes", ""),
+        # Technical
+        "model_used": metadata.get("model_used", call.model_used),
+        "transcript_model": metadata.get("transcript_model", ""),
+        "tool_calls_count": metadata.get("tool_calls_count", 0),
+        "errors_count": metadata.get("errors_count", 0),
+        "customer_data": metadata.get("customer_data", {}),
+        # Cost
+        "input_tokens": call.input_tokens,
+        "output_tokens": call.output_tokens,
+        "estimated_cost": call.estimated_cost,
+        "transcription": call.transcription,
+    }
+
+
+@router.get("/ai/agent-comparison")
+async def get_agent_ai_comparison(
+    days: int = 30,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Agent Comparison - Agent'lar arası AI metrik karşılaştırması.
+    Hangi agent daha iyi sentiment, quality score, summary coverage alıyor?
+    """
+    start_date = datetime.utcnow() - timedelta(days=days)
+    
+    agents = db.query(Agent).filter(Agent.owner_id == current_user.id).all()
+    
+    results = []
+    for agent in agents:
+        calls = db.query(CallLog).filter(
+            CallLog.agent_id == agent.id,
+            CallLog.created_at >= start_date
+        ).all()
+        
+        total = len(calls)
+        if total == 0:
+            continue
+        
+        # Sentiment
+        positive = sum(1 for c in calls if c.sentiment == "positive")
+        negative = sum(1 for c in calls if c.sentiment == "negative")
+        
+        # Quality scores
+        q_scores = []
+        for c in calls:
+            if c.call_metadata and isinstance(c.call_metadata, dict):
+                qs = c.call_metadata.get("quality_score")
+                if qs is not None:
+                    q_scores.append(qs)
+        
+        # Summary coverage
+        with_summary = sum(1 for c in calls if c.summary and len(c.summary.strip()) > 0)
+        
+        # Callbacks
+        callbacks = sum(1 for c in calls if c.callback_scheduled is not None)
+        
+        # Average duration
+        durations = [c.duration for c in calls if c.duration and c.duration > 0]
+        avg_dur = sum(durations) / len(durations) if durations else 0
+        
+        results.append({
+            "agent_id": agent.id,
+            "agent_name": agent.name,
+            "total_calls": total,
+            "avg_quality_score": round(sum(q_scores) / len(q_scores), 1) if q_scores else 0,
+            "positive_sentiment_rate": round(positive / total * 100, 1),
+            "negative_sentiment_rate": round(negative / total * 100, 1),
+            "summary_coverage": round(with_summary / total * 100, 1),
+            "callback_rate": round(callbacks / total * 100, 1),
+            "avg_duration": round(avg_dur, 0),
+        })
+    
+    return sorted(results, key=lambda x: x["avg_quality_score"], reverse=True)

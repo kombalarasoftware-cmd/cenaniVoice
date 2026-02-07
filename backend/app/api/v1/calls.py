@@ -9,16 +9,29 @@ from datetime import datetime
 import json
 import asyncio
 import logging
+import redis
+import os
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.api.v1.auth import get_current_user
+from app.api.v1.auth import get_current_user, get_current_user_optional
 from app.models import CallLog, User, Campaign
-from app.models.models import CallStatus
+from app.models.models import CallStatus, CallTag
 from app.schemas import CallLogResponse
+from app.schemas.schemas import CallTagsUpdate, CallTagsResponse
 
 router = APIRouter(prefix="/calls", tags=["Calls"])
 logger = logging.getLogger(__name__)
+
+# Redis client for transcript retrieval
+REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+try:
+    redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+    redis_client.ping()
+    logger.info("Redis connected for transcript retrieval")
+except Exception as e:
+    logger.warning(f"Redis not available for transcript: {e}")
+    redis_client = None
 
 
 class ConnectionManager:
@@ -377,3 +390,189 @@ async def broadcast_call_update(call_data: dict):
         "type": "call_update",
         "data": call_data
     })
+
+
+@router.get("/{call_id}/transcript")
+async def get_call_transcript(
+    call_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """
+    Get real-time transcript for an active call.
+    Retrieves transcript from Redis where asterisk-bridge stores it as a list.
+    """
+    if not redis_client:
+        return {"transcript": [], "status": "unavailable", "message": "Redis not connected"}
+    
+    try:
+        transcript_key = f"call_transcript:{call_id}"
+        
+        # Check key type - asterisk-bridge uses LPUSH (list)
+        key_type = redis_client.type(transcript_key)
+        
+        if key_type == "list":
+            # Get all items from list (newest first due to LPUSH)
+            transcript_items = redis_client.lrange(transcript_key, 0, -1)
+            messages = []
+            for item in reversed(transcript_items):  # Reverse to get chronological order
+                try:
+                    msg = json.loads(item)
+                    messages.append(msg)
+                except json.JSONDecodeError:
+                    continue
+            return {"transcript": messages, "status": "active", "count": len(messages)}
+        
+        elif key_type == "string":
+            # Legacy format (backward compatibility)
+            transcript_data = redis_client.get(transcript_key)
+            if transcript_data:
+                try:
+                    messages = json.loads(transcript_data)
+                    return {"transcript": messages, "status": "active"}
+                except json.JSONDecodeError:
+                    return {"transcript": [], "status": "error", "message": "Invalid transcript format"}
+        
+        # Also check for call status
+        status_key = f"call_status:{call_id}"
+        call_status = redis_client.get(status_key)
+        
+        if call_status:
+            return {"transcript": [], "status": call_status}
+        
+        return {"transcript": [], "status": "pending", "message": "Waiting for call to connect"}
+        
+    except Exception as e:
+        logger.error(f"Error fetching transcript for {call_id}: {e}")
+        return {"transcript": [], "status": "error", "message": str(e)}
+
+
+@router.post("/{call_id}/transcript")
+async def add_transcript_message(
+    call_id: str,
+    message: dict,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Add a message to call transcript (for testing/simulation).
+    Format: {"role": "user|assistant", "content": "message text"}
+    """
+    if not redis_client:
+        raise HTTPException(status_code=503, detail="Redis not available")
+    
+    try:
+        transcript_key = f"call_transcript:{call_id}"
+        
+        # Get existing transcript
+        existing = redis_client.get(transcript_key)
+        messages = json.loads(existing) if existing else []
+        
+        # Add new message with timestamp
+        new_message = {
+            "id": str(len(messages) + 1),
+            "role": message.get("role", "assistant"),
+            "content": message.get("content", ""),
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        messages.append(new_message)
+        
+        # Store back with 1 hour TTL
+        redis_client.setex(transcript_key, 3600, json.dumps(messages))
+        
+        return {"success": True, "message": new_message}
+        
+    except Exception as e:
+        logger.error(f"Error adding transcript for {call_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# CALL TAGS ENDPOINTS
+# ============================================================================
+
+@router.get("/{call_id}/tags", response_model=CallTagsResponse)
+async def get_call_tags(
+    call_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get tags for a specific call.
+    """
+    call = db.query(CallLog).filter(CallLog.call_id == call_id).first()
+    if not call:
+        raise HTTPException(status_code=404, detail="Call not found")
+    
+    return CallTagsResponse(
+        call_id=call_id,
+        tags=call.tags or []
+    )
+
+
+@router.patch("/{call_id}/tags", response_model=CallTagsResponse)
+async def update_call_tags(
+    call_id: str,
+    tag_data: CallTagsUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Update tags for a specific call.
+    
+    Operations:
+    - add: Add new tags to existing ones
+    - remove: Remove specific tags
+    - replace: Replace all tags with new ones
+    """
+    call = db.query(CallLog).filter(CallLog.call_id == call_id).first()
+    if not call:
+        raise HTTPException(status_code=404, detail="Call not found")
+    
+    current_tags = call.tags or []
+    new_tags = [t.value if isinstance(t, CallTag) else t for t in tag_data.tags]
+    
+    if tag_data.operation == "add":
+        # Add new tags, avoiding duplicates
+        for tag in new_tags:
+            if tag not in current_tags:
+                current_tags.append(tag)
+    elif tag_data.operation == "remove":
+        # Remove specified tags
+        current_tags = [t for t in current_tags if t not in new_tags]
+    else:  # replace
+        current_tags = new_tags
+    
+    call.tags = current_tags
+    db.commit()
+    db.refresh(call)
+    
+    logger.info(f"Updated tags for call {call_id}: {current_tags}")
+    
+    return CallTagsResponse(
+        call_id=call_id,
+        tags=call.tags
+    )
+
+
+@router.get("/tags/available")
+async def get_available_tags():
+    """
+    Get all available call tags with descriptions.
+    """
+    tag_descriptions = {
+        "interested": "Müşteri ilgilendi",
+        "not_interested": "Müşteri ilgilenmedi",
+        "callback": "Geri aranmak istiyor",
+        "hot_lead": "Sıcak potansiyel müşteri",
+        "cold_lead": "Soğuk potansiyel müşteri",
+        "do_not_call": "Bir daha aramasın",
+        "wrong_number": "Yanlış numara",
+        "voicemail": "Telesekreter",
+        "busy": "Meşgul/Uygun değil",
+        "complaint": "Şikayet"
+    }
+    
+    return {
+        "tags": [
+            {"value": tag.value, "label": tag_descriptions.get(tag.value, tag.value)}
+            for tag in CallTag
+        ]
+    }
+

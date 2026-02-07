@@ -94,7 +94,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
 
   const handleCreate = async () => {
     if (!agentName.trim()) {
-      toast.error('Agent adı zorunludur');
+      toast.error('Agent name is required');
       return;
     }
 
@@ -136,8 +136,13 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
           },
           advanced_settings: {
             temperature: 0.7,
-            vad_threshold: 0.5,
+            vad_threshold: 0.3,  // Lower = more sensitive to speech
             turn_detection: 'server_vad',
+            silence_duration_ms: 800,
+            prefix_padding_ms: 500,
+            interrupt_response: true,
+            create_response: true,
+            noise_reduction: true,
           },
           prompt: {
             role: '',
@@ -153,17 +158,17 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || 'Agent oluşturulamadı');
+        throw new Error(error.detail || 'Failed to create agent');
       }
 
       const newAgent = await response.json();
-      toast.success('Agent başarıyla oluşturuldu');
+      toast.success('Agent created successfully');
       router.push(`/dashboard/agents/${newAgent.id}`);
       onOpenChange(false);
       resetForm();
     } catch (error) {
       console.error('Agent creation error:', error);
-      toast.error(error instanceof Error ? error.message : 'Agent oluşturulurken bir hata oluştu');
+      toast.error(error instanceof Error ? error.message : 'An error occurred while creating agent');
     } finally {
       setIsLoading(false);
     }
@@ -270,7 +275,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
                   type="text"
                   value={agentName}
                   onChange={(e) => setAgentName(e.target.value)}
-                  placeholder="e.g., Ödeme Hatırlatıcı"
+                  placeholder="e.g., Payment Reminder"
                   className={cn(
                     'w-full px-4 py-2.5 rounded-lg bg-background border border-border',
                     'focus:border-primary-500 focus:outline-none transition-colors'
