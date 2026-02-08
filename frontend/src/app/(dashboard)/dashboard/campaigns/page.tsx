@@ -34,69 +34,7 @@ interface Campaign {
   createdAt: string;
 }
 
-const mockCampaigns: Campaign[] = [
-  {
-    id: '1',
-    name: 'Payment Reminder - February 2024',
-    description: 'Monthly payment reminder campaign',
-    agentName: 'Payment Reminder',
-    status: 'running',
-    totalNumbers: 5000,
-    completedCalls: 3450,
-    successfulCalls: 2760,
-    activeCalls: 12,
-    createdAt: '2024-02-01',
-  },
-  {
-    id: '2',
-    name: 'Customer Satisfaction Survey Q1',
-    description: '2024 Q1 satisfaction survey',
-    agentName: 'Survey Agent',
-    status: 'paused',
-    totalNumbers: 2000,
-    completedCalls: 1200,
-    successfulCalls: 1080,
-    activeCalls: 0,
-    createdAt: '2024-01-15',
-  },
-  {
-    id: '3',
-    name: 'New Product Introduction',
-    description: 'New product introduction to premium customers',
-    agentName: 'Sales Agent',
-    status: 'scheduled',
-    totalNumbers: 3000,
-    completedCalls: 0,
-    successfulCalls: 0,
-    activeCalls: 0,
-    scheduledDate: '2024-02-15 09:00',
-    createdAt: '2024-02-05',
-  },
-  {
-    id: '4',
-    name: 'Appointment Reminder - Weekly',
-    description: 'Automatic appointment reminders',
-    agentName: 'Appointment Agent',
-    status: 'running',
-    totalNumbers: 500,
-    completedCalls: 445,
-    successfulCalls: 423,
-    activeCalls: 5,
-    createdAt: '2024-02-03',
-  },
-  {
-    id: '5',
-    name: 'Debt Collection Pilot',
-    description: 'Test campaign',
-    agentName: 'Collection Agent',
-    status: 'completed',
-    totalNumbers: 100,
-    completedCalls: 100,
-    successfulCalls: 78,
-    activeCalls: 0,
-    createdAt: '2024-01-28',
-  },
-];
+const mockCampaigns: Campaign[] = [];
 
 export default function CampaignsPage() {
   const [filter, setFilter] = useState<'all' | Campaign['status']>('all');
@@ -211,11 +149,13 @@ export default function CampaignsPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold">
-                  {Math.round(
-                    (mockCampaigns.reduce((acc, c) => acc + c.successfulCalls, 0) /
-                      mockCampaigns.reduce((acc, c) => acc + c.completedCalls, 0)) *
-                      100
-                  )}%
+                  {mockCampaigns.reduce((acc, c) => acc + c.completedCalls, 0) > 0
+                    ? Math.round(
+                        (mockCampaigns.reduce((acc, c) => acc + c.successfulCalls, 0) /
+                          mockCampaigns.reduce((acc, c) => acc + c.completedCalls, 0)) *
+                          100
+                      )
+                    : 0}%
                 </p>
                 <p className="text-sm text-muted-foreground">Avg Success Rate</p>
               </div>

@@ -131,7 +131,29 @@ MAX_CONCURRENT_CALLS = int(os.environ.get("MAX_CONCURRENT_CALLS", "50"))
 OPENAI_WS_URL = f"wss://api.openai.com/v1/realtime?model={MODEL}"
 
 # ============================================================================
-# SES FORMAT SABİTLERİ - Native 24kHz Passthrough
+# TITLE TRANSLATIONS - Language-aware Mr/Mrs
+# ============================================================================
+TITLE_TRANSLATIONS = {
+    "tr": {"Mr": "Bey", "Mrs": "Hanım"},
+    "en": {"Mr": "Mr", "Mrs": "Mrs"},
+    "de": {"Mr": "Herr", "Mrs": "Frau"},
+    "fr": {"Mr": "Monsieur", "Mrs": "Madame"},
+    "es": {"Mr": "Señor", "Mrs": "Señora"},
+    "it": {"Mr": "Signore", "Mrs": "Signora"},
+    "pt": {"Mr": "Senhor", "Mrs": "Senhora"},
+    "nl": {"Mr": "Meneer", "Mrs": "Mevrouw"},
+    "ar": {"Mr": "السيد", "Mrs": "السيدة"},
+    "zh": {"Mr": "先生", "Mrs": "女士"},
+    "ja": {"Mr": "様", "Mrs": "様"},
+    "ko": {"Mr": "님", "Mrs": "님"},
+}
+
+# Languages where title comes AFTER the name (e.g. "Cenani Bey")
+# All others: title BEFORE the name (e.g. "Mr Cenani")
+TITLE_AFTER_NAME = {"tr", "ja", "ko", "zh"}
+
+# ============================================================================
+# AUDIO FORMAT CONSTANTS - Native 24kHz Passthrough
 # ============================================================================
 # Asterisk Dial(AudioSocket/.../c(slin24)) = 24kHz slin (0x13)
 # OpenAI Realtime = 24kHz PCM16
@@ -912,7 +934,8 @@ class CallBridge:
         self.agent_language = "tr"
         self.agent_prompt = SYSTEM_INSTRUCTIONS
         self.customer_name = None
-        self.greeting_message = None  # Agent'ın özel greeting mesajı
+        self.customer_title = None  # Mr/Mrs (translated at runtime by language)
+        self.greeting_message = None  # Agent's custom greeting message
         self.first_speaker = "agent"
         self.agent_temperature = 0.6
         # VAD settings - optimized for comprehension accuracy
@@ -927,6 +950,13 @@ class CallBridge:
         # Transcription settings
         self.agent_transcript_model = "gpt-4o-transcribe"  # Best accuracy (was hardcoded gpt-4o-mini-transcribe)
         self.agent_max_output_tokens = 500  # Configurable from DB
+
+        # SIP/Hangup tracking
+        self.sip_code: Optional[int] = None  # SIP response code
+        self.hangup_cause: Optional[str] = None  # Hangup reason text
+
+        # Agent tracking
+        self.agent_id: Optional[int] = None  # Agent DB ID for CallLog
 
         # Conversation phase tracking (for adaptive prompting)
         self.conversation_phase = "opening"  # opening, gathering, resolution, closing
@@ -979,6 +1009,10 @@ class CallBridge:
             self.agent_language = call_setup.get("language") or "tr"
             self.agent_prompt = call_setup.get("prompt") or SYSTEM_INSTRUCTIONS
             self.customer_name = call_setup.get("customer_name") or None
+            self.customer_title = call_setup.get("customer_title") or None
+            # Store agent_id for CallLog tracking
+            agent_id_val = call_setup.get("agent_id")
+            self.agent_id = int(agent_id_val) if agent_id_val else None
             self.greeting_message = call_setup.get("greeting_message") or None
             self.first_speaker = call_setup.get("first_speaker") or "agent"
             self.agent_temperature = float(call_setup.get("temperature", 0.6))
@@ -1013,6 +1047,7 @@ class CallBridge:
             if agent_id_str:
                 try:
                     agent_id = int(agent_id_str)
+                    self.agent_id = agent_id
                     agent_data = await get_agent_from_db(agent_id)
                     
                     if agent_data:
@@ -1067,10 +1102,14 @@ class CallBridge:
             await asyncio.gather(
                 self._asterisk_to_openai(),
                 self._openai_to_asterisk(),
+                self._check_hangup_signal(),
             )
         except Exception as e:
             logger.error(f"[{self.call_uuid[:8]}] ❌ Hata: {e}")
             self.stats["errors"] += 1
+            if not self.sip_code:
+                self.sip_code = 500
+                self.hangup_cause = f"Error: {str(e)[:80]}"
         finally:
             await self._cleanup()
 
@@ -1091,12 +1130,42 @@ class CallBridge:
         )
         logger.info(f"[{self.call_uuid[:8]}] 🔌 OpenAI bağlantısı kuruldu (model: {self.agent_model})")
 
+    def _get_localized_title(self) -> str:
+        """Translate Mr/Mrs to the agent's language."""
+        if not self.customer_title:
+            return ""
+        lang = self.agent_language or "en"
+        translations = TITLE_TRANSLATIONS.get(lang, TITLE_TRANSLATIONS["en"])
+        return translations.get(self.customer_title, self.customer_title)
+
+    def _get_addressed_name(self) -> str:
+        """Get full addressed name with title in correct order for the language.
+        Turkish: 'Cenani Bey', English: 'Mr Cenani', German: 'Herr Cenani'
+        """
+        if not self.customer_name:
+            return ""
+        title = self._get_localized_title()
+        if not title:
+            return self.customer_name
+        lang = self.agent_language or "en"
+        if lang in TITLE_AFTER_NAME:
+            return f"{self.customer_name} {title}"
+        else:
+            return f"{title} {self.customer_name}"
+
     async def _configure_session(self):
-        """OpenAI session'ını yapılandır - Agent ayarlarıyla."""
-        # İsim varsa prompt'a ekle
+        """Configure OpenAI session with agent settings."""
+        # Inject customer info into prompt if available
         instructions = self.agent_prompt
         if self.customer_name:
-            instructions = f"{instructions}\n\n# MÜŞTERİ BİLGİSİ\nMüşterinin ismi: {self.customer_name}\nMüşteriye ismini kullanarak hitap et."
+            addressed_name = self._get_addressed_name()
+            instructions += "\n\n# CUSTOMER INFO\n"
+            instructions += f"Customer name: {self.customer_name}\n"
+            if self.customer_title:
+                instructions += f"Form of address: {addressed_name}\n"
+                instructions += f"Always address the customer as '{addressed_name}'.\n"
+            else:
+                instructions += "Address the customer by their name.\n"
         
         # Core voice rules - ALWAYS appended to prevent agent monologuing
         core_rules = """
@@ -1174,24 +1243,29 @@ class CallBridge:
                      f"temp={self.agent_temperature}, vad={self.agent_turn_detection}, transcript={self.agent_transcript_model}")
 
     async def _trigger_greeting(self):
-        """İlk karşılama - Agent'ın greeting ayarına göre."""
-        # Agent first_speaker = 'user' ise karşılama yapma, kullanıcının konuşmasını bekle
+        """Trigger initial greeting based on agent settings."""
+        # If first_speaker = 'user', skip greeting and wait for customer to speak
         if self.first_speaker == "user":
-            logger.info(f"[{self.call_uuid[:8]}] 👂 first_speaker=user, karşılama yok - kullanıcı konuşmasını bekleniyor")
+            logger.info(f"[{self.call_uuid[:8]}] first_speaker=user, skipping greeting - waiting for customer")
             return
-        
-        # Agent'ın özel greeting mesajı varsa onu kullan
+
+        # Use agent's custom greeting message if available
         if self.greeting_message:
-            # {customer_name} gibi değişkenleri replace et
+            # Replace template variables like {customer_name}
             greeting = self.greeting_message
             if self.customer_name:
                 greeting = greeting.replace("{customer_name}", self.customer_name)
                 greeting = greeting.replace("{müşteri_adı}", self.customer_name)
+            if self.customer_title:
+                localized_title = self._get_localized_title()
+                addressed_name = self._get_addressed_name()
+                greeting = greeting.replace("{customer_title}", localized_title)
+                greeting = greeting.replace("{addressed_name}", addressed_name)
             
-            greeting_instruction = f"Müşteriyi şu şekilde karşıla (AYNEN bu metni söyle): '{greeting}'"
+            greeting_instruction = f"Greet the customer by saying EXACTLY this text: '{greeting}'"
         else:
             # Default greeting
-            greeting_instruction = "Müşteriyi karşıla. Kısa bir selamlama yap."
+            greeting_instruction = "Greet the customer with a brief welcome message."
         
         await self.openai_ws.send(json.dumps({
             "type": "response.create",
@@ -1214,6 +1288,8 @@ class CallBridge:
 
                 if msg_type == MSG_HANGUP:
                     logger.info(f"[{self.call_uuid[:8]}] 📴 Asterisk hangup")
+                    self.sip_code = self.sip_code or 200
+                    self.hangup_cause = self.hangup_cause or "Normal Clearing"
                     self.is_active = False
                     break
 
@@ -1487,9 +1563,59 @@ class CallBridge:
         self.function_args = ""
         self.function_call_id = ""
 
+    async def _check_hangup_signal(self):
+        """Check Redis for external hangup signal (from frontend/API).
+        When signal is received, forcefully close all connections to unblock
+        the other tasks that are waiting on I/O.
+        """
+        try:
+            import redis.asyncio as redis_async
+            r = redis_async.from_url(REDIS_URL, decode_responses=True)
+            try:
+                while self.is_active:
+                    sig = await r.get(f"hangup_signal:{self.call_uuid}")
+                    if sig:
+                        logger.info(f"[{self.call_uuid[:8]}] 🛑 Redis hangup signal received - forcing disconnect")
+                        await r.delete(f"hangup_signal:{self.call_uuid}")
+                        self.sip_code = 200
+                        self.hangup_cause = "User Hangup (Manual)"
+                        self.is_active = False
+
+                        # 1. Send hangup to Asterisk so the SIP call is terminated
+                        try:
+                            self.writer.write(build_audiosocket_message(MSG_HANGUP))
+                            await self.writer.drain()
+                        except Exception:
+                            pass
+
+                        # 2. Close the TCP writer → reader will get IncompleteReadError
+                        try:
+                            self.writer.close()
+                        except Exception:
+                            pass
+
+                        # 3. Close OpenAI WebSocket → _openai_to_asterisk will get ConnectionClosed
+                        try:
+                            if self.openai_ws and self.openai_ws.state == State.OPEN:
+                                await self.openai_ws.close()
+                        except Exception:
+                            pass
+
+                        break
+                    await asyncio.sleep(1)
+            finally:
+                await r.close()
+        except Exception as e:
+            logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Hangup signal check error: {e}")
+
     async def _cleanup(self):
-        """Çağrı sonu temizlik ve post-call processing."""
+        """End-of-call cleanup and post-call processing."""
         duration = (datetime.now() - self.start_time).total_seconds()
+
+        # Set default SIP code if not already set
+        if not self.sip_code:
+            self.sip_code = 200
+            self.hangup_cause = self.hangup_cause or "Normal Clearing"
 
         logger.info(
             f"[{self.call_uuid[:8]}] 📊 Çağrı sonu: "
@@ -1587,7 +1713,7 @@ class CallBridge:
             try:
                 # Try to update existing call_log by call_sid
                 result = await conn.execute(
-                    """UPDATE call_logs SET 
+                    """UPDATE call_logs SET
                         sentiment = $1,
                         summary = $2,
                         tags = $3,
@@ -1595,8 +1721,12 @@ class CallBridge:
                         call_metadata = $5,
                         duration = $6,
                         notes = $7,
-                        customer_name = $8
-                    WHERE call_sid = $9""",
+                        customer_name = $8,
+                        sip_code = $9,
+                        hangup_cause = $10,
+                        status = 'completed',
+                        ended_at = NOW()
+                    WHERE call_sid = $11""",
                     sentiment,
                     summary,
                     json.dumps(tags),
@@ -1605,10 +1735,41 @@ class CallBridge:
                     int(duration),
                     f"Quality Score: {quality_score}/100. {summary[:200] if summary else ''}",
                     customer.get("name", ""),
+                    self.sip_code,
+                    self.hangup_cause,
                     self.call_uuid,
                 )
                 if "UPDATE 0" in result:
-                    logger.debug(f"[{self.call_uuid[:8]}] ℹ️ CallLog kaydı bulunamadı (call_sid={self.call_uuid[:8]}), insert deneniyor")
+                    logger.info(f"[{self.call_uuid[:8]}] CallLog not found, inserting new record")
+                    await conn.execute(
+                        """INSERT INTO call_logs (
+                            call_sid, status, duration, sentiment, summary,
+                            tags, callback_scheduled, call_metadata, notes,
+                            customer_name, sip_code, hangup_cause,
+                            to_number, agent_id, started_at, ended_at, created_at
+                        ) VALUES (
+                            $1, 'completed', $2, $3, $4,
+                            $5, $6, $7, $8,
+                            $9, $10, $11,
+                            $12, $13, $14, $15, $14
+                        )""",
+                        self.call_uuid,
+                        int(duration),
+                        sentiment,
+                        summary,
+                        json.dumps(tags),
+                        callback_scheduled,
+                        json.dumps(metadata, default=str),
+                        f"Quality Score: {quality_score}/100. {summary[:200] if summary else ''}",
+                        customer.get("name", ""),
+                        self.sip_code,
+                        self.hangup_cause,
+                        self.customer_name or "",
+                        int(self.agent_id) if hasattr(self, 'agent_id') and self.agent_id else None,
+                        self.start_time,
+                        datetime.now(),
+                    )
+                    logger.info(f"[{self.call_uuid[:8]}] CallLog inserted successfully")
             finally:
                 await conn.close()
         except Exception as e:

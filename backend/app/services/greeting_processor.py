@@ -122,7 +122,8 @@ def process_greeting(
         variables["first_name"] = extract_first_name(full_name)
         variables["last_name"] = extract_last_name(full_name)
         variables["phone"] = customer_data.get("phone", "")
-        
+        variables["customer_title"] = customer_data.get("customer_title", "")
+
         # Custom data from Excel columns
         custom_data = customer_data.get("custom_data", {})
         if custom_data:
@@ -130,7 +131,7 @@ def process_greeting(
                 # Normalize key (lowercase, replace spaces with underscore)
                 normalized_key = key.lower().replace(" ", "_")
                 variables[normalized_key] = str(value) if value else ""
-                
+
                 # Also add common aliases
                 if normalized_key in ["sirket", "şirket", "firma"]:
                     variables["company"] = str(value)
@@ -138,6 +139,8 @@ def process_greeting(
                     variables["amount"] = str(value)
                 elif normalized_key in ["vade", "son_tarih", "odeme_tarihi"]:
                     variables["due_date"] = str(value)
+                elif normalized_key in ["title", "hitap", "unvan", "cinsiyet"]:
+                    variables["customer_title"] = str(value)
     
     # 4. Additional custom variables
     if custom_variables:
@@ -171,8 +174,8 @@ def validate_greeting_template(template: str) -> Dict[str, Any]:
         }
     """
     known_variables = {
-        "customer_name", "first_name", "last_name", "company",
-        "phone", "date", "time", "day", "month", "year",
+        "customer_name", "first_name", "last_name", "customer_title",
+        "company", "phone", "date", "time", "day", "month", "year",
         "agent_name", "amount", "due_date"
     }
     
@@ -214,19 +217,20 @@ def validate_greeting_template(template: str) -> Dict[str, Any]:
 def get_available_variables() -> Dict[str, str]:
     """Get list of available variables with descriptions"""
     return {
-        "customer_name": "Müşterinin tam adı",
-        "first_name": "Müşterinin adı",
-        "last_name": "Müşterinin soyadı",
-        "company": "Şirket adı",
-        "phone": "Telefon numarası",
-        "date": "Bugünün tarihi (GG.AA.YYYY)",
-        "time": "Şu anki saat (SS:DD)",
-        "day": "Haftanın günü (Pazartesi, Salı, ...)",
-        "month": "Ay adı (Ocak, Şubat, ...)",
-        "year": "Yıl",
-        "agent_name": "AI Agent'ın adı",
-        "amount": "Ödeme tutarı (Excel'den)",
-        "due_date": "Vade tarihi (Excel'den)",
+        "customer_name": "Customer's full name",
+        "first_name": "Customer's first name",
+        "last_name": "Customer's last name",
+        "customer_title": "Form of address (Mr/Mrs)",
+        "company": "Company name",
+        "phone": "Phone number",
+        "date": "Today's date (DD.MM.YYYY)",
+        "time": "Current time (HH:MM)",
+        "day": "Day of the week",
+        "month": "Month name",
+        "year": "Year",
+        "agent_name": "AI Agent's name",
+        "amount": "Payment amount (from Excel)",
+        "due_date": "Due date (from Excel)",
     }
 
 

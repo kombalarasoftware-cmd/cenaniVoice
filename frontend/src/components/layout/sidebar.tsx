@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -9,6 +9,7 @@ import {
   Megaphone,
   Phone,
   FileAudio,
+  PhoneCall,
   BarChart3,
   Settings,
   ChevronLeft,
@@ -50,6 +51,11 @@ const navigation = [
     icon: FileAudio,
   },
   {
+    name: 'Call Logs',
+    href: '/dashboard/call-logs',
+    icon: PhoneCall,
+  },
+  {
     name: 'Appointments',
     href: '/dashboard/appointments',
     icon: CalendarCheck,
@@ -81,8 +87,15 @@ const bottomNavigation = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+
+  const handleLogout = () => {
+    localStorage.removeItem('access_token');
+    router.push('/login');
+  };
 
   return (
     <aside
@@ -214,20 +227,39 @@ export function Sidebar() {
             );
           })}
 
-          {/* User profile */}
-          <div
-            className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-xl',
-              'bg-muted/50 mt-2'
-            )}
-          >
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary-400 to-secondary-400">
-              <User className="h-5 w-5 text-white" />
-            </div>
-            {!collapsed && (
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">Admin User</p>
-                <p className="text-xs text-muted-foreground truncate">admin@voiceai.com</p>
+          {/* User profile with logout dropdown */}
+          <div className="relative mt-2">
+            <button
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className={cn(
+                'flex w-full items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200',
+                'bg-muted/50 hover:bg-muted cursor-pointer'
+              )}
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary-400 to-secondary-400 flex-shrink-0">
+                <User className="h-5 w-5 text-white" />
+              </div>
+              {!collapsed && (
+                <div className="flex-1 min-w-0 text-left">
+                  <p className="text-sm font-medium truncate">Admin User</p>
+                  <p className="text-xs text-muted-foreground truncate">admin@voiceai.com</p>
+                </div>
+              )}
+            </button>
+
+            {/* Logout popup */}
+            {showUserMenu && (
+              <div className={cn(
+                'absolute bottom-full mb-2 rounded-xl border border-border bg-popover shadow-xl p-1 z-50',
+                collapsed ? 'left-full ml-2' : 'left-0 right-0'
+              )}>
+                <button
+                  onClick={handleLogout}
+                  className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span className="text-sm font-medium">Logout</span>
+                </button>
               </div>
             )}
           </div>

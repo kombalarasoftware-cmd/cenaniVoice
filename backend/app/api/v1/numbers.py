@@ -71,6 +71,7 @@ async def upload_numbers(
     file: UploadFile = File(...),
     phone_column: str = "phone",
     name_column: Optional[str] = "name",
+    title_column: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -171,13 +172,27 @@ async def upload_numbers(
                 if pd.notna(raw_name):
                     customer_name = str(raw_name).strip()[:255]  # Limit name length
 
+            # Get title if column exists
+            customer_title = None
+            if title_column and title_column in df.columns:
+                raw_title = row[title_column]
+                if pd.notna(raw_title):
+                    customer_title = str(raw_title).strip()[:50]
+
             # Collect custom data (sanitize values)
+            exclude_cols = [phone_column, name_column]
+            if title_column:
+                exclude_cols.append(title_column)
             custom_data = {}
             for col in df.columns:
-                if col not in [phone_column, name_column] and pd.notna(row[col]):
+                if col not in exclude_cols and pd.notna(row[col]):
                     safe_col = str(col)[:100]
                     safe_val = str(row[col])[:500]
                     custom_data[safe_col] = safe_val
+
+            # Store title in custom_data for greeting processor
+            if customer_title:
+                custom_data["customer_title"] = customer_title
 
             # Create phone number record
             phone_number = PhoneNumber(

@@ -547,17 +547,30 @@ class CallLogResponse(BaseModel):
     id: int
     call_sid: str
     status: CallStatus
-    outcome: Optional[CallOutcome]
+    outcome: Optional[CallOutcome] = None
     duration: int
-    from_number: Optional[str]
-    to_number: Optional[str]
-    customer_name: Optional[str]
-    started_at: Optional[datetime]
-    ended_at: Optional[datetime]
-    recording_url: Optional[str]
-    transcription: Optional[str]
-    sentiment: Optional[str]
-    campaign_id: Optional[int]
+    from_number: Optional[str] = None
+    to_number: Optional[str] = None
+    customer_name: Optional[str] = None
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    recording_url: Optional[str] = None
+    transcription: Optional[str] = None
+    sentiment: Optional[str] = None
+    summary: Optional[str] = None
+    campaign_id: Optional[int] = None
+    agent_id: Optional[int] = None
+
+    # Relationship names
+    agent_name: Optional[str] = None
+    campaign_name: Optional[str] = None
+
+    # SIP details
+    sip_code: Optional[int] = None
+    hangup_cause: Optional[str] = None
+
+    # Tags
+    tags: Optional[list] = None
 
     # Cost tracking
     model_used: Optional[str] = None

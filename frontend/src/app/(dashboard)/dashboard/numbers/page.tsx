@@ -31,52 +31,7 @@ interface NumberList {
   status: 'processing' | 'ready' | 'error';
 }
 
-const mockLists: NumberList[] = [
-  {
-    id: '1',
-    name: 'Payment Reminder - February',
-    fileName: 'odeme_subat_2024.xlsx',
-    totalNumbers: 5234,
-    validNumbers: 5000,
-    invalidNumbers: 185,
-    duplicates: 49,
-    uploadedAt: '2024-02-01 14:30',
-    status: 'ready',
-  },
-  {
-    id: '2',
-    name: 'Customer Survey Q1',
-    fileName: 'musteri_anketi_q1.xlsx',
-    totalNumbers: 2150,
-    validNumbers: 2000,
-    invalidNumbers: 120,
-    duplicates: 30,
-    uploadedAt: '2024-01-28 09:15',
-    status: 'ready',
-  },
-  {
-    id: '3',
-    name: 'VIP Customers',
-    fileName: 'vip_customers.csv',
-    totalNumbers: 500,
-    validNumbers: 498,
-    invalidNumbers: 2,
-    duplicates: 0,
-    uploadedAt: '2024-02-05 16:45',
-    status: 'ready',
-  },
-  {
-    id: '4',
-    name: 'New Campaign List',
-    fileName: 'new_campaign_numbers.xlsx',
-    totalNumbers: 3000,
-    validNumbers: 0,
-    invalidNumbers: 0,
-    duplicates: 0,
-    uploadedAt: '2024-02-06 10:00',
-    status: 'processing',
-  },
-];
+const mockLists: NumberList[] = [];
 
 export default function NumbersPage() {
   const [dragActive, setDragActive] = useState(false);

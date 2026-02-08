@@ -3,7 +3,7 @@ Call management API endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, contains_eager
 from typing import List, Optional, Dict
 from datetime import datetime
 import json
@@ -15,8 +15,9 @@ import os
 from app.core.database import get_db
 from app.core.config import settings
 from app.api.v1.auth import get_current_user, get_current_user_optional
-from app.models import CallLog, User, Campaign
-from app.models.models import CallStatus, CallTag
+from sqlalchemy import or_
+from app.models import CallLog, User, Campaign, Agent
+from app.models.models import CallStatus, CallOutcome, CallTag
 from app.schemas import CallLogResponse
 from app.schemas.schemas import CallTagsUpdate, CallTagsResponse
 
@@ -97,29 +98,43 @@ class ConnectionManager:
 connection_manager = ConnectionManager(max_connections=settings.MAX_WEBSOCKET_CONNECTIONS)
 
 
-@router.get("", response_model=List[CallLogResponse])
+@router.get("")
 async def list_calls(
     status: Optional[CallStatus] = None,
+    outcome: Optional[CallOutcome] = None,
     campaign_id: Optional[int] = None,
     agent_id: Optional[int] = None,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
+    search: Optional[str] = Query(None, description="Search by customer name, phone number or call SID"),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """List call logs with pagination and filtering"""
-    # Use joinedload to prevent N+1 queries
-    query = db.query(CallLog).options(
-        joinedload(CallLog.campaign),
-        joinedload(CallLog.agent)
-    ).join(CallLog.campaign).filter(
-        Campaign.owner_id == current_user.id
+    """List call logs with pagination, filtering and search"""
+    # Use outerjoin so calls without campaign (console test calls) also appear
+    # Use contains_eager (not joinedload) since we do explicit outerjoin
+    query = db.query(CallLog).outerjoin(
+        Campaign, CallLog.campaign_id == Campaign.id
+    ).outerjoin(
+        Agent, CallLog.agent_id == Agent.id
+    ).options(
+        contains_eager(CallLog.campaign),
+        contains_eager(CallLog.agent)
+    ).filter(
+        or_(
+            Campaign.owner_id == current_user.id,
+            Agent.owner_id == current_user.id,
+            # Calls without both campaign and agent (edge case)
+            (CallLog.campaign_id.is_(None) & CallLog.agent_id.is_(None)),
+        )
     )
 
     if status:
         query = query.filter(CallLog.status == status)
+    if outcome:
+        query = query.filter(CallLog.outcome == outcome)
     if campaign_id:
         query = query.filter(CallLog.campaign_id == campaign_id)
     if agent_id:
@@ -128,9 +143,79 @@ async def list_calls(
         query = query.filter(CallLog.created_at >= date_from)
     if date_to:
         query = query.filter(CallLog.created_at <= date_to)
+    if search:
+        search_filter = f"%{search}%"
+        query = query.filter(
+            or_(
+                CallLog.customer_name.ilike(search_filter),
+                CallLog.to_number.ilike(search_filter),
+                CallLog.call_sid.ilike(search_filter),
+            )
+        )
 
+    total = query.count()
     calls = query.order_by(CallLog.created_at.desc()).offset(skip).limit(limit).all()
-    return calls
+
+    items = []
+    for call in calls:
+        item = {
+            "id": call.id,
+            "call_sid": call.call_sid,
+            "status": call.status,
+            "outcome": call.outcome,
+            "duration": call.duration,
+            "from_number": call.from_number,
+            "to_number": call.to_number,
+            "customer_name": call.customer_name,
+            "started_at": call.started_at,
+            "ended_at": call.ended_at,
+            "recording_url": call.recording_url,
+            "transcription": call.transcription,
+            "sentiment": call.sentiment,
+            "summary": call.summary,
+            "campaign_id": call.campaign_id,
+            "agent_id": call.agent_id,
+            "agent_name": call.agent.name if call.agent else None,
+            "campaign_name": call.campaign.name if call.campaign else None,
+            "sip_code": call.sip_code,
+            "hangup_cause": call.hangup_cause,
+            "tags": call.tags,
+            "model_used": call.model_used,
+            "input_tokens": call.input_tokens,
+            "output_tokens": call.output_tokens,
+            "cached_tokens": call.cached_tokens,
+            "estimated_cost": call.estimated_cost,
+            "created_at": call.created_at,
+        }
+        items.append(item)
+
+    return {
+        "items": items,
+        "total": total,
+        "page": skip // limit + 1,
+        "page_size": limit,
+    }
+
+
+@router.get("/filters")
+async def get_call_filters(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get available filter options (campaigns, agents) for call log filtering"""
+    campaigns = db.query(Campaign).filter(
+        Campaign.owner_id == current_user.id
+    ).all()
+    agents = db.query(Agent).filter(
+        Agent.owner_id == current_user.id
+    ).all()
+
+    return {
+        "campaigns": [{"id": c.id, "name": c.name} for c in campaigns],
+        "agents": [{"id": a.id, "name": a.name} for a in agents],
+        "statuses": [s.value for s in CallStatus],
+        "outcomes": [o.value for o in CallOutcome],
+    }
 
 
 @router.get("/active")
@@ -557,16 +642,16 @@ async def get_available_tags():
     Get all available call tags with descriptions.
     """
     tag_descriptions = {
-        "interested": "Müşteri ilgilendi",
-        "not_interested": "Müşteri ilgilenmedi",
-        "callback": "Geri aranmak istiyor",
-        "hot_lead": "Sıcak potansiyel müşteri",
-        "cold_lead": "Soğuk potansiyel müşteri",
-        "do_not_call": "Bir daha aramasın",
-        "wrong_number": "Yanlış numara",
-        "voicemail": "Telesekreter",
-        "busy": "Meşgul/Uygun değil",
-        "complaint": "Şikayet"
+        "interested": "Customer showed interest",
+        "not_interested": "Customer not interested",
+        "callback": "Wants to be called back",
+        "hot_lead": "Hot potential lead",
+        "cold_lead": "Cold potential lead",
+        "do_not_call": "Do not call again",
+        "wrong_number": "Wrong number",
+        "voicemail": "Voicemail reached",
+        "busy": "Busy / Unavailable",
+        "complaint": "Complaint"
     }
     
     return {

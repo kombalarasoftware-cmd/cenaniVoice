@@ -15,8 +15,9 @@ import json
 import uuid as uuid_lib
 import redis
 
+from datetime import datetime
 from app.core.database import get_db
-from app.models.models import Agent, CallLog
+from app.models.models import Agent, CallLog, CallStatus
 
 # Redis client for passing agent settings to asterisk bridge
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
@@ -97,6 +98,7 @@ class OutboundCallRequest(BaseModel):
     agent_id: Optional[str] = Field(None, description="Agent ID to handle the call")
     caller_id: str = Field(default="491754571258", description="Caller ID to display")
     customer_name: Optional[str] = Field(None, description="Customer name to personalize the call")
+    customer_title: Optional[str] = Field(None, description="Customer title: Mr or Mrs")
     variables: Optional[dict] = Field(default=None, description="Custom variables for the call")
 
 
@@ -223,6 +225,7 @@ async def initiate_outbound_call(request: OutboundCallRequest, db: Session = Dep
                     "language": agent.language or "tr",
                     "prompt": full_prompt,
                     "customer_name": request.customer_name or "",
+                    "customer_title": request.customer_title or "",
                     
                     # Greeting settings
                     "greeting_message": agent.greeting_message or "",
@@ -282,10 +285,13 @@ async def initiate_outbound_call(request: OutboundCallRequest, db: Session = Dep
         except Exception as e:
             logger.error(f"Error fetching agent settings: {e}")
     
-    # Add customer_name if provided
+    # Add customer_name and customer_title if provided
     if request.customer_name:
         channel_variables["VOICEAI_CUSTOMER_NAME"] = request.customer_name
         logger.info(f"Customer name set: {request.customer_name}")
+    if request.customer_title:
+        channel_variables["VOICEAI_CUSTOMER_TITLE"] = request.customer_title
+        logger.info(f"Customer title set: {request.customer_title}")
     
     # Add custom variables if provided
     if request.variables:
@@ -323,9 +329,28 @@ async def initiate_outbound_call(request: OutboundCallRequest, db: Session = Dep
                 
                 result = await response.json()
                 channel_id = result.get("id")
-                
+
                 logger.info(f"Call initiated successfully: {channel_id}")
-                
+
+                # Create CallLog record for this call
+                try:
+                    agent_id_int = int(request.agent_id) if request.agent_id else None
+                    call_log = CallLog(
+                        call_sid=call_uuid,
+                        status=CallStatus.RINGING,
+                        to_number=phone_number,
+                        from_number=caller_id,
+                        customer_name=request.customer_name or None,
+                        agent_id=agent_id_int,
+                        started_at=datetime.utcnow(),
+                    )
+                    db.add(call_log)
+                    db.commit()
+                    logger.info(f"CallLog created: call_sid={call_uuid}, agent_id={agent_id_int}")
+                except Exception as e:
+                    logger.warning(f"Failed to create CallLog: {e}")
+                    db.rollback()
+
                 return OutboundCallResponse(
                     success=True,
                     channel_id=channel_id,
@@ -348,13 +373,26 @@ async def initiate_outbound_call(request: OutboundCallRequest, db: Session = Dep
 
 
 @router.delete("/hangup/{channel_id}")
-async def hangup_call(channel_id: str):
+async def hangup_call(channel_id: str, call_id: Optional[str] = None):
     """
     Hangup an active call by channel ID.
     Also sends hangup signal via Redis for the bridge to stop.
     """
     results = []
-    
+
+    # 0. Send Redis hangup signal to bridge (if call_id/UUID provided)
+    if call_id and redis_client:
+        try:
+            redis_client.setex(f"hangup_signal:{call_id}", 60, "1")
+            results.append(f"Redis hangup signal sent for {call_id[:8]}")
+            logger.info(f"Redis hangup signal set: hangup_signal:{call_id[:8]}")
+        except Exception as e:
+            logger.warning(f"Redis hangup signal error: {e}")
+
+    # Skip ARI if channel_id is a placeholder
+    if channel_id == "_none":
+        return {"success": True, "message": "; ".join(results) if results else "Hangup signal sent via Redis"}
+
     # 1. Try ARI channel hangup
     try:
         ari_url = f"http://{ARI_HOST}:{ARI_PORT}/ari/channels/{channel_id}"

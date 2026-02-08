@@ -432,7 +432,11 @@ class CallLog(Base):
     payment_promise_amount: Mapped[Optional[float]] = mapped_column(Float)
     callback_scheduled: Mapped[Optional[datetime]] = mapped_column(DateTime)
     transfer_reason: Mapped[Optional[str]] = mapped_column(String(255))
-    
+
+    # SIP/Hangup details
+    sip_code: Mapped[Optional[int]] = mapped_column(Integer)  # SIP response code (200, 403, 486, 503, etc.)
+    hangup_cause: Mapped[Optional[str]] = mapped_column(String(100))  # Asterisk hangup cause text
+
     # Token usage & cost tracking
     model_used: Mapped[Optional[str]] = mapped_column(String(50))  # gpt-realtime or gpt-realtime-mini
     input_tokens: Mapped[int] = mapped_column(Integer, default=0)
