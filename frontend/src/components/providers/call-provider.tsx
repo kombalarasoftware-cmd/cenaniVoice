@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import { toast } from 'sonner';
+import { API_V1 } from '@/lib/api';
 
 // ============================================================================
 // Types
@@ -15,8 +16,9 @@ export interface CallMetrics {
 }
 
 export interface CostBreakdown {
-  input_tokens: { text: number; audio: number; total: number };
-  output_tokens: { text: number; audio: number; total: number };
+  // OpenAI token-based fields
+  input_tokens?: { text: number; audio: number; total: number };
+  output_tokens?: { text: number; audio: number; total: number };
   cost: {
     input_text?: number;
     input_audio?: number;
@@ -25,6 +27,10 @@ export interface CostBreakdown {
     total: number;
   };
   model?: string;
+  // Ultravox minute-based fields
+  provider?: string;
+  duration_seconds?: number;
+  rate_per_minute?: number;
 }
 
 export interface Message {
@@ -164,7 +170,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     if (!id) return;
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/api/v1/events/cost/${id}`, {
+      const response = await fetch(`${API_V1}/events/cost/${id}`, {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       });
       if (response.ok) {
@@ -182,7 +188,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!callId || callStatus !== 'connected') return;
 
-    const eventSource = new EventSource(`http://localhost:8000/api/v1/events/stream/${callId}`);
+    const eventSource = new EventSource(`${API_V1}/events/stream/${callId}`);
     eventSourceRef.current = eventSource;
 
     eventSource.onmessage = (event) => {
@@ -259,7 +265,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     const fetchTranscript = async () => {
       try {
         const token = localStorage.getItem('access_token');
-        const response = await fetch(`http://localhost:8000/api/v1/calls/${callId}/transcript`, {
+        const response = await fetch(`${API_V1}/calls/${callId}/transcript`, {
           headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         });
 
@@ -341,7 +347,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch('http://localhost:8000/api/v1/calls/outbound', {
+      const response = await fetch(`${API_V1}/calls/outbound`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -397,8 +403,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
         const params = new URLSearchParams();
         if (hangupCallId) params.set('call_id', hangupCallId);
         const url = hangupChannelId
-          ? `http://localhost:8000/api/v1/calls/hangup/${hangupChannelId}?${params}`
-          : `http://localhost:8000/api/v1/calls/hangup/_none?${params}`;
+          ? `${API_V1}/calls/hangup/${hangupChannelId}?${params}`
+          : `${API_V1}/calls/hangup/_none?${params}`;
         await fetch(url, {
           method: 'DELETE',
           headers: token ? { 'Authorization': `Bearer ${token}` } : {},

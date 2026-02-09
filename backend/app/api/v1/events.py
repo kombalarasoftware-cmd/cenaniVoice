@@ -46,6 +46,25 @@ PRICING = {
 }
 
 
+# Ultravox pricing
+ULTRAVOX_RATE_PER_MINUTE = Decimal("0.05")
+
+
+def calculate_ultravox_cost(duration_seconds: int) -> dict:
+    """Calculate cost for an Ultravox call (minute-based pricing)."""
+    minutes = Decimal(duration_seconds) / 60
+    total_cost = minutes * ULTRAVOX_RATE_PER_MINUTE
+    return {
+        "provider": "ultravox",
+        "duration_seconds": duration_seconds,
+        "rate_per_minute": float(ULTRAVOX_RATE_PER_MINUTE),
+        "cost": {
+            "total": float(total_cost),
+        },
+        "model": "ultravox",
+    }
+
+
 def calculate_cost(usage: dict, model: str = "gpt-realtime-mini") -> dict:
     """
     Calculate cost from token usage.
@@ -189,17 +208,50 @@ async def get_call_cost(
 ):
     """
     Get cost breakdown for a specific call.
-    Retrieves usage data from Redis.
+    Routes to OpenAI (token-based) or Ultravox (minute-based) pricing.
     """
     try:
         redis = await aioredis.from_url(REDIS_URL, decode_responses=True)
-        
-        # Get usage data from Redis
+
+        # Check if this is an Ultravox call
+        ultravox_mapping = await redis.get(f"ultravox_call:{call_id}")
+        if not ultravox_mapping:
+            # Also check reverse mapping
+            ultravox_id = await redis.get(f"call_ultravox:{call_id}")
+            if ultravox_id:
+                ultravox_mapping = await redis.get(f"ultravox_call:{ultravox_id}")
+
+        if ultravox_mapping:
+            # Ultravox call — minute-based pricing
+            try:
+                mapping = json.loads(ultravox_mapping)
+                duration = mapping.get("duration", 0)
+            except (json.JSONDecodeError, TypeError):
+                duration = 0
+
+            # Try to get duration from DB if not in Redis
+            if not duration:
+                from app.core.database import SessionLocal
+                from app.models import CallLog
+                with SessionLocal() as db_session:
+                    call_log = db_session.query(CallLog).filter(CallLog.call_sid == call_id).first()
+                    if call_log:
+                        duration = call_log.duration or 0
+
+            await redis.close()
+            cost_breakdown = calculate_ultravox_cost(duration)
+            return {
+                "call_id": call_id,
+                "usage": {"duration_seconds": duration, "provider": "ultravox"},
+                "cost": cost_breakdown,
+            }
+
+        # OpenAI call — token-based pricing
         usage_key = f"call_usage:{call_id}"
         usage_data = await redis.get(usage_key)
-        
+
         await redis.close()
-        
+
         if not usage_data:
             return {
                 "call_id": call_id,
@@ -207,11 +259,11 @@ async def get_call_cost(
                 "cost": None,
                 "message": "No usage data available yet"
             }
-        
+
         usage = json.loads(usage_data)
         model = usage.get("model", "gpt-realtime-mini")
         cost_breakdown = calculate_cost(usage, model)
-        
+
         return {
             "call_id": call_id,
             "usage": usage,

@@ -5,6 +5,7 @@ import { X, Bot, Sparkles, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { API_V1 } from '@/lib/api';
 
 interface CreateAgentDialogProps {
   open: boolean;
@@ -73,13 +74,97 @@ const languages = [
   { code: 'ko', name: '한국어' },
 ];
 
-const voices = [
-  { id: 'alloy', name: 'Alloy', description: 'Neutral and balanced' },
-  { id: 'echo', name: 'Echo', description: 'Deep and authoritative' },
-  { id: 'fable', name: 'Fable', description: 'Warm and expressive' },
-  { id: 'onyx', name: 'Onyx', description: 'Deep and rich' },
-  { id: 'nova', name: 'Nova', description: 'Friendly and upbeat' },
-  { id: 'shimmer', name: 'Shimmer', description: 'Soft and gentle' },
+const openaiVoices = [
+  { id: 'alloy', name: 'Alloy', description: 'Neutral, balanced' },
+  { id: 'ash', name: 'Ash', description: 'Male' },
+  { id: 'ballad', name: 'Ballad', description: 'Female' },
+  { id: 'coral', name: 'Coral', description: 'Female' },
+  { id: 'echo', name: 'Echo', description: 'Deep male' },
+  { id: 'sage', name: 'Sage', description: 'Female' },
+  { id: 'shimmer', name: 'Shimmer', description: 'Soft female' },
+  { id: 'verse', name: 'Verse', description: 'Male' },
+];
+
+const ultravoxVoices = [
+  // Turkish
+  { id: 'Cicek-Turkish', name: 'Cicek', description: 'TR, Female' },
+  { id: 'Doga-Turkish', name: 'Doga', description: 'TR, Male' },
+  // English
+  { id: 'Mark', name: 'Mark', description: 'EN, Male' },
+  { id: 'Jessica', name: 'Jessica', description: 'EN, Female' },
+  { id: 'Sarah', name: 'Sarah', description: 'EN, Female' },
+  { id: 'Alex', name: 'Alex', description: 'EN, Male' },
+  { id: 'Carter', name: 'Carter', description: 'EN, Male (Cartesia)' },
+  { id: 'Olivia', name: 'Olivia', description: 'EN, Female' },
+  { id: 'Edward', name: 'Edward', description: 'EN, Male' },
+  { id: 'Luna', name: 'Luna', description: 'EN, Female' },
+  { id: 'Ashley', name: 'Ashley', description: 'EN, Female' },
+  { id: 'Dennis', name: 'Dennis', description: 'EN, Male' },
+  { id: 'Theodore', name: 'Theodore', description: 'EN, Male' },
+  { id: 'Julia', name: 'Julia', description: 'EN, Female' },
+  { id: 'Shaun', name: 'Shaun', description: 'EN, Male' },
+  { id: 'Hana', name: 'Hana', description: 'EN, Female' },
+  { id: 'Blake', name: 'Blake', description: 'EN, Male' },
+  { id: 'Timothy', name: 'Timothy', description: 'EN, Male' },
+  { id: 'Chelsea', name: 'Chelsea', description: 'EN, Female' },
+  { id: 'Emily-English', name: 'Emily', description: 'EN, Female' },
+  { id: 'Aaron-English', name: 'Aaron', description: 'EN, Male' },
+  // German
+  { id: 'Josef', name: 'Josef', description: 'DE, Male' },
+  { id: 'Johanna', name: 'Johanna', description: 'DE, Female' },
+  { id: 'Ben-German', name: 'Ben', description: 'DE, Male' },
+  { id: 'Susi-German', name: 'Susi', description: 'DE, Female' },
+  // French
+  { id: 'Hugo-French', name: 'Hugo', description: 'FR, Male' },
+  { id: 'Coco-French', name: 'Coco', description: 'FR, Female' },
+  { id: 'Alize-French', name: 'Alize', description: 'FR, Female' },
+  { id: 'Nicolas-French', name: 'Nicolas', description: 'FR, Male' },
+  // Spanish
+  { id: 'Alex-Spanish', name: 'Alex', description: 'ES, Male' },
+  { id: 'Andrea-Spanish', name: 'Andrea', description: 'ES, Female' },
+  { id: 'Tatiana-Spanish', name: 'Tatiana', description: 'ES, Female' },
+  { id: 'Mauricio-Spanish', name: 'Mauricio', description: 'ES, Male' },
+  // Italian
+  { id: 'Linda-Italian', name: 'Linda', description: 'IT, Female' },
+  { id: 'Giovanni-Italian', name: 'Giovanni', description: 'IT, Male' },
+  // Portuguese
+  { id: 'Rosa-Portuguese', name: 'Rosa', description: 'PT-BR, Female' },
+  { id: 'Tiago-Portuguese', name: 'Tiago', description: 'PT-BR, Male' },
+  // Arabic
+  { id: 'Salma-Arabic', name: 'Salma', description: 'AR, Female' },
+  { id: 'Raed-Arabic', name: 'Raed', description: 'AR-SA, Male' },
+  // Japanese
+  { id: 'Morioki-Japanese', name: 'Morioki', description: 'JA, Male' },
+  { id: 'Asahi-Japanese', name: 'Asahi', description: 'JA, Female' },
+  // Korean
+  { id: 'Yoona', name: 'Yoona', description: 'KO, Female' },
+  { id: 'Seojun', name: 'Seojun', description: 'KO, Male' },
+  // Chinese
+  { id: 'Maya-Chinese', name: 'Maya', description: 'ZH, Female' },
+  { id: 'Martin-Chinese', name: 'Martin', description: 'ZH, Male' },
+  // Hindi
+  { id: 'Riya-Hindi-Urdu', name: 'Riya', description: 'HI, Female' },
+  { id: 'Aakash-Hindi', name: 'Aakash', description: 'HI, Male' },
+  // Russian
+  { id: 'Nadia-Russian', name: 'Nadia', description: 'RU, Female' },
+  { id: 'Felix-Russian', name: 'Felix', description: 'RU, Male' },
+  // Dutch
+  { id: 'Ruth-Dutch', name: 'Ruth', description: 'NL, Female' },
+  { id: 'Daniel-Dutch', name: 'Daniel', description: 'NL, Male' },
+  // Ukrainian
+  { id: 'Vira-Ukrainian', name: 'Vira', description: 'UK, Female' },
+  { id: 'Dmytro-Ukrainian', name: 'Dmytro', description: 'UK, Male' },
+  // Swedish
+  { id: 'Sanna-Swedish', name: 'Sanna', description: 'SV, Female' },
+  { id: 'Adam-Swedish', name: 'Adam', description: 'SV, Male' },
+  // Polish
+  { id: 'Hanna-Polish', name: 'Hanna', description: 'PL, Female' },
+  { id: 'Marcin-Polish', name: 'Marcin', description: 'PL, Male' },
+];
+
+const providers = [
+  { id: 'openai', name: 'OpenAI Realtime', description: 'GPT-4o Realtime via Asterisk' },
+  { id: 'ultravox', name: 'Ultravox', description: 'Native SIP, $0.05/min' },
 ];
 
 export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps) {
@@ -88,9 +173,12 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [agentName, setAgentName] = useState('');
   const [agentDescription, setAgentDescription] = useState('');
+  const [selectedProvider, setSelectedProvider] = useState('openai');
   const [selectedLanguage, setSelectedLanguage] = useState('tr');
   const [selectedVoice, setSelectedVoice] = useState('alloy');
   const [isLoading, setIsLoading] = useState(false);
+
+  const voices = selectedProvider === 'ultravox' ? ultravoxVoices : openaiVoices;
 
   const handleCreate = async () => {
     if (!agentName.trim()) {
@@ -110,12 +198,13 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch('http://localhost:8000/api/v1/agents', {
+      const response = await fetch(`${API_V1}/agents`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
           name: agentName.trim(),
           description: agentDescription.trim() || null,
+          provider: selectedProvider,
           template: selectedTemplate,
           voice_settings: {
             voice: selectedVoice,
@@ -179,6 +268,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
     setSelectedTemplate(null);
     setAgentName('');
     setAgentDescription('');
+    setSelectedProvider('openai');
     setSelectedLanguage('tr');
     setSelectedVoice('alloy');
   };
@@ -300,6 +390,33 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
                 />
               </div>
 
+              {/* Provider */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  AI Provider
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {providers.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        setSelectedProvider(p.id);
+                        setSelectedVoice(p.id === 'ultravox' ? 'Mark' : 'alloy');
+                      }}
+                      className={cn(
+                        'p-3 rounded-lg border text-left transition-all',
+                        selectedProvider === p.id
+                          ? 'border-primary-500 bg-primary-500/5'
+                          : 'border-border hover:border-primary-500/50'
+                      )}
+                    >
+                      <p className="font-medium">{p.name}</p>
+                      <p className="text-xs text-muted-foreground">{p.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Language */}
               <div>
                 <label className="block text-sm font-medium mb-2">
@@ -326,19 +443,19 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
                 <label className="block text-sm font-medium mb-2">
                   Voice
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2 max-h-48 overflow-auto custom-scrollbar">
                   {voices.map((voice) => (
                     <button
                       key={voice.id}
                       onClick={() => setSelectedVoice(voice.id)}
                       className={cn(
-                        'p-3 rounded-lg border text-center transition-all',
+                        'p-2 rounded-lg border text-center transition-all',
                         selectedVoice === voice.id
                           ? 'border-primary-500 bg-primary-500/5'
                           : 'border-border hover:border-primary-500/50'
                       )}
                     >
-                      <p className="font-medium capitalize">{voice.name}</p>
+                      <p className="font-medium text-sm capitalize">{voice.name}</p>
                       <p className="text-xs text-muted-foreground">
                         {voice.description}
                       </p>

@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { API_V1 } from '@/lib/api';
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -223,7 +224,7 @@ function PromptMakerModal({ isOpen, onClose, onGenerate, existingPrompt }: Promp
     setError('');
 
     try {
-      const response = await fetch('http://localhost:8000/api/v1/prompt-generator/generate', {
+      const response = await fetch(`${API_V1}/prompt-generator/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -524,9 +525,11 @@ export default function AgentEditorPage() {
   ]);
 
   // Settings state
+  const [selectedProvider, setSelectedProvider] = useState('openai');
   const [selectedVoice, setSelectedVoice] = useState('alloy');
   const [selectedModel, setSelectedModel] = useState('gpt-realtime-mini');
   const [selectedLanguage, setSelectedLanguage] = useState('tr');
+  const [selectedTimezone, setSelectedTimezone] = useState('Europe/Istanbul');
   const [maxDuration, setMaxDuration] = useState(300);
   const [silenceTimeout, setSilenceTimeout] = useState(10);
   const [recordCalls, setRecordCalls] = useState(true);
@@ -590,7 +593,7 @@ export default function AgentEditorPage() {
           headers['Authorization'] = `Bearer ${token}`;
         }
 
-        const response = await fetch(`http://localhost:8000/api/v1/agents/${agentId}`, {
+        const response = await fetch(`${API_V1}/agents/${agentId}`, {
           headers,
         });
         
@@ -621,9 +624,11 @@ export default function AgentEditorPage() {
         setFirstSpeaker(data.first_speaker || 'agent');
         setUninterruptible(data.greeting_uninterruptible ?? false);
         setFirstMessageDelay(data.first_message_delay ? data.first_message_delay.toString() : '');
+        setSelectedProvider(data.provider || 'openai');
         setSelectedVoice(data.voice || 'alloy');
         setSelectedModel(data.model_type || 'gpt-realtime-mini');
         setSelectedLanguage(data.language || 'tr');
+        setSelectedTimezone(data.timezone || 'Europe/Istanbul');
         setMaxDuration(data.max_duration ?? 300);
         setSilenceTimeout(data.silence_timeout ?? 10);
         setRecordCalls(data.record_calls ?? true);
@@ -704,7 +709,7 @@ export default function AgentEditorPage() {
         
         // Load documents list
         try {
-          const docsResponse = await fetch(`http://localhost:8000/api/v1/agents/${agentId}/documents/`);
+          const docsResponse = await fetch(`${API_V1}/agents/${agentId}/documents/`);
           if (docsResponse.ok) {
             const docsData = await docsResponse.json();
             setDocuments(docsData || []);
@@ -744,7 +749,7 @@ export default function AgentEditorPage() {
     { id: 'documents' as RagSubTab, label: 'Documents', icon: '📄' },
   ];
 
-  const voices = [
+  const openaiVoices = [
     { id: 'alloy', name: 'Alloy' },
     { id: 'ash', name: 'Ash' },
     { id: 'ballad', name: 'Ballad' },
@@ -757,6 +762,85 @@ export default function AgentEditorPage() {
     { id: 'shimmer', name: 'Shimmer' },
     { id: 'verse', name: 'Verse' },
   ];
+
+  const ultravoxVoices = [
+    // Turkish
+    { id: 'Cicek-Turkish', name: 'Cicek (TR, Female)' },
+    { id: 'Doga-Turkish', name: 'Doga (TR, Male)' },
+    // English
+    { id: 'Mark', name: 'Mark (EN, Male)' },
+    { id: 'Jessica', name: 'Jessica (EN, Female)' },
+    { id: 'Sarah', name: 'Sarah (EN, Female)' },
+    { id: 'Alex', name: 'Alex (EN, Male)' },
+    { id: 'Carter', name: 'Carter (EN, Male, Cartesia)' },
+    { id: 'Olivia', name: 'Olivia (EN, Female)' },
+    { id: 'Edward', name: 'Edward (EN, Male)' },
+    { id: 'Luna', name: 'Luna (EN, Female)' },
+    { id: 'Ashley', name: 'Ashley (EN, Female)' },
+    { id: 'Dennis', name: 'Dennis (EN, Male)' },
+    { id: 'Theodore', name: 'Theodore (EN, Male)' },
+    { id: 'Julia', name: 'Julia (EN, Female)' },
+    { id: 'Shaun', name: 'Shaun (EN, Male)' },
+    { id: 'Hana', name: 'Hana (EN, Female)' },
+    { id: 'Blake', name: 'Blake (EN, Male)' },
+    { id: 'Timothy', name: 'Timothy (EN, Male)' },
+    { id: 'Chelsea', name: 'Chelsea (EN, Female)' },
+    { id: 'Emily-English', name: 'Emily (EN, Female)' },
+    { id: 'Aaron-English', name: 'Aaron (EN, Male)' },
+    // German
+    { id: 'Josef', name: 'Josef (DE, Male)' },
+    { id: 'Johanna', name: 'Johanna (DE, Female)' },
+    { id: 'Ben-German', name: 'Ben (DE, Male)' },
+    { id: 'Susi-German', name: 'Susi (DE, Female)' },
+    // French
+    { id: 'Hugo-French', name: 'Hugo (FR, Male)' },
+    { id: 'Coco-French', name: 'Coco (FR, Female)' },
+    { id: 'Alize-French', name: 'Alize (FR, Female)' },
+    { id: 'Nicolas-French', name: 'Nicolas (FR, Male)' },
+    // Spanish
+    { id: 'Alex-Spanish', name: 'Alex (ES, Male)' },
+    { id: 'Andrea-Spanish', name: 'Andrea (ES, Female)' },
+    { id: 'Tatiana-Spanish', name: 'Tatiana (ES, Female)' },
+    { id: 'Mauricio-Spanish', name: 'Mauricio (ES, Male)' },
+    // Italian
+    { id: 'Linda-Italian', name: 'Linda (IT, Female)' },
+    { id: 'Giovanni-Italian', name: 'Giovanni (IT, Male)' },
+    // Portuguese
+    { id: 'Rosa-Portuguese', name: 'Rosa (PT-BR, Female)' },
+    { id: 'Tiago-Portuguese', name: 'Tiago (PT-BR, Male)' },
+    // Arabic
+    { id: 'Salma-Arabic', name: 'Salma (AR, Female)' },
+    { id: 'Raed-Arabic', name: 'Raed (AR-SA, Male)' },
+    // Japanese
+    { id: 'Morioki-Japanese', name: 'Morioki (JA, Male)' },
+    { id: 'Asahi-Japanese', name: 'Asahi (JA, Female)' },
+    // Korean
+    { id: 'Yoona', name: 'Yoona (KO, Female)' },
+    { id: 'Seojun', name: 'Seojun (KO, Male)' },
+    // Chinese
+    { id: 'Maya-Chinese', name: 'Maya (ZH, Female)' },
+    { id: 'Martin-Chinese', name: 'Martin (ZH, Male)' },
+    // Hindi
+    { id: 'Riya-Hindi-Urdu', name: 'Riya (HI, Female)' },
+    { id: 'Aakash-Hindi', name: 'Aakash (HI, Male)' },
+    // Russian
+    { id: 'Nadia-Russian', name: 'Nadia (RU, Female)' },
+    { id: 'Felix-Russian', name: 'Felix (RU, Male)' },
+    // Dutch
+    { id: 'Ruth-Dutch', name: 'Ruth (NL, Female)' },
+    { id: 'Daniel-Dutch', name: 'Daniel (NL, Male)' },
+    // Ukrainian
+    { id: 'Vira-Ukrainian', name: 'Vira (UK, Female)' },
+    { id: 'Dmytro-Ukrainian', name: 'Dmytro (UK, Male)' },
+    // Swedish
+    { id: 'Sanna-Swedish', name: 'Sanna (SV, Female)' },
+    { id: 'Adam-Swedish', name: 'Adam (SV, Male)' },
+    // Polish
+    { id: 'Hanna-Polish', name: 'Hanna (PL, Female)' },
+    { id: 'Marcin-Polish', name: 'Marcin (PL, Male)' },
+  ];
+
+  const voices = selectedProvider === 'ultravox' ? ultravoxVoices : openaiVoices;
 
   const addInactivityMessage = () => {
     setInactivityMessages([
@@ -837,7 +921,7 @@ export default function AgentEditorPage() {
 
       const promptSections = parseUnifiedPrompt(prompt);
 
-      const response = await fetch(`http://localhost:8000/api/v1/agents/${agentId}`, {
+      const response = await fetch(`${API_V1}/agents/${agentId}`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({
@@ -854,10 +938,12 @@ export default function AgentEditorPage() {
             safety: promptSections.safety || '',
             language: '',  // Legacy field
           },
+          provider: selectedProvider,
           voice_settings: {
             model_type: selectedModel,
             voice: selectedVoice,
             language: selectedLanguage,
+            timezone: selectedTimezone,
             speech_speed: speechSpeed,
           },
           call_settings: {
@@ -1309,7 +1395,7 @@ A: Credit card, bank transfer, automatic payment order.
                                 const formData = new FormData();
                                 formData.append('file', file);
                                 
-                                const response = await fetch(`http://localhost:8000/api/v1/agents/${agentId}/documents/upload`, {
+                                const response = await fetch(`${API_V1}/agents/${agentId}/documents/upload`, {
                                   method: 'POST',
                                   body: formData,
                                 });
@@ -1393,7 +1479,7 @@ A: Credit card, bank transfer, automatic payment order.
                                 <button
                                   onClick={async () => {
                                     try {
-                                      const response = await fetch(`http://localhost:8000/api/v1/agents/${agentId}/documents/${doc.id}`, {
+                                      const response = await fetch(`${API_V1}/agents/${agentId}/documents/${doc.id}`, {
                                         method: 'DELETE',
                                       });
                                       if (!response.ok) throw new Error('Failed to delete');
@@ -2346,6 +2432,47 @@ A: Credit card, bank transfer, automatic payment order.
             {/* Settings Tab */}
             {activeTab === 'settings' && (
               <div className="p-6 space-y-6">
+                {/* Provider Selection */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">AI Provider</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => {
+                        setSelectedProvider('openai');
+                        setSelectedModel('gpt-realtime-mini');
+                        setSelectedVoice('alloy');
+                        setHasChanges(true);
+                      }}
+                      className={cn(
+                        'p-3 rounded-lg border text-left transition-all',
+                        selectedProvider === 'openai'
+                          ? 'border-primary-500 bg-primary-500/5'
+                          : 'border-border hover:border-primary-500/50'
+                      )}
+                    >
+                      <p className="font-medium text-sm">OpenAI Realtime</p>
+                      <p className="text-xs text-muted-foreground">GPT-4o via Asterisk, token-based pricing</p>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedProvider('ultravox');
+                        setSelectedModel('ultravox-v0.7');
+                        setSelectedVoice('Mark');
+                        setHasChanges(true);
+                      }}
+                      className={cn(
+                        'p-3 rounded-lg border text-left transition-all',
+                        selectedProvider === 'ultravox'
+                          ? 'border-primary-500 bg-primary-500/5'
+                          : 'border-border hover:border-primary-500/50'
+                      )}
+                    >
+                      <p className="font-medium text-sm">Ultravox</p>
+                      <p className="text-xs text-muted-foreground">Native SIP, $0.05/min flat rate</p>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Basic Settings - 2 Column Grid */}
                 <div className="grid grid-cols-2 gap-4">
                   {/* Model Selection */}
@@ -2356,11 +2483,24 @@ A: Credit card, bank transfer, automatic payment order.
                       onChange={(e) => { setSelectedModel(e.target.value); setHasChanges(true); }}
                       className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
                     >
-                      <option value="gpt-realtime-mini">gpt-realtime-mini ($10/$20 per 1M audio tokens)</option>
-                      <option value="gpt-realtime">gpt-realtime ($32/$64 per 1M audio tokens)</option>
+                      {selectedProvider === 'openai' ? (
+                        <>
+                          <option value="gpt-realtime-mini">gpt-realtime-mini ($10/$20 per 1M audio tokens)</option>
+                          <option value="gpt-realtime">gpt-realtime ($32/$64 per 1M audio tokens)</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="ultravox-v0.7">Ultravox v0.7 (latest, recommended)</option>
+                          <option value="ultravox-v0.6">Ultravox v0.6</option>
+                          <option value="ultravox-v0.6-gemma3-27b">Ultravox v0.6 gemma3-27b</option>
+                          <option value="ultravox-v0.6-llama3.3-70b">Ultravox v0.6 llama3.3-70b</option>
+                        </>
+                      )}
                     </select>
                     <p className="text-xs text-muted-foreground">
-                      Mini model is more cost-effective for most use cases.
+                      {selectedProvider === 'openai'
+                        ? 'Mini model is more cost-effective for most use cases.'
+                        : 'Ultravox v0.7 is the latest model with best quality.'}
                     </p>
                   </div>
 
@@ -2391,6 +2531,64 @@ A: Credit card, bank transfer, automatic payment order.
                       <option value="de">🇩🇪 Deutsch</option>
                       <option value="fr">🇫🇷 Français</option>
                       <option value="es">🇪🇸 Español</option>
+                    </select>
+                  </div>
+
+                  {/* Timezone */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Timezone</label>
+                    <select
+                      value={selectedTimezone}
+                      onChange={(e) => { setSelectedTimezone(e.target.value); setHasChanges(true); }}
+                      className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                      <optgroup label="Türkiye">
+                        <option value="Europe/Istanbul">🇹🇷 İstanbul (UTC+3)</option>
+                      </optgroup>
+                      <optgroup label="Avrupa">
+                        <option value="Europe/London">🇬🇧 Londra (UTC+0/+1)</option>
+                        <option value="Europe/Berlin">🇩🇪 Berlin (UTC+1/+2)</option>
+                        <option value="Europe/Paris">🇫🇷 Paris (UTC+1/+2)</option>
+                        <option value="Europe/Madrid">🇪🇸 Madrid (UTC+1/+2)</option>
+                        <option value="Europe/Rome">🇮🇹 Roma (UTC+1/+2)</option>
+                        <option value="Europe/Amsterdam">🇳🇱 Amsterdam (UTC+1/+2)</option>
+                        <option value="Europe/Brussels">🇧🇪 Brüksel (UTC+1/+2)</option>
+                        <option value="Europe/Vienna">🇦🇹 Viyana (UTC+1/+2)</option>
+                        <option value="Europe/Zurich">🇨🇭 Zürih (UTC+1/+2)</option>
+                        <option value="Europe/Athens">🇬🇷 Atina (UTC+2/+3)</option>
+                        <option value="Europe/Bucharest">🇷🇴 Bükreş (UTC+2/+3)</option>
+                        <option value="Europe/Helsinki">🇫🇮 Helsinki (UTC+2/+3)</option>
+                        <option value="Europe/Moscow">🇷🇺 Moskova (UTC+3)</option>
+                      </optgroup>
+                      <optgroup label="Amerika">
+                        <option value="America/New_York">🇺🇸 New York (UTC-5/-4)</option>
+                        <option value="America/Chicago">🇺🇸 Chicago (UTC-6/-5)</option>
+                        <option value="America/Denver">🇺🇸 Denver (UTC-7/-6)</option>
+                        <option value="America/Los_Angeles">🇺🇸 Los Angeles (UTC-8/-7)</option>
+                        <option value="America/Toronto">🇨🇦 Toronto (UTC-5/-4)</option>
+                        <option value="America/Sao_Paulo">🇧🇷 São Paulo (UTC-3)</option>
+                        <option value="America/Mexico_City">🇲🇽 Mexico City (UTC-6/-5)</option>
+                        <option value="America/Argentina/Buenos_Aires">🇦🇷 Buenos Aires (UTC-3)</option>
+                      </optgroup>
+                      <optgroup label="Asya / Pasifik">
+                        <option value="Asia/Dubai">🇦🇪 Dubai (UTC+4)</option>
+                        <option value="Asia/Riyadh">🇸🇦 Riyad (UTC+3)</option>
+                        <option value="Asia/Tehran">🇮🇷 Tahran (UTC+3:30)</option>
+                        <option value="Asia/Karachi">🇵🇰 Karaçi (UTC+5)</option>
+                        <option value="Asia/Kolkata">🇮🇳 Mumbai (UTC+5:30)</option>
+                        <option value="Asia/Bangkok">🇹🇭 Bangkok (UTC+7)</option>
+                        <option value="Asia/Shanghai">🇨🇳 Şangay (UTC+8)</option>
+                        <option value="Asia/Tokyo">🇯🇵 Tokyo (UTC+9)</option>
+                        <option value="Asia/Seoul">🇰🇷 Seul (UTC+9)</option>
+                        <option value="Australia/Sydney">🇦🇺 Sidney (UTC+10/+11)</option>
+                        <option value="Pacific/Auckland">🇳🇿 Auckland (UTC+12/+13)</option>
+                      </optgroup>
+                      <optgroup label="Afrika">
+                        <option value="Africa/Cairo">🇪🇬 Kahire (UTC+2)</option>
+                        <option value="Africa/Johannesburg">🇿🇦 Johannesburg (UTC+2)</option>
+                        <option value="Africa/Lagos">🇳🇬 Lagos (UTC+1)</option>
+                        <option value="Africa/Casablanca">🇲🇦 Kazablanka (UTC+0/+1)</option>
+                      </optgroup>
                     </select>
                   </div>
 

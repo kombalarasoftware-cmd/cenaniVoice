@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { API_V1 } from '@/lib/api';
 import {
   Calendar,
   Clock,
@@ -96,7 +97,7 @@ export default function AppointmentsPage() {
       if (typeFilter) params.append('appointment_type', typeFilter);
       if (searchQuery) params.append('search', searchQuery);
       
-      const response = await fetch(`http://localhost:8000/api/v1/appointments/?${params}`);
+      const response = await fetch(`${API_V1}/appointments/?${params}`);
       if (!response.ok) throw new Error('Failed to fetch appointments');
       
       const data = await response.json();
@@ -113,7 +114,7 @@ export default function AppointmentsPage() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/v1/appointments/stats');
+      const response = await fetch(`${API_V1}/appointments/stats`);
       if (response.ok) {
         const data = await response.json();
         setStats(data);
@@ -132,7 +133,7 @@ export default function AppointmentsPage() {
   const handleStatusChange = async (appointmentId: number, action: 'cancel' | 'complete') => {
     try {
       const endpoint = action === 'cancel' ? 'cancel' : 'complete';
-      const response = await fetch(`http://localhost:8000/api/v1/appointments/${appointmentId}/${endpoint}`, {
+      const response = await fetch(`${API_V1}/appointments/${appointmentId}/${endpoint}`, {
         method: 'POST',
       });
       

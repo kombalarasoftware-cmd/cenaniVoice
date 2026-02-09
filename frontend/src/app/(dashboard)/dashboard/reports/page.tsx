@@ -13,7 +13,7 @@ import {
   Loader2, RefreshCw,
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8000/api/v1';
+import { API_V1 as API_BASE } from '@/lib/api';
 
 // ─── Types ───────────────────────────────────────────────────────
 interface AiOverview {
@@ -59,7 +59,7 @@ interface AgentComparison {
 // ─── Helpers ─────────────────────────────────────────────────────
 function getToken() {
   if (typeof window !== 'undefined') {
-    return localStorage.getItem('token') || '';
+    return localStorage.getItem('access_token') || '';
   }
   return '';
 }

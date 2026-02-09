@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { API_V1 } from '@/lib/api';
 import {
   ClipboardList,
   ChevronRight,
@@ -87,7 +88,7 @@ export default function SurveysPage() {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      let url = `http://localhost:8000/api/v1/surveys/?page=${page}&per_page=20`;
+      let url = `${API_V1}/surveys/?page=${page}&per_page=20`;
       if (statusFilter) url += `&status=${statusFilter}`;
 
       const response = await fetch(url, { headers });
@@ -110,7 +111,7 @@ export default function SurveysPage() {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch('http://localhost:8000/api/v1/surveys/stats?days=30', { headers });
+      const response = await fetch(`${API_V1}/surveys/stats?days=30`, { headers });
       if (!response.ok) return;
 
       const data = await response.json();

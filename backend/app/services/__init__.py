@@ -12,6 +12,12 @@ from app.services.audio_bridge import (
     AudioBridge,
     CallSession
 )
+from app.services.tool_registry import (
+    TOOL_DEFINITIONS,
+    to_openai_tools,
+    to_ultravox_tools,
+    get_tools_for_agent,
+)
 
 __all__ = [
     "OpenAIRealtimeClient",
@@ -22,4 +28,8 @@ __all__ = [
     "ARIConfig",
     "AudioBridge",
     "CallSession",
+    "TOOL_DEFINITIONS",
+    "to_openai_tools",
+    "to_ultravox_tools",
+    "get_tools_for_agent",
 ]

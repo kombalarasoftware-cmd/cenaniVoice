@@ -6,6 +6,7 @@ import { CreateAgentDialog } from '@/components/agents/create-agent-dialog';
 import { useState, useEffect } from 'react';
 import { Bot, Plus, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { API_V1 } from '@/lib/api';
 
 // Helper function to format last used time
 function formatLastUsed(dateString: string): string {
@@ -51,7 +52,7 @@ export default function AgentsPage() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch('http://localhost:8000/api/v1/agents', {
+      const response = await fetch(`${API_V1}/agents`, {
         headers,
       });
 

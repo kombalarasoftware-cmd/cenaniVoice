@@ -23,6 +23,7 @@ from app.models.models import (
     LeadStatus,
     LeadInterestType,
     CallTag,
+    AIProvider,
 )
 
 
@@ -118,6 +119,7 @@ class VoiceSettings(BaseModel):
     model_type: RealtimeModel = RealtimeModel.GPT_REALTIME_MINI  # Default to economic
     voice: str = "alloy"
     language: str = "tr"
+    timezone: str = "Europe/Istanbul"
     speech_speed: float = Field(default=1.0, ge=0.5, le=2.0)
 
 
@@ -360,7 +362,31 @@ class AgentBase(BaseModel):
     description: Optional[str] = None
 
 
+class UltravoxVoiceSettings(BaseModel):
+    """Ultravox-specific voice and VAD settings."""
+    voice: str = "Mark"
+    turn_endpoint_delay: float = Field(default=0.384, description="Seconds of silence before turn end")
+    minimum_turn_duration: float = Field(default=0.0, description="Minimum turn duration in seconds")
+    minimum_interruption_duration: float = Field(default=0.09, description="Min duration to count as interruption")
+    frame_activation_threshold: float = Field(default=0.1, ge=0.0, le=1.0, description="VAD activation threshold")
+
+
+class CallCost(BaseModel):
+    """Unified cost response for both providers."""
+    provider: str  # "openai" or "ultravox"
+    duration_seconds: int
+    # OpenAI-specific (nullable)
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    cached_tokens: Optional[int] = None
+    # Ultravox-specific
+    rate_per_minute: Optional[float] = None
+    # Common
+    total_cost_usd: float
+
+
 class AgentCreate(AgentBase):
+    provider: str = "openai"  # "openai" or "ultravox"
     voice_settings: Optional[VoiceSettings] = None
     call_settings: Optional[CallSettings] = None
     behavior_settings: Optional[BehaviorSettings] = None
@@ -368,12 +394,14 @@ class AgentCreate(AgentBase):
     prompt: Optional[PromptSections] = None
     smart_features: Optional[SmartFeatures] = None
     survey_config: Optional[SurveyConfig] = None
+    ultravox_settings: Optional[UltravoxVoiceSettings] = None
 
 
 class AgentUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     status: Optional[AgentStatus] = None
+    provider: Optional[str] = None  # "openai" or "ultravox"
     voice_settings: Optional[VoiceSettings] = None
     call_settings: Optional[CallSettings] = None
     behavior_settings: Optional[BehaviorSettings] = None
@@ -383,12 +411,14 @@ class AgentUpdate(BaseModel):
     inactivity_messages: Optional[List[InactivityMessage]] = None
     knowledge_base: Optional[str] = None  # Static knowledge base content
     web_sources: Optional[List[dict]] = None  # Web URLs: [{"url": "...", "name": "...", "description": "..."}]
-    smart_features: Optional[SmartFeatures] = None  # Akıllı özellikler
-    survey_config: Optional[SurveyConfig] = None  # Anket yapılandırması
+    smart_features: Optional[SmartFeatures] = None
+    survey_config: Optional[SurveyConfig] = None
+    ultravox_settings: Optional[UltravoxVoiceSettings] = None
 
 
 class AgentResponse(AgentBase):
     id: int
+    provider: str = "openai"
     status: AgentStatus
     model_type: RealtimeModel = RealtimeModel.GPT_REALTIME_MINI
     voice: str
@@ -404,6 +434,8 @@ class AgentResponse(AgentBase):
 
 class AgentDetailResponse(AgentResponse):
     # model_type is inherited from AgentResponse
+    # Provider
+    ultravox_agent_id: Optional[str] = None
     # Greeting settings
     first_speaker: str = "agent"
     greeting_message: Optional[str] = None
@@ -427,6 +459,7 @@ class AgentDetailResponse(AgentResponse):
     smart_features: Optional[Dict[str, Any]] = None  # Akıllı özellikler
     survey_config: Optional[Dict[str, Any]] = None  # Anket yapılandırması
 
+    timezone: str = "Europe/Istanbul"
     speech_speed: float
     max_duration: int
     silence_timeout: int
@@ -546,6 +579,8 @@ class PhoneNumberResponse(BaseModel):
 class CallLogResponse(BaseModel):
     id: int
     call_sid: str
+    provider: Optional[str] = None  # "openai" or "ultravox"
+    ultravox_call_id: Optional[str] = None
     status: CallStatus
     outcome: Optional[CallOutcome] = None
     duration: int
@@ -568,6 +603,9 @@ class CallLogResponse(BaseModel):
     # SIP details
     sip_code: Optional[int] = None
     hangup_cause: Optional[str] = None
+
+    # AMD
+    amd_status: Optional[str] = None  # HUMAN, MACHINE, NOTSURE
 
     # Tags
     tags: Optional[list] = None

@@ -11,7 +11,7 @@ New-NetFirewallRule -DisplayName "VoiceAI SIP UDP Out" -Direction Outbound -Prot
 New-NetFirewallRule -DisplayName "VoiceAI SIP TCP" -Direction Inbound -Protocol TCP -LocalPort 5060,5061 -Action Allow -ErrorAction SilentlyContinue
 New-NetFirewallRule -DisplayName "VoiceAI SIP TCP Out" -Direction Outbound -Protocol TCP -LocalPort 5060,5061 -Action Allow -ErrorAction SilentlyContinue
 
-# RTP Media
+# RTP Media (must match rtp.conf: rtpstart=10000, rtpend=10100)
 New-NetFirewallRule -DisplayName "VoiceAI RTP" -Direction Inbound -Protocol UDP -LocalPort 10000-10100 -Action Allow -ErrorAction SilentlyContinue
 New-NetFirewallRule -DisplayName "VoiceAI RTP Out" -Direction Outbound -Protocol UDP -LocalPort 10000-10100 -Action Allow -ErrorAction SilentlyContinue
 

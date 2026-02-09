@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { API_V1 } from '@/lib/api';
 import {
   Users,
   Phone,
@@ -114,7 +115,7 @@ export default function LeadsPage() {
       if (priorityFilter) params.append('priority', priorityFilter);
       if (searchQuery) params.append('search', searchQuery);
       
-      const response = await fetch(`http://localhost:8000/api/v1/leads/?${params}`);
+      const response = await fetch(`${API_V1}/leads/?${params}`);
       if (!response.ok) throw new Error('Failed to fetch leads');
       
       const data = await response.json();
@@ -131,7 +132,7 @@ export default function LeadsPage() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/v1/leads/stats');
+      const response = await fetch(`${API_V1}/leads/stats`);
       if (response.ok) {
         const data = await response.json();
         setStats(data);
@@ -149,7 +150,7 @@ export default function LeadsPage() {
 
   const handleStatusChange = async (leadId: number, newStatus: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/leads/${leadId}`, {
+      const response = await fetch(`${API_V1}/leads/${leadId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),

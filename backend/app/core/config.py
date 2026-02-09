@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_ORGANIZATION: Optional[str] = None
 
+    # Ultravox
+    ULTRAVOX_API_KEY: str = ""
+    ULTRAVOX_BASE_URL: str = "https://api.ultravox.ai/api"
+    ULTRAVOX_WEBHOOK_URL: str = ""  # Public URL for Ultravox webhook callbacks
+
     # SIP Trunk
     SIP_TRUNK_HOST: str = ""
     SIP_TRUNK_PORT: int = 5060
@@ -62,6 +67,12 @@ class Settings(BaseSettings):
     ASTERISK_ARI_PORT: int = 8088
     ASTERISK_ARI_USER: str = ""
     ASTERISK_ARI_PASSWORD: str = ""
+
+    # Asterisk SIP Bridge (for Ultravox → Asterisk → SIP trunk routing)
+    ASTERISK_EXTERNAL_HOST: str = ""  # Public IP/hostname for Asterisk SIP
+    ASTERISK_SIP_PORT: int = 5060
+    ULTRAVOX_SIP_USERNAME: str = "ultravox"  # Must match pjsip.conf [ultravox-auth]
+    ULTRAVOX_SIP_PASSWORD: str = "ultravox_voiceai_2026"
 
     # MinIO - Credentials from environment
     MINIO_ENDPOINT: str = "localhost:9000"
@@ -121,6 +132,17 @@ class Settings(BaseSettings):
             )
         return v
 
+    @field_validator("ULTRAVOX_API_KEY")
+    @classmethod
+    def validate_ultravox_key(cls, v: str) -> str:
+        """Warn if Ultravox API key is not set"""
+        if not v:
+            print(
+                "\n⚠️  WARNING: ULTRAVOX_API_KEY is not set.\n"
+                "   Get your API key from: https://app.ultravox.ai\n"
+            )
+        return v
+
 
 # Create settings instance
 settings = Settings()
@@ -135,7 +157,10 @@ def validate_production_settings() -> bool:
 
     # Check critical settings
     if not settings.OPENAI_API_KEY or settings.OPENAI_API_KEY.startswith("sk-your-"):
-        errors.append("OPENAI_API_KEY is not configured")
+        errors.append("OPENAI_API_KEY is not configured (needed for OpenAI provider)")
+
+    if not settings.ULTRAVOX_API_KEY:
+        errors.append("ULTRAVOX_API_KEY is not configured (needed for Ultravox provider)")
 
     if len(settings.SECRET_KEY) < 32:
         errors.append("SECRET_KEY is too short (minimum 32 characters)")

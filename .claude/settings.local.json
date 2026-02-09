@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:docs.ultravox.ai)",
+      "mcp__filesystem__read_text_file",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZXhwIjoxNzcwNjM0MDM1fQ.65HeSm1g6ULpT3ktPbI9q1QjEt1JpBSkcabUTKw_sn8\")",
+      "Bash(curl:*)",
+      "Bash(python:*)"
+    ]
+  }
+}

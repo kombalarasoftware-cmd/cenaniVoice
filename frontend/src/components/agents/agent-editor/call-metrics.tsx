@@ -23,16 +23,21 @@ export interface CallMetrics {
 }
 
 export interface CostBreakdown {
-  input_tokens: { text: number; audio: number; total: number };
-  output_tokens: { text: number; audio: number; total: number };
-  cost: { 
+  // OpenAI token-based fields (optional for Ultravox)
+  input_tokens?: { text: number; audio: number; total: number };
+  output_tokens?: { text: number; audio: number; total: number };
+  cost: {
     input_text?: number;
     input_audio?: number;
     output_text?: number;
     output_audio?: number;
-    total: number; 
+    total: number;
   };
   model?: string;
+  // Ultravox minute-based fields
+  provider?: string;
+  duration_seconds?: number;
+  rate_per_minute?: number;
 }
 
 interface CallMetricsBarProps {
@@ -160,7 +165,7 @@ export function CallMetricsBar({
             icon={DollarSign}
             label="Cost"
             value={formatCost(cost.cost.total)}
-            subValue={`${(cost.input_tokens.total + cost.output_tokens.total).toLocaleString()} tokens`}
+            subValue={cost.input_tokens && cost.output_tokens ? `${(cost.input_tokens.total + cost.output_tokens.total).toLocaleString()} tokens` : cost.duration_seconds ? `${Math.ceil(cost.duration_seconds / 60)} min` : undefined}
             colorClass="text-emerald-500"
             bgClass="bg-emerald-500/10"
           />

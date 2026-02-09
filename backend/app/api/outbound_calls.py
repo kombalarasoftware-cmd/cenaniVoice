@@ -1,6 +1,7 @@
 """
 Outbound Calls API
-Handles outbound call initiation via Asterisk
+Handles outbound call initiation via Asterisk (OpenAI) or Ultravox REST API.
+Routes to the appropriate provider based on agent.provider setting.
 """
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
@@ -18,6 +19,8 @@ import redis
 from datetime import datetime
 from app.core.database import get_db
 from app.models.models import Agent, CallLog, CallStatus
+from app.services.provider_factory import get_provider
+from app.api.v1.auth import get_current_user_optional
 
 # Redis client for passing agent settings to asterisk bridge
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
@@ -45,10 +48,12 @@ def build_conversation_history(db: Session, phone_number: str, agent_id: Optiona
         # Query previous calls to this number
         query = db.query(CallLog).filter(
             CallLog.to_number.like(f"%{normalized}")
-        ).order_by(CallLog.created_at.desc()).limit(max_calls)
+        )
         
         if agent_id:
             query = query.filter(CallLog.agent_id == agent_id)
+        
+        query = query.order_by(CallLog.created_at.desc()).limit(max_calls)
         
         previous_calls = query.all()
         
@@ -96,7 +101,7 @@ class OutboundCallRequest(BaseModel):
     """Request model for initiating an outbound call"""
     phone_number: str = Field(..., description="Phone number to call (without +, e.g., 491234567890)")
     agent_id: Optional[str] = Field(None, description="Agent ID to handle the call")
-    caller_id: str = Field(default="491754571258", description="Caller ID to display")
+    caller_id: str = Field(default="491632086421", description="Caller ID to display")
     customer_name: Optional[str] = Field(None, description="Customer name to personalize the call")
     customer_title: Optional[str] = Field(None, description="Customer title: Mr or Mrs")
     variables: Optional[dict] = Field(default=None, description="Custom variables for the call")
@@ -138,170 +143,181 @@ def normalize_phone_number(phone: str) -> str:
 
 
 @router.post("/outbound", response_model=OutboundCallResponse)
-async def initiate_outbound_call(request: OutboundCallRequest, db: Session = Depends(get_db)):
+async def initiate_outbound_call(
+    request: OutboundCallRequest,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user_optional),
+):
     """
-    Initiate an outbound call via Asterisk
-    
+    Initiate an outbound call.
+
+    Routes to the appropriate provider based on agent.provider setting:
+    - OpenAI: Asterisk ARI -> AudioSocket -> OpenAI Realtime WebSocket
+    - Ultravox: Ultravox REST API -> native SIP (bypasses Asterisk)
+
     The phone number should be provided WITHOUT the + prefix.
-    Example: 491754571258 (not +491754571258)
-    
-    If agent_id is provided, the agent's settings (voice, model, prompt, language)
-    will be applied to the call.
     """
-    # Normalize phone number (remove + if accidentally included)
     phone_number = normalize_phone_number(request.phone_number)
     caller_id = normalize_phone_number(request.caller_id)
-    
+
     logger.info(f"Initiating outbound call to {phone_number} with CallerID {caller_id}")
-    
-    # Generate a UUID for this call - used as AudioSocket UUID
-    call_uuid = str(uuid_lib.uuid4())
-    
-    # Initialize channel variables
-    channel_variables = {
-        "VOICEAI_UUID": call_uuid,  # Pass UUID to dialplan for AudioSocket
-    }
-    
-    # If agent_id provided, fetch agent settings and store in Redis
+
+    # Resolve agent and its provider
+    agent = None
     if request.agent_id:
+        agent = db.query(Agent).filter(Agent.id == int(request.agent_id)).first()
+        if not agent:
+            logger.warning(f"Agent ID {request.agent_id} not found, using default OpenAI flow")
+
+    provider_type = getattr(agent, "provider", "openai") if agent else "openai"
+
+    # -----------------------------------------------------------------
+    # ULTRAVOX PROVIDER PATH
+    # -----------------------------------------------------------------
+    if provider_type == "ultravox" and agent:
         try:
-            agent = db.query(Agent).filter(Agent.id == int(request.agent_id)).first()
-            if not agent:
-                logger.warning(f"Agent ID {request.agent_id} not found, using defaults")
-            else:
-                # Model type to string - use new model names
-                model_str = str(agent.model_type) if agent.model_type else "gpt-realtime-mini"
-                if "RealtimeModel." in model_str:
-                    model_str = model_str.replace("RealtimeModel.GPT_REALTIME_MINI", "gpt-realtime-mini").replace("RealtimeModel.GPT_REALTIME", "gpt-realtime")
-                
-                # Build full prompt from all prompt sections (ElevenLabs Enterprise Prompting Guide structure)
-                prompt_parts = []
-                # 1. Personality - who the agent is, character traits
-                if agent.prompt_role:
-                    prompt_parts.append(f"# Personality\n{agent.prompt_role}")
-                # 2. Environment - context of the conversation
-                if agent.prompt_personality:
-                    prompt_parts.append(f"# Environment\n{agent.prompt_personality}")
-                # 3. Tone - how to speak (concise, professional, etc.)
-                if agent.prompt_context:
-                    prompt_parts.append(f"# Tone\n{agent.prompt_context}")
-                # 4. Goal - what to accomplish, numbered workflow steps
-                if agent.prompt_pronunciations:
-                    prompt_parts.append(f"# Goal\n{agent.prompt_pronunciations}")
-                # 5. Guardrails - non-negotiable rules (models pay extra attention to this heading)
-                if agent.prompt_sample_phrases:
-                    prompt_parts.append(f"# Guardrails\n{agent.prompt_sample_phrases}")
-                # 6. Tools - tool descriptions with when/how/error handling
-                if agent.prompt_tools:
-                    prompt_parts.append(f"# Tools\n{agent.prompt_tools}")
-                # 7. Character normalization - spoken vs written format rules
-                if agent.prompt_rules:
-                    prompt_parts.append(f"# Character normalization\n{agent.prompt_rules}")
-                # 8. Error handling - tool failure recovery
-                if agent.prompt_flow:
-                    prompt_parts.append(f"# Error handling\n{agent.prompt_flow}")
-                # 9. Legacy: Safety (merged into guardrails for new agents)
-                if agent.prompt_safety:
-                    prompt_parts.append(f"# Guardrails\n{agent.prompt_safety}")
-                # Legacy: Language constraints
-                if agent.prompt_language:
-                    prompt_parts.append(f"# Language\n{agent.prompt_language}")
-                # Knowledge Base - Static information for the agent
-                if agent.knowledge_base:
-                    prompt_parts.append(f"# Knowledge Base\n{agent.knowledge_base}")
-                full_prompt = "\n\n".join(prompt_parts) if prompt_parts else ""
-                
-                # Store agent settings in Redis keyed by UUID
-                VALID_VOICES = {'alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar'}
-                agent_voice = agent.voice if agent.voice in VALID_VOICES else "ash"
-                
-                # ALL agent settings are passed to asterisk-bridge
-                call_setup_data = {
-                    # Basic info
-                    "agent_id": str(agent.id),
-                    "agent_name": agent.name or "AI Agent",
-                    "voice": agent_voice,
-                    "model": model_str,
-                    "language": agent.language or "tr",
-                    "prompt": full_prompt,
-                    "customer_name": request.customer_name or "",
-                    "customer_title": request.customer_title or "",
-                    
-                    # Greeting settings
-                    "greeting_message": agent.greeting_message or "",
-                    "first_speaker": agent.first_speaker or "agent",
-                    "greeting_uninterruptible": agent.greeting_uninterruptible or False,
-                    "first_message_delay": agent.first_message_delay or 0.0,
-                    
-                    # Call settings
-                    "max_duration": agent.max_duration or 300,
-                    "silence_timeout": agent.silence_timeout or 10,
-                    
-                    # Advanced settings - VAD / Turn Detection
-                    "temperature": agent.temperature or 0.7,
-                    "vad_threshold": agent.vad_threshold or 0.5,
-                    "turn_detection": agent.turn_detection or "semantic_vad",
-                    "vad_eagerness": agent.vad_eagerness or "low",
-                    "silence_duration_ms": agent.silence_duration_ms or 1000,
-                    "prefix_padding_ms": agent.prefix_padding_ms or 400,
-                    "interrupt_response": agent.interrupt_response if agent.interrupt_response is not None else True,
-                    "create_response": agent.create_response if agent.create_response is not None else True,
-                    
-                    # Advanced settings - Audio
-                    "noise_reduction": agent.noise_reduction if agent.noise_reduction is not None else True,
-                    "max_output_tokens": agent.max_output_tokens or 500,
-                    "speech_speed": agent.speech_speed or 1.0,
-                    "idle_timeout_ms": agent.idle_timeout_ms,  # None = no timeout
-                    "transcript_model": getattr(agent, 'transcript_model', None) or "gpt-4o-transcribe",
-                    
-                    # Inactivity messages (JSON)
-                    "inactivity_messages": agent.inactivity_messages or [],
-                    
-                    # Behavior settings
-                    "interruptible": agent.interruptible if agent.interruptible is not None else True,
-                    "record_calls": agent.record_calls if agent.record_calls is not None else True,
-                    "human_transfer": agent.human_transfer if agent.human_transfer is not None else True,
-                    
-                    # Conversation memory - previous call history for this phone number
-                    "conversation_history": build_conversation_history(db, phone_number, agent.id),
-                }
-                
-                if redis_client:
-                    try:
-                        redis_client.setex(
-                            f"call_setup:{call_uuid}",
-                            300,  # 5 minutes TTL
-                            json.dumps(call_setup_data)
-                        )
-                        logger.info(f"Call setup stored in Redis: {call_uuid[:8]} -> agent '{agent.name}'")
-                    except Exception as redis_err:
-                        logger.error(f"Redis store error: {redis_err}")
-                
-                # Also set channel variables as fallback
-                channel_variables["VOICEAI_AGENT_ID"] = str(agent.id)
-                channel_variables["VOICEAI_AGENT_NAME"] = agent.name or "AI Agent"
-                
-                logger.info(f"Using agent '{agent.name}' settings: voice={agent.voice}, model={model_str}, language={agent.language}")
+            provider = get_provider("ultravox")
+            conversation_history = build_conversation_history(db, phone_number, agent.id)
+
+            result = await provider.initiate_call(
+                agent=agent,
+                phone_number=phone_number,
+                caller_id=caller_id,
+                customer_name=request.customer_name or "",
+                customer_title=request.customer_title or "",
+                conversation_history=conversation_history,
+                variables=request.variables,
+            )
+
+            # Create CallLog
+            try:
+                call_log = CallLog(
+                    call_sid=result["call_id"],
+                    provider="ultravox",
+                    ultravox_call_id=result.get("ultravox_call_id"),
+                    status=CallStatus.RINGING,
+                    to_number=phone_number,
+                    from_number=caller_id,
+                    customer_name=request.customer_name or None,
+                    agent_id=agent.id,
+                    started_at=datetime.utcnow(),
+                )
+                db.add(call_log)
+                db.commit()
+                logger.info(f"CallLog created (ultravox): call_sid={result['call_id']}")
+            except Exception as e:
+                logger.warning(f"Failed to create CallLog: {e}")
+                db.rollback()
+
+            return OutboundCallResponse(
+                success=True,
+                channel_id=None,
+                call_id=result["call_id"],
+                message=f"Ultravox call initiated to {phone_number}",
+            )
+        except Exception as e:
+            logger.error(f"Ultravox call error: {e}")
+            return OutboundCallResponse(success=False, message=f"Ultravox error: {str(e)}")
+
+    # -----------------------------------------------------------------
+    # OPENAI PROVIDER PATH (existing Asterisk ARI flow)
+    # -----------------------------------------------------------------
+    call_uuid = str(uuid_lib.uuid4())
+    channel_variables = {"VOICEAI_UUID": call_uuid}
+
+    if agent:
+        try:
+            model_str = str(agent.model_type) if agent.model_type else "gpt-realtime-mini"
+            if "RealtimeModel." in model_str:
+                model_str = model_str.replace("RealtimeModel.GPT_REALTIME_MINI", "gpt-realtime-mini").replace("RealtimeModel.GPT_REALTIME", "gpt-realtime")
+
+            # Build full prompt from all prompt sections
+            prompt_parts = []
+            if agent.prompt_role:
+                prompt_parts.append(f"# Personality\n{agent.prompt_role}")
+            if agent.prompt_personality:
+                prompt_parts.append(f"# Environment\n{agent.prompt_personality}")
+            if agent.prompt_context:
+                prompt_parts.append(f"# Tone\n{agent.prompt_context}")
+            if agent.prompt_pronunciations:
+                prompt_parts.append(f"# Goal\n{agent.prompt_pronunciations}")
+            if agent.prompt_sample_phrases:
+                prompt_parts.append(f"# Guardrails\n{agent.prompt_sample_phrases}")
+            if agent.prompt_tools:
+                prompt_parts.append(f"# Tools\n{agent.prompt_tools}")
+            if agent.prompt_rules:
+                prompt_parts.append(f"# Character normalization\n{agent.prompt_rules}")
+            if agent.prompt_flow:
+                prompt_parts.append(f"# Error handling\n{agent.prompt_flow}")
+            if agent.prompt_safety:
+                prompt_parts.append(f"# Guardrails\n{agent.prompt_safety}")
+            if agent.prompt_language:
+                prompt_parts.append(f"# Language\n{agent.prompt_language}")
+            if agent.knowledge_base:
+                prompt_parts.append(f"# Knowledge Base\n{agent.knowledge_base}")
+            full_prompt = "\n\n".join(prompt_parts) if prompt_parts else ""
+
+            VALID_VOICES = {'alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar'}
+            agent_voice = agent.voice if agent.voice in VALID_VOICES else "ash"
+
+            call_setup_data = {
+                "agent_id": str(agent.id),
+                "agent_name": agent.name or "AI Agent",
+                "voice": agent_voice,
+                "model": model_str,
+                "language": agent.language or "tr",
+                "prompt": full_prompt,
+                "customer_name": request.customer_name or "",
+                "customer_title": request.customer_title or "",
+                "greeting_message": agent.greeting_message or "",
+                "first_speaker": agent.first_speaker or "agent",
+                "greeting_uninterruptible": agent.greeting_uninterruptible or False,
+                "first_message_delay": agent.first_message_delay or 0.0,
+                "max_duration": agent.max_duration or 300,
+                "silence_timeout": agent.silence_timeout or 10,
+                "temperature": agent.temperature or 0.7,
+                "vad_threshold": agent.vad_threshold or 0.5,
+                "turn_detection": agent.turn_detection or "semantic_vad",
+                "vad_eagerness": agent.vad_eagerness or "low",
+                "silence_duration_ms": agent.silence_duration_ms or 1000,
+                "prefix_padding_ms": agent.prefix_padding_ms or 400,
+                "interrupt_response": agent.interrupt_response if agent.interrupt_response is not None else True,
+                "create_response": agent.create_response if agent.create_response is not None else True,
+                "noise_reduction": agent.noise_reduction if agent.noise_reduction is not None else True,
+                "max_output_tokens": agent.max_output_tokens or 500,
+                "speech_speed": agent.speech_speed or 1.0,
+                "idle_timeout_ms": agent.idle_timeout_ms,
+                "transcript_model": getattr(agent, 'transcript_model', None) or "gpt-4o-transcribe",
+                "inactivity_messages": agent.inactivity_messages or [],
+                "interruptible": agent.interruptible if agent.interruptible is not None else True,
+                "record_calls": agent.record_calls if agent.record_calls is not None else True,
+                "human_transfer": agent.human_transfer if agent.human_transfer is not None else True,
+                "conversation_history": build_conversation_history(db, phone_number, agent.id),
+            }
+
+            if redis_client:
+                try:
+                    redis_client.setex(f"call_setup:{call_uuid}", 300, json.dumps(call_setup_data))
+                    logger.info(f"Call setup stored in Redis: {call_uuid[:8]} -> agent '{agent.name}'")
+                except Exception as redis_err:
+                    logger.error(f"Redis store error: {redis_err}")
+
+            channel_variables["VOICEAI_AGENT_ID"] = str(agent.id)
+            channel_variables["VOICEAI_AGENT_NAME"] = agent.name or "AI Agent"
+
+            logger.info(f"Using agent '{agent.name}' settings: voice={agent.voice}, model={model_str}, language={agent.language}")
         except Exception as e:
             logger.error(f"Error fetching agent settings: {e}")
-    
-    # Add customer_name and customer_title if provided
+
     if request.customer_name:
         channel_variables["VOICEAI_CUSTOMER_NAME"] = request.customer_name
-        logger.info(f"Customer name set: {request.customer_name}")
     if request.customer_title:
         channel_variables["VOICEAI_CUSTOMER_TITLE"] = request.customer_title
-        logger.info(f"Customer title set: {request.customer_title}")
-    
-    # Add custom variables if provided
     if request.variables:
         channel_variables.update(request.variables)
-    
+
     try:
-        # Build ARI endpoint URL
         ari_url = f"http://{ARI_HOST}:{ARI_PORT}/ari/channels"
-        
-        # Build request data - use extension/context for dialplan routing
         data = {
             "endpoint": f"PJSIP/{phone_number}@trunk",
             "extension": "s",
@@ -309,34 +325,27 @@ async def initiate_outbound_call(request: OutboundCallRequest, db: Session = Dep
             "callerId": f'"VoiceAI" <{caller_id}>',
             "timeout": 60,
         }
-        
-        # Add all channel variables
         if channel_variables:
             data["variables"] = channel_variables
-        
-        # Make ARI request
+
         auth = aiohttp.BasicAuth(ARI_USERNAME, ARI_PASSWORD)
-        
+
         async with aiohttp.ClientSession(auth=auth) as session:
             async with session.post(ari_url, json=data) as response:
                 if response.status >= 400:
                     error_text = await response.text()
                     logger.error(f"ARI error: {response.status} - {error_text}")
-                    return OutboundCallResponse(
-                        success=False,
-                        message=f"Failed to initiate call: {error_text}"
-                    )
-                
+                    return OutboundCallResponse(success=False, message=f"Failed to initiate call: {error_text}")
+
                 result = await response.json()
                 channel_id = result.get("id")
-
                 logger.info(f"Call initiated successfully: {channel_id}")
 
-                # Create CallLog record for this call
                 try:
                     agent_id_int = int(request.agent_id) if request.agent_id else None
                     call_log = CallLog(
                         call_sid=call_uuid,
+                        provider="openai",
                         status=CallStatus.RINGING,
                         to_number=phone_number,
                         from_number=caller_id,
@@ -355,25 +364,24 @@ async def initiate_outbound_call(request: OutboundCallRequest, db: Session = Dep
                     success=True,
                     channel_id=channel_id,
                     call_id=call_uuid,
-                    message=f"Call initiated to {phone_number}"
+                    message=f"Call initiated to {phone_number}",
                 )
-    
+
     except aiohttp.ClientError as e:
         logger.error(f"Connection error: {e}")
-        return OutboundCallResponse(
-            success=False,
-            message=f"Connection error: Unable to reach Asterisk ARI. Is Asterisk running?"
-        )
+        return OutboundCallResponse(success=False, message="Connection error: Unable to reach Asterisk ARI. Is Asterisk running?")
     except Exception as e:
         logger.error(f"Error initiating call: {e}")
-        return OutboundCallResponse(
-            success=False,
-            message=f"Error: {str(e)}"
-        )
+        return OutboundCallResponse(success=False, message=f"Error: {str(e)}")
 
 
 @router.delete("/hangup/{channel_id}")
-async def hangup_call(channel_id: str, call_id: Optional[str] = None):
+async def hangup_call(
+    channel_id: str,
+    call_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user_optional),
+):
     """
     Hangup an active call by channel ID.
     Also sends hangup signal via Redis for the bridge to stop.
@@ -412,31 +420,6 @@ async def hangup_call(channel_id: str, call_id: Optional[str] = None):
     except Exception as e:
         logger.error(f"ARI hangup error: {e}")
         results.append(f"ARI error: {str(e)}")
-    
-    # 2. Also try to hangup ALL active Asterisk channels (fallback)
-    try:
-        ari_url = f"http://{ARI_HOST}:{ARI_PORT}/ari/channels"
-        auth = aiohttp.BasicAuth(ARI_USERNAME, ARI_PASSWORD)
-        
-        async with aiohttp.ClientSession(auth=auth) as session:
-            async with session.get(ari_url) as response:
-                if response.status < 400:
-                    channels = await response.json()
-                    for ch in channels:
-                        ch_id = ch.get("id", "")
-                        if ch_id and ch_id != channel_id:
-                            try:
-                                async with session.delete(
-                                    f"http://{ARI_HOST}:{ARI_PORT}/ari/channels/{ch_id}",
-                                    params={"reason_code": "normal"}
-                                ) as del_resp:
-                                    if del_resp.status < 400:
-                                        results.append(f"Also terminated related channel: {ch_id}")
-                                        logger.info(f"Related channel hangup: {ch_id}")
-                            except Exception:
-                                pass
-    except Exception as e:
-        logger.warning(f"Error listing channels for cleanup: {e}")
     
     return {"success": True, "message": "; ".join(results) if results else "Hangup signal sent"}
 
@@ -495,14 +478,4 @@ async def get_call_status(channel_id: str):
         return {"error": str(e)}
 
 
-@router.post("/test-call")
-async def test_outbound_call(phone_number: str = "491754571258"):
-    """
-    Quick test endpoint for outbound calls
-    Uses default caller ID
-    """
-    request = OutboundCallRequest(
-        phone_number=normalize_phone_number(phone_number),
-        caller_id="491754571258"
-    )
-    return await initiate_outbound_call(request)
+

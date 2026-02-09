@@ -123,10 +123,22 @@ class SurveyStatus(str, enum.Enum):
     ABANDONED = "abandoned"                # Abandoned
 
 
+class AIProvider(str, enum.Enum):
+    """AI voice call provider"""
+    OPENAI = "openai"
+    ULTRAVOX = "ultravox"
+
+
 class RealtimeModel(str, enum.Enum):
-    """OpenAI Realtime API Model Options"""
+    """AI Model Options (both OpenAI and Ultravox)"""
+    # OpenAI models
     GPT_REALTIME = "gpt-realtime"           # Premium: $32/$64 per 1M tokens
     GPT_REALTIME_MINI = "gpt-realtime-mini"  # Economic: $10/$20 per 1M tokens
+    # Ultravox models (current default: ultravox-v0.7)
+    ULTRAVOX = "ultravox-v0.7"  # Ultravox latest (default)
+    ULTRAVOX_V0_6 = "ultravox-v0.6"
+    ULTRAVOX_V0_6_GEMMA3_27B = "ultravox-v0.6-gemma3-27b"
+    ULTRAVOX_V0_6_LLAMA3_3_70B = "ultravox-v0.6-llama3.3-70b"
 
 
 class TranscriptModel(str, enum.Enum):
@@ -161,15 +173,22 @@ class Agent(Base):
     description: Mapped[Optional[str]] = mapped_column(Text)
     status: Mapped[AgentStatus] = mapped_column(SQLEnum(AgentStatus), default=AgentStatus.DRAFT)
     
+    # Provider selection
+    provider: Mapped[str] = mapped_column(String(20), default="openai")  # "openai" or "ultravox"
+
     # Model settings
     model_type: Mapped[RealtimeModel] = mapped_column(
-        SQLEnum(RealtimeModel), 
+        SQLEnum(RealtimeModel),
         default=RealtimeModel.GPT_REALTIME_MINI  # Default to economic model
     )
-    
+
+    # Ultravox-specific
+    ultravox_agent_id: Mapped[Optional[str]] = mapped_column(String(255))  # Ultravox-side agent ID
+
     # Voice settings
     voice: Mapped[str] = mapped_column(String(50), default="alloy")
     language: Mapped[str] = mapped_column(String(10), default="tr")
+    timezone: Mapped[str] = mapped_column(String(50), default="Europe/Istanbul")
     speech_speed: Mapped[float] = mapped_column(Float, default=1.0)
     
     # Greeting settings (First Message)
@@ -379,7 +398,10 @@ class Campaign(Base):
     # Configuration
     concurrent_calls: Mapped[int] = mapped_column(Integer, default=10)
     retry_strategy: Mapped[Optional[dict]] = mapped_column(JSON)  # Retry configuration
-    
+
+    # Ultravox batch tracking
+    ultravox_batch_id: Mapped[Optional[str]] = mapped_column(String(255))
+
     # Relationships
     agent_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("agents.id"))
     number_list_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("number_lists.id"))
@@ -398,7 +420,11 @@ class CallLog(Base):
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     call_sid: Mapped[str] = mapped_column(String(100), unique=True, index=True)
-    
+
+    # Provider tracking
+    provider: Mapped[Optional[str]] = mapped_column(String(20))  # "openai" or "ultravox"
+    ultravox_call_id: Mapped[Optional[str]] = mapped_column(String(255), index=True)  # Ultravox call UUID
+
     # Call details
     status: Mapped[CallStatus] = mapped_column(SQLEnum(CallStatus), default=CallStatus.QUEUED)
     outcome: Mapped[Optional[CallOutcome]] = mapped_column(SQLEnum(CallOutcome))
@@ -436,6 +462,10 @@ class CallLog(Base):
     # SIP/Hangup details
     sip_code: Mapped[Optional[int]] = mapped_column(Integer)  # SIP response code (200, 403, 486, 503, etc.)
     hangup_cause: Mapped[Optional[str]] = mapped_column(String(100))  # Asterisk hangup cause text
+
+    # AMD (Answering Machine Detection)
+    amd_status: Mapped[Optional[str]] = mapped_column(String(20))  # HUMAN, MACHINE, NOTSURE
+    amd_cause: Mapped[Optional[str]] = mapped_column(String(100))  # AMD decision reason
 
     # Token usage & cost tracking
     model_used: Mapped[Optional[str]] = mapped_column(String(50))  # gpt-realtime or gpt-realtime-mini

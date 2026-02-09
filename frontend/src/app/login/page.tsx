@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Bot, Loader2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
+import { API_V1 } from '@/lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,7 +24,7 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/v1/auth/login', {
+      const response = await fetch(`${API_V1}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -129,15 +130,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          {/* Demo credentials */}
-          <div className="mt-6 p-4 bg-muted/30 rounded-xl border border-border">
-            <p className="text-sm text-muted-foreground text-center mb-2">Demo Account:</p>
-            <div className="text-sm text-center space-y-1">
-              <p><span className="text-muted-foreground">Email:</span> <code className="bg-muted px-2 py-0.5 rounded">test@test.com</code></p>
-              <p><span className="text-muted-foreground">Password:</span> <code className="bg-muted px-2 py-0.5 rounded">Test1234</code></p>
-            </div>
-          </div>
 
           {/* Register Link */}
           <p className="text-center text-sm text-muted-foreground mt-6">

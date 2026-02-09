@@ -11,6 +11,7 @@ from typing import Optional
 import asyncio
 import traceback
 
+from sqlalchemy import text
 from app.core.config import settings
 
 # Create Celery app
@@ -249,14 +250,14 @@ def handle_call_complete(session, db, call_log):
         if call_log.campaign_id:
             # Use SQL UPDATE with atomic increment instead of read-modify-write
             db.execute(
-                """
+                text("""
                 UPDATE campaigns
                 SET completed_calls = completed_calls + 1,
                     active_calls = GREATEST(active_calls - 1, 0),
                     successful_calls = successful_calls + :success_increment,
                     failed_calls = failed_calls + :failed_increment
                 WHERE id = :campaign_id
-                """,
+                """),
                 {
                     "campaign_id": call_log.campaign_id,
                     "success_increment": 1 if call_log.outcome == CallOutcome.SUCCESS else 0,
@@ -351,22 +352,22 @@ def start_campaign_calls(campaign_id: int):
 
             # Update number with atomic increment
             db.execute(
-                """
+                text("""
                 UPDATE phone_numbers
                 SET call_attempts = call_attempts + 1,
                     last_call_at = :now
                 WHERE id = :number_id
-                """,
+                """),
                 {"number_id": number.id, "now": datetime.utcnow()}
             )
 
             # Update campaign active calls atomically
             db.execute(
-                """
+                text("""
                 UPDATE campaigns
                 SET active_calls = active_calls + 1
                 WHERE id = :campaign_id
-                """,
+                """),
                 {"campaign_id": campaign.id}
             )
 
@@ -630,14 +631,14 @@ def send_webhook(self, webhook_id: int, event: str, data: dict):
         success = response.status_code < 400
 
         db.execute(
-            """
+            text("""
             UPDATE webhook_endpoints
             SET total_deliveries = total_deliveries + 1,
                 failed_deliveries = failed_deliveries + :failed_increment,
                 last_delivery_at = :now,
                 last_error = :error
             WHERE id = :webhook_id
-            """,
+            """),
             {
                 "webhook_id": webhook_id,
                 "failed_increment": 0 if success else 1,
@@ -657,12 +658,12 @@ def send_webhook(self, webhook_id: int, event: str, data: dict):
         logger.warning(f"Webhook network error: {e}")
         if webhook:
             db.execute(
-                """
+                text("""
                 UPDATE webhook_endpoints
                 SET failed_deliveries = failed_deliveries + 1,
                     last_error = :error
                 WHERE id = :webhook_id
-                """,
+                """),
                 {"webhook_id": webhook_id, "error": str(e)}
             )
             db.commit()
@@ -673,12 +674,12 @@ def send_webhook(self, webhook_id: int, event: str, data: dict):
         logger.error(f"Webhook error: {e}\n{traceback.format_exc()}")
         if webhook:
             db.execute(
-                """
+                text("""
                 UPDATE webhook_endpoints
                 SET failed_deliveries = failed_deliveries + 1,
                     last_error = :error
                 WHERE id = :webhook_id
-                """,
+                """),
                 {"webhook_id": webhook_id, "error": str(e)}
             )
             db.commit()

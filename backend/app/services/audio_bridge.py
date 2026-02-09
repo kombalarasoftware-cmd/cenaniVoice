@@ -288,6 +288,93 @@ class AudioBridge:
             }
             return {"success": True, "message": "Ödeme sözü kaydedildi"}
         
+        elif name == "save_customer_data":
+            data_type = args.get("data_type", "")
+            value = args.get("value", "")
+            confirmed = args.get("confirmed", False)
+
+            if not confirmed:
+                return {"success": False, "message": "Müşteri henüz onaylamadı. Veriyi doğrulayın."}
+
+            try:
+                from app.core.database import SessionLocal
+                from app.models.models import CallLog
+
+                call_id = session.agent_config.get("call_id")
+                with SessionLocal() as db:
+                    call_log = db.query(CallLog).filter(CallLog.call_sid == call_id).first()
+                    if call_log and data_type == "name":
+                        call_log.customer_name = value
+                        db.commit()
+            except Exception as e:
+                logger.error(f"save_customer_data DB error: {e}")
+
+            logger.info(f"[{channel_id}] Customer {data_type} saved: {value}")
+            return {"success": True, "message": f"{data_type} kaydedildi: {value}"}
+
+        elif name == "set_call_sentiment":
+            sentiment = args.get("sentiment", "neutral")
+            reason = args.get("reason", "")
+            session.sentiment = sentiment
+
+            try:
+                from app.core.database import SessionLocal
+                from app.models.models import CallLog
+
+                call_id = session.agent_config.get("call_id")
+                with SessionLocal() as db:
+                    call_log = db.query(CallLog).filter(CallLog.call_sid == call_id).first()
+                    if call_log:
+                        call_log.sentiment = sentiment
+                        db.commit()
+            except Exception as e:
+                logger.error(f"set_call_sentiment DB error: {e}")
+
+            logger.info(f"[{channel_id}] Sentiment: {sentiment} - {reason}")
+            return {"success": True, "message": f"Duygu durumu kaydedildi: {sentiment}"}
+
+        elif name == "add_call_tags":
+            tags = args.get("tags", [])
+
+            try:
+                from app.core.database import SessionLocal
+                from app.models.models import CallLog
+
+                call_id = session.agent_config.get("call_id")
+                with SessionLocal() as db:
+                    call_log = db.query(CallLog).filter(CallLog.call_sid == call_id).first()
+                    if call_log:
+                        existing = call_log.tags or []
+                        call_log.tags = list(set(existing + tags))
+                        db.commit()
+            except Exception as e:
+                logger.error(f"add_call_tags DB error: {e}")
+
+            logger.info(f"[{channel_id}] Tags added: {tags}")
+            return {"success": True, "message": f"Etiketler eklendi: {', '.join(tags)}"}
+
+        elif name == "generate_call_summary":
+            summary_text = args.get("summary", "")
+            action_items = args.get("action_items", [])
+            satisfaction = args.get("customer_satisfaction", "neutral")
+            session.summary = summary_text
+
+            try:
+                from app.core.database import SessionLocal
+                from app.models.models import CallLog
+
+                call_id = session.agent_config.get("call_id")
+                with SessionLocal() as db:
+                    call_log = db.query(CallLog).filter(CallLog.call_sid == call_id).first()
+                    if call_log:
+                        call_log.summary = summary_text
+                        db.commit()
+            except Exception as e:
+                logger.error(f"generate_call_summary DB error: {e}")
+
+            logger.info(f"[{channel_id}] Summary: {summary_text[:100]}...")
+            return {"success": True, "message": "Görüşme özeti kaydedildi"}
+
         elif name == "transfer_to_human":
             reason = args.get("reason", "Müşteri talebi")
             

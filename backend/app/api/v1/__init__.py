@@ -15,6 +15,7 @@ from app.api.v1 import (
     appointments,
     leads,
     surveys,
+    tools,
 )
 
 api_router = APIRouter()
@@ -34,3 +35,4 @@ api_router.include_router(documents.router)
 api_router.include_router(appointments.router)
 api_router.include_router(leads.router)
 api_router.include_router(surveys.router)
+api_router.include_router(tools.router)

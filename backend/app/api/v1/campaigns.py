@@ -1,19 +1,36 @@
 """
-Campaign management API endpoints
+Campaign management API endpoints.
+Includes background campaign execution with provider-aware call routing.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from typing import List, Optional
 from datetime import datetime
+import asyncio
+import logging
+import json
+import os
 
-from app.core.database import get_db
+import redis as sync_redis
+
+from app.core.database import get_db, SessionLocal
 from app.api.v1.auth import get_current_user
 from app.models import Campaign, User, NumberList, Agent
-from app.models.models import CampaignStatus
+from app.models.models import CampaignStatus, CallStatus, PhoneNumber, CallLog
 from app.schemas import CampaignCreate, CampaignUpdate, CampaignResponse
+from app.services.provider_factory import get_provider
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/campaigns", tags=["Campaigns"])
+
+REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+try:
+    _redis = sync_redis.Redis.from_url(REDIS_URL, decode_responses=True)
+except Exception:
+    _redis = None
 
 # Explicitly define which fields can be updated
 ALLOWED_UPDATE_FIELDS = {
@@ -189,6 +206,165 @@ async def delete_campaign(
     return {"success": True, "message": "Campaign deleted successfully"}
 
 
+# =========================================================================
+# Campaign execution engine (runs as a FastAPI background task)
+# =========================================================================
+
+async def _execute_campaign(campaign_id: int):
+    """
+    Background task that dials all numbers in a campaign's number list.
+
+    Concurrency is controlled by asyncio.Semaphore (default: campaign.concurrent_calls).
+    Pause/stop signals are communicated via Redis keys:
+      - campaign_pause:{id}  -> "1"  (pause)
+      - campaign_stop:{id}   -> "1"  (stop immediately)
+    """
+    db = SessionLocal()
+    try:
+        campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+        if not campaign:
+            logger.error(f"Campaign {campaign_id} not found for execution")
+            return
+
+        agent = db.query(Agent).filter(Agent.id == campaign.agent_id).first()
+        if not agent:
+            logger.error(f"Agent {campaign.agent_id} not found for campaign {campaign_id}")
+            campaign.status = CampaignStatus.COMPLETED
+            db.commit()
+            return
+
+        provider_type = getattr(agent, "provider", "openai") or "openai"
+        provider = get_provider(provider_type)
+
+        # Fetch uncalled phone numbers from the number list
+        phones = (
+            db.query(PhoneNumber)
+            .filter(
+                PhoneNumber.number_list_id == campaign.number_list_id,
+                PhoneNumber.is_valid == True,
+                PhoneNumber.call_attempts == 0,
+            )
+            .all()
+        )
+
+        if not phones:
+            logger.info(f"Campaign {campaign_id}: no numbers to dial")
+            campaign.status = CampaignStatus.COMPLETED
+            db.commit()
+            return
+
+        max_concurrent = campaign.concurrent_calls or 10
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def _dial_one(phone_record: PhoneNumber):
+            """Dial a single number under semaphore control."""
+            async with semaphore:
+                # Check pause / stop signals
+                if _redis:
+                    if _redis.get(f"campaign_stop:{campaign_id}"):
+                        return
+                    while _redis.get(f"campaign_pause:{campaign_id}"):
+                        await asyncio.sleep(2)
+
+                phone_number = phone_record.phone.lstrip("+").replace(" ", "")
+                customer_name = phone_record.name or ""
+
+                try:
+                    # Update active count atomically
+                    db.execute(
+                        text("UPDATE campaigns SET active_calls = active_calls + 1 WHERE id = :cid"),
+                        {"cid": campaign.id}
+                    )
+                    db.commit()
+
+                    result = await provider.initiate_call(
+                        agent=agent,
+                        phone_number=phone_number,
+                        caller_id=agent.caller_id if hasattr(agent, "caller_id") and agent.caller_id else phone_number,
+                        customer_name=customer_name,
+                        customer_title="",
+                        conversation_history="",
+                        variables={"campaign_id": str(campaign_id)},
+                    )
+
+                    # Create CallLog
+                    call_log = CallLog(
+                        call_sid=result.get("call_id", ""),
+                        provider=provider_type,
+                        ultravox_call_id=result.get("ultravox_call_id"),
+                        status=CallStatus.RINGING,
+                        to_number=phone_number,
+                        from_number=result.get("caller_id", ""),
+                        customer_name=customer_name or None,
+                        agent_id=agent.id,
+                        campaign_id=campaign.id,
+                        started_at=datetime.utcnow(),
+                    )
+                    db.add(call_log)
+
+                    phone_record.call_attempts += 1
+                    phone_record.last_call_at = datetime.utcnow()
+
+                    # Update campaign stats atomically
+                    db.execute(
+                        text("""
+                        UPDATE campaigns
+                        SET completed_calls = COALESCE(completed_calls, 0) + 1,
+                            successful_calls = COALESCE(successful_calls, 0) + 1,
+                            active_calls = GREATEST(COALESCE(active_calls, 1) - 1, 0)
+                        WHERE id = :cid
+                        """),
+                        {"cid": campaign.id}
+                    )
+                    db.commit()
+
+                    logger.info(f"Campaign {campaign_id}: dialled {phone_number} -> {result.get('call_id', '?')}")
+
+                except Exception as e:
+                    logger.error(f"Campaign {campaign_id}: failed to dial {phone_number}: {e}")
+                    phone_record.call_attempts += 1
+                    # Update campaign stats atomically
+                    db.execute(
+                        text("""
+                        UPDATE campaigns
+                        SET failed_calls = COALESCE(failed_calls, 0) + 1,
+                            active_calls = GREATEST(COALESCE(active_calls, 1) - 1, 0)
+                        WHERE id = :cid
+                        """),
+                        {"cid": campaign.id}
+                    )
+                    db.commit()
+
+        # Run all calls concurrently (semaphore limits parallelism)
+        tasks = [asyncio.create_task(_dial_one(p)) for p in phones]
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Mark campaign complete (unless already stopped/cancelled)
+        db.refresh(campaign)
+        if campaign.status == CampaignStatus.RUNNING:
+            campaign.status = CampaignStatus.COMPLETED
+            campaign.active_calls = 0
+            db.commit()
+
+        # Clean up Redis signals
+        if _redis:
+            _redis.delete(f"campaign_pause:{campaign_id}", f"campaign_stop:{campaign_id}")
+
+        logger.info(f"Campaign {campaign_id} execution finished")
+
+    except Exception as e:
+        logger.error(f"Campaign {campaign_id} execution error: {e}")
+        try:
+            campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+            if campaign and campaign.status == CampaignStatus.RUNNING:
+                campaign.status = CampaignStatus.PAUSED
+                db.commit()
+        except Exception:
+            pass
+    finally:
+        db.close()
+
+
 @router.post("/{campaign_id}/start")
 async def start_campaign(
     campaign_id: int,
@@ -219,11 +395,15 @@ async def start_campaign(
         raise HTTPException(status_code=400, detail="Agent must be active to start campaign")
 
     campaign.status = CampaignStatus.RUNNING
+    campaign.active_calls = 0
     db.commit()
 
-    # TODO: Start Celery task for campaign execution
-    # from app.tasks.celery_tasks import start_campaign_calls
-    # background_tasks.add_task(start_campaign_calls.delay, campaign_id)
+    # Clear any leftover signals from a previous run
+    if _redis:
+        _redis.delete(f"campaign_pause:{campaign_id}", f"campaign_stop:{campaign_id}")
+
+    # Launch campaign execution as a background task
+    background_tasks.add_task(_execute_campaign, campaign_id)
 
     return {"success": True, "message": "Campaign started", "status": "running"}
 
@@ -249,7 +429,9 @@ async def pause_campaign(
     campaign.status = CampaignStatus.PAUSED
     db.commit()
 
-    # TODO: Pause Celery tasks
+    # Signal the background execution loop to pause
+    if _redis:
+        _redis.setex(f"campaign_pause:{campaign_id}", 3600, "1")
 
     return {"success": True, "message": "Campaign paused"}
 
@@ -275,7 +457,9 @@ async def resume_campaign(
     campaign.status = CampaignStatus.RUNNING
     db.commit()
 
-    # TODO: Resume Celery tasks
+    # Remove pause signal so the background loop continues
+    if _redis:
+        _redis.delete(f"campaign_pause:{campaign_id}")
 
     return {"success": True, "message": "Campaign resumed"}
 
@@ -299,9 +483,13 @@ async def stop_campaign(
         raise HTTPException(status_code=400, detail="Campaign is not active")
 
     campaign.status = CampaignStatus.COMPLETED
+    campaign.active_calls = 0
     db.commit()
 
-    # TODO: Cancel all Celery tasks
+    # Signal the background loop to stop immediately
+    if _redis:
+        _redis.setex(f"campaign_stop:{campaign_id}", 3600, "1")
+        _redis.delete(f"campaign_pause:{campaign_id}")
 
     return {"success": True, "message": "Campaign stopped"}
 

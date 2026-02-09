@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { API_V1 } from '@/lib/api';
 import Link from 'next/link';
 import {
   Bot,
@@ -70,7 +71,7 @@ export function AgentCard({ agent, onRefresh }: AgentCardProps) {
     setShowMenu(false);
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/api/v1/agents/${agent.id}/duplicate`, {
+      const response = await fetch(`${API_V1}/agents/${agent.id}/duplicate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -106,7 +107,7 @@ export function AgentCard({ agent, onRefresh }: AgentCardProps) {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/api/v1/agents/${agent.id}`, {
+      const response = await fetch(`${API_V1}/agents/${agent.id}`, {
         method: 'DELETE',
         headers: {
           ...(token && { Authorization: `Bearer ${token}` }),
@@ -133,7 +134,7 @@ export function AgentCard({ agent, onRefresh }: AgentCardProps) {
     setShowMenu(false);
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/api/v1/agents/${agent.id}/${action}`, {
+      const response = await fetch(`${API_V1}/agents/${agent.id}/${action}`, {
         method: 'POST',
         headers: {
           ...(token && { Authorization: `Bearer ${token}` }),

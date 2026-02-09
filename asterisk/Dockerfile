@@ -72,6 +72,7 @@ COPY extensions.conf /etc/asterisk/extensions.conf
 COPY ari.conf /etc/asterisk/ari.conf
 COPY http.conf /etc/asterisk/http.conf
 COPY rtp.conf /etc/asterisk/rtp.conf
+COPY amd.conf /etc/asterisk/amd.conf
 
 # Set permissions
 RUN chown asterisk:asterisk /etc/asterisk/*.conf

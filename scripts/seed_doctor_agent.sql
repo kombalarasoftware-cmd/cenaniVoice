@@ -9,6 +9,7 @@ INSERT INTO agents (
     name,
     description,
     status,
+    provider,
     model_type,
     voice,
     language,
@@ -55,8 +56,9 @@ INSERT INTO agents (
     'Dr. Ayşe - Randevu Asistanı',
     'Özel Sağlık Kliniği için AI destekli randevu asistanı. Hastaları karşılar, randevu oluşturur ve bilgilendirme yapar.',
     'ACTIVE',
+    'ultravox',
     'GPT_REALTIME_MINI',
-    'sage',
+    'Cicek-Turkish',
     'tr',
     1.0,
     'agent',
@@ -268,8 +270,7 @@ Transfer: "Sizi yetkili arkadaşımıza bağlıyorum, lütfen hatta kalın."',
     
     NOW(),  -- created_at
     NOW()   -- updated_at
-)
-ON CONFLICT (id) DO NOTHING;
+);
 
 -- Log completion
 DO $$

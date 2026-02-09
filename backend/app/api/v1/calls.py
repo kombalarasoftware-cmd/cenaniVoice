@@ -161,6 +161,8 @@ async def list_calls(
         item = {
             "id": call.id,
             "call_sid": call.call_sid,
+            "provider": call.provider,
+            "ultravox_call_id": call.ultravox_call_id,
             "status": call.status,
             "outcome": call.outcome,
             "duration": call.duration,
@@ -235,8 +237,12 @@ async def get_active_calls(
     calls = db.query(CallLog).options(
         joinedload(CallLog.campaign),
         joinedload(CallLog.agent)
-    ).join(CallLog.campaign).filter(
-        Campaign.owner_id == current_user.id,
+    ).outerjoin(CallLog.campaign).outerjoin(CallLog.agent).filter(
+        or_(
+            Campaign.owner_id == current_user.id,
+            Agent.owner_id == current_user.id,
+            (CallLog.campaign_id.is_(None) & CallLog.agent_id.is_(None)),
+        ),
         CallLog.status.in_(active_statuses)
     ).all()
 
@@ -267,9 +273,13 @@ async def get_call(
     """Get call details"""
     call = db.query(CallLog).options(
         joinedload(CallLog.campaign)
-    ).join(CallLog.campaign).filter(
+    ).outerjoin(CallLog.campaign).outerjoin(CallLog.agent).filter(
         CallLog.id == call_id,
-        Campaign.owner_id == current_user.id
+        or_(
+            Campaign.owner_id == current_user.id,
+            Agent.owner_id == current_user.id,
+            (CallLog.campaign_id.is_(None) & CallLog.agent_id.is_(None)),
+        )
     ).first()
 
     if not call:
@@ -285,9 +295,13 @@ async def get_call_transcription(
     current_user: User = Depends(get_current_user)
 ):
     """Get call transcription"""
-    call = db.query(CallLog).join(CallLog.campaign).filter(
+    call = db.query(CallLog).outerjoin(CallLog.campaign).outerjoin(CallLog.agent).filter(
         CallLog.id == call_id,
-        Campaign.owner_id == current_user.id
+        or_(
+            Campaign.owner_id == current_user.id,
+            Agent.owner_id == current_user.id,
+            (CallLog.campaign_id.is_(None) & CallLog.agent_id.is_(None)),
+        )
     ).first()
 
     if not call:
@@ -308,9 +322,13 @@ async def hangup_call(
     current_user: User = Depends(get_current_user)
 ):
     """Forcefully end an active call"""
-    call = db.query(CallLog).join(CallLog.campaign).filter(
+    call = db.query(CallLog).outerjoin(CallLog.campaign).outerjoin(CallLog.agent).filter(
         CallLog.id == call_id,
-        Campaign.owner_id == current_user.id
+        or_(
+            Campaign.owner_id == current_user.id,
+            Agent.owner_id == current_user.id,
+            (CallLog.campaign_id.is_(None) & CallLog.agent_id.is_(None)),
+        )
     ).first()
 
     if not call:
@@ -319,7 +337,28 @@ async def hangup_call(
     if call.status not in [CallStatus.RINGING, CallStatus.CONNECTED, CallStatus.TALKING]:
         raise HTTPException(status_code=400, detail="Call is not active")
 
-    # TODO: Send hangup command to Asterisk via ARI
+    # ── Provider-specific disconnect ─────────────────────────────────────
+    hangup_sent = False
+
+    if call.provider == "ultravox" and call.ultravox_call_id:
+        # Ultravox: send HangUp data message via API
+        try:
+            from app.services.ultravox_service import UltravoxService
+            ultravox_svc = UltravoxService()
+            await ultravox_svc.end_call(call.ultravox_call_id)
+            hangup_sent = True
+            logger.info(f"Ultravox hangup sent for call {call_id} (ultravox_id={call.ultravox_call_id})")
+        except Exception as e:
+            logger.error(f"Ultravox hangup failed for call {call_id}: {e}")
+    else:
+        # OpenAI/Asterisk: set Redis hangup signal → asterisk_bridge picks it up
+        try:
+            if redis_client:
+                redis_client.set(f"hangup_signal:{call.call_sid}", "1", ex=60)
+                hangup_sent = True
+                logger.info(f"Redis hangup signal set for call {call_id} (call_sid={call.call_sid})")
+        except Exception as e:
+            logger.error(f"Redis hangup signal failed for call {call_id}: {e}")
 
     call.status = CallStatus.COMPLETED
     call.ended_at = datetime.utcnow()
@@ -334,7 +373,7 @@ async def hangup_call(
         "status": "completed"
     })
 
-    return {"success": True, "message": "Call ended"}
+    return {"success": True, "message": "Call ended", "hangup_sent": hangup_sent}
 
 
 @router.post("/{call_id}/transfer")
@@ -345,9 +384,13 @@ async def transfer_call(
     current_user: User = Depends(get_current_user)
 ):
     """Transfer an active call to another number"""
-    call = db.query(CallLog).join(CallLog.campaign).filter(
+    call = db.query(CallLog).outerjoin(CallLog.campaign).outerjoin(CallLog.agent).filter(
         CallLog.id == call_id,
-        Campaign.owner_id == current_user.id
+        or_(
+            Campaign.owner_id == current_user.id,
+            Agent.owner_id == current_user.id,
+            (CallLog.campaign_id.is_(None) & CallLog.agent_id.is_(None)),
+        )
     ).first()
 
     if not call:
@@ -380,9 +423,13 @@ async def add_call_notes(
     current_user: User = Depends(get_current_user)
 ):
     """Add notes to a call"""
-    call = db.query(CallLog).join(CallLog.campaign).filter(
+    call = db.query(CallLog).outerjoin(CallLog.campaign).outerjoin(CallLog.agent).filter(
         CallLog.id == call_id,
-        Campaign.owner_id == current_user.id
+        or_(
+            Campaign.owner_id == current_user.id,
+            Agent.owner_id == current_user.id,
+            (CallLog.campaign_id.is_(None) & CallLog.agent_id.is_(None)),
+        )
     ).first()
 
     if not call:
@@ -577,12 +624,13 @@ async def add_transcript_message(
 @router.get("/{call_id}/tags", response_model=CallTagsResponse)
 async def get_call_tags(
     call_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_optional),
 ):
     """
     Get tags for a specific call.
     """
-    call = db.query(CallLog).filter(CallLog.call_id == call_id).first()
+    call = db.query(CallLog).filter(CallLog.call_sid == call_id).first()
     if not call:
         raise HTTPException(status_code=404, detail="Call not found")
     
@@ -596,7 +644,8 @@ async def get_call_tags(
 async def update_call_tags(
     call_id: str,
     tag_data: CallTagsUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_optional),
 ):
     """
     Update tags for a specific call.
@@ -606,7 +655,7 @@ async def update_call_tags(
     - remove: Remove specific tags
     - replace: Replace all tags with new ones
     """
-    call = db.query(CallLog).filter(CallLog.call_id == call_id).first()
+    call = db.query(CallLog).filter(CallLog.call_sid == call_id).first()
     if not call:
         raise HTTPException(status_code=404, detail="Call not found")
     

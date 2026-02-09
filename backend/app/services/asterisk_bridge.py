@@ -127,6 +127,27 @@ else:
 # Eşzamanlı çağrı limiti
 MAX_CONCURRENT_CALLS = int(os.environ.get("MAX_CONCURRENT_CALLS", "50"))
 
+# OpenAI Realtime API Pricing (per token)
+# https://openai.com/api/pricing/
+COST_PER_TOKEN = {
+    "gpt-realtime": {
+        "input_text": 4.00 / 1_000_000,
+        "input_audio": 32.00 / 1_000_000,
+        "cached_input_text": 0.40 / 1_000_000,
+        "cached_input_audio": 0.40 / 1_000_000,
+        "output_text": 16.00 / 1_000_000,
+        "output_audio": 64.00 / 1_000_000,
+    },
+    "gpt-realtime-mini": {
+        "input_text": 0.60 / 1_000_000,
+        "input_audio": 10.00 / 1_000_000,
+        "cached_input_text": 0.06 / 1_000_000,
+        "cached_input_audio": 0.30 / 1_000_000,
+        "output_text": 2.40 / 1_000_000,
+        "output_audio": 20.00 / 1_000_000,
+    },
+}
+
 # OpenAI WebSocket URL
 OPENAI_WS_URL = f"wss://api.openai.com/v1/realtime?model={MODEL}"
 
@@ -744,6 +765,26 @@ TOOLS = [
             },
             "required": ["summary"]
         }
+    },
+    {
+        "type": "function",
+        "name": "end_call",
+        "description": "Görüşmeyi sonlandır. End the call. Müşteri vedalaştığında veya görüşme tamamlandığında çağır. Önce generate_call_summary ile özet oluştur, sonra bu fonksiyonu çağır.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "outcome": {
+                    "type": "string",
+                    "enum": ["success", "no_interest", "wrong_number", "callback", "other"],
+                    "description": "Görüşme sonucu / Call outcome"
+                },
+                "summary": {
+                    "type": "string",
+                    "description": "Görüşme özeti / Brief call summary"
+                }
+            },
+            "required": ["outcome"]
+        }
     }
 ]
 
@@ -899,6 +940,16 @@ def handle_tool_call(call_id: str, function_name: str, arguments: dict) -> str:
         call_data["customer_satisfaction"] = satisfaction
         logger.info(f"[{call_id[:8]}] 📋 Summary: {summary[:100]}...")
         return json.dumps({"status": "success", "message": "Görüşme özeti kaydedildi"})
+
+    elif function_name == "end_call":
+        outcome = arguments.get("outcome", "success")
+        summary = arguments.get("summary", "")
+        call_data["outcome"] = outcome
+        if summary:
+            call_data["summary"] = summary
+        call_data["end_call_requested"] = True
+        logger.info(f"[{call_id[:8]}] 🔚 End call requested: outcome={outcome}")
+        return json.dumps({"status": "success", "message": "Görüşme sonlandırılıyor. Müşteriye vedalaş."})
 
     return json.dumps({"status": "error", "message": f"Bilinmeyen fonksiyon: {function_name}"})
 
@@ -1168,6 +1219,16 @@ class CallBridge:
                 instructions += "Address the customer by their name.\n"
         
         # Core voice rules - ALWAYS appended to prevent agent monologuing
+        # AMD backup detection (Asterisk AMD() is primary, this is secondary layer)
+        amd_backup = """
+
+# Answering Machine Detection (Backup)
+If you detect an answering machine, voicemail, or automated greeting system:
+- Pre-recorded message playing, "leave a message" phrases, beep tones
+- IMMEDIATELY call the `end_call` tool — do NOT leave a message.
+"""
+        instructions = f"{instructions}\n{amd_backup}"
+        
         core_rules = """
 
 # ⚡ CRITICAL VOICE RULES
@@ -1559,9 +1620,48 @@ class CallBridge:
         if call_data.get("transfer_requested"):
             logger.info(f"[{self.call_uuid[:8]}] 🔄 Transfer istendi")
 
+        # Agent requested call end → delayed hangup (wait for goodbye message)
+        if call_data.get("end_call_requested"):
+            logger.info(f"[{self.call_uuid[:8]}] 🔚 End call → delayed hangup (3s)")
+            asyncio.create_task(self._delayed_hangup(3))
+
         self.function_name = ""
         self.function_args = ""
         self.function_call_id = ""
+
+    async def _delayed_hangup(self, delay: float):
+        """
+        Agent end_call tool çağırdığında, veda mesajı için bekleyip sonra hangup yap.
+        Delay süresi agent'ın veda mesajını söylemesine yeterli olmalı.
+        """
+        await asyncio.sleep(delay)
+        if not self.is_active:
+            return  # Already hung up (customer did it first)
+
+        logger.info(f"[{self.call_uuid[:8]}] 🔚 Delayed hangup executing")
+        self.sip_code = 200
+        self.hangup_cause = "Agent End Call"
+        self.is_active = False
+
+        # 1. Send hangup to Asterisk
+        try:
+            self.writer.write(build_audiosocket_message(MSG_HANGUP))
+            await self.writer.drain()
+        except Exception:
+            pass
+
+        # 2. Close TCP writer → unblocks _asterisk_to_openai
+        try:
+            self.writer.close()
+        except Exception:
+            pass
+
+        # 3. Close OpenAI WebSocket → unblocks _openai_to_asterisk
+        try:
+            if self.openai_ws and self.openai_ws.state == State.OPEN:
+                await self.openai_ws.close()
+        except Exception:
+            pass
 
     async def _check_hangup_signal(self):
         """Check Redis for external hangup signal (from frontend/API).
@@ -1704,6 +1804,78 @@ class CallBridge:
         except Exception as e:
             logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Post-call Redis hatası: {e}")
         
+        # Fetch token usage from Redis and calculate cost
+        input_tokens = 0
+        output_tokens = 0
+        cached_tokens = 0
+        estimated_cost = 0.0
+        model_used = self.agent_model or MODEL
+
+        try:
+            import redis.asyncio as redis_async
+            r = redis_async.from_url(REDIS_URL, decode_responses=True)
+            try:
+                usage_data = await r.get(f"call_usage:{self.call_uuid}")
+                if usage_data:
+                    usage = json.loads(usage_data)
+                    input_tokens = usage.get("input_tokens", 0)
+                    output_tokens = usage.get("output_tokens", 0)
+                    model_used = usage.get("model", model_used)
+
+                    # Calculate cost from token details
+                    pricing = COST_PER_TOKEN.get(model_used, COST_PER_TOKEN["gpt-realtime-mini"])
+
+                    input_details = usage.get("input_token_details", {})
+                    output_details = usage.get("output_token_details", {})
+
+                    input_text = input_details.get("text_tokens", 0)
+                    input_audio = input_details.get("audio_tokens", 0)
+                    cached_text = input_details.get("cached_tokens", 0)
+                    cached_audio = 0
+
+                    # Handle cached_tokens_details if available
+                    cached_details = input_details.get("cached_tokens_details", {})
+                    if cached_details:
+                        cached_text = cached_details.get("text_tokens", 0)
+                        cached_audio = cached_details.get("audio_tokens", 0)
+
+                    cached_tokens = cached_text + cached_audio
+
+                    output_text = output_details.get("text_tokens", 0)
+                    output_audio = output_details.get("audio_tokens", 0)
+
+                    # If no details, estimate 80% text / 20% audio
+                    if not input_details:
+                        input_text = int(input_tokens * 0.8)
+                        input_audio = input_tokens - input_text
+
+                    if not output_details:
+                        output_text = int(output_tokens * 0.8)
+                        output_audio = output_tokens - output_text
+
+                    # Uncached input tokens
+                    uncached_text = max(0, input_text - cached_text)
+                    uncached_audio = max(0, input_audio - cached_audio)
+
+                    # Calculate cost
+                    estimated_cost = (
+                        uncached_text * pricing["input_text"] +
+                        uncached_audio * pricing["input_audio"] +
+                        cached_text * pricing["cached_input_text"] +
+                        cached_audio * pricing["cached_input_audio"] +
+                        output_text * pricing["output_text"] +
+                        output_audio * pricing["output_audio"]
+                    )
+
+                    logger.info(
+                        f"[{self.call_uuid[:8]}] 💰 Cost: ${estimated_cost:.6f} "
+                        f"(in={input_tokens} out={output_tokens} cached={cached_tokens} model={model_used})"
+                    )
+            finally:
+                await r.close()
+        except Exception as e:
+            logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Usage/cost hesaplama hatası: {e}")
+
         # Save to PostgreSQL
         try:
             conn = await asyncpg.connect(
@@ -1724,9 +1896,14 @@ class CallBridge:
                         customer_name = $8,
                         sip_code = $9,
                         hangup_cause = $10,
-                        status = 'completed',
+                        model_used = $11,
+                        input_tokens = $12,
+                        output_tokens = $13,
+                        cached_tokens = $14,
+                        estimated_cost = $15,
+                        status = 'COMPLETED',
                         ended_at = NOW()
-                    WHERE call_sid = $11""",
+                    WHERE call_sid = $16""",
                     sentiment,
                     summary,
                     json.dumps(tags),
@@ -1737,6 +1914,11 @@ class CallBridge:
                     customer.get("name", ""),
                     self.sip_code,
                     self.hangup_cause,
+                    model_used,
+                    input_tokens,
+                    output_tokens,
+                    cached_tokens,
+                    estimated_cost,
                     self.call_uuid,
                 )
                 if "UPDATE 0" in result:
@@ -1746,12 +1928,14 @@ class CallBridge:
                             call_sid, status, duration, sentiment, summary,
                             tags, callback_scheduled, call_metadata, notes,
                             customer_name, sip_code, hangup_cause,
-                            to_number, agent_id, started_at, ended_at, created_at
+                            to_number, agent_id, started_at, ended_at, created_at,
+                            model_used, input_tokens, output_tokens, cached_tokens, estimated_cost
                         ) VALUES (
-                            $1, 'completed', $2, $3, $4,
+                            $1, 'COMPLETED', $2, $3, $4,
                             $5, $6, $7, $8,
                             $9, $10, $11,
-                            $12, $13, $14, $15, $14
+                            $12, $13, $14, $15, $14,
+                            $16, $17, $18, $19, $20
                         )""",
                         self.call_uuid,
                         int(duration),
@@ -1768,6 +1952,11 @@ class CallBridge:
                         int(self.agent_id) if hasattr(self, 'agent_id') and self.agent_id else None,
                         self.start_time,
                         datetime.now(),
+                        model_used,
+                        input_tokens,
+                        output_tokens,
+                        cached_tokens,
+                        estimated_cost,
                     )
                     logger.info(f"[{self.call_uuid[:8]}] CallLog inserted successfully")
             finally:

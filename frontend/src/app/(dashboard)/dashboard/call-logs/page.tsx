@@ -19,9 +19,11 @@ import {
   PhoneOff,
   PhoneMissed,
   Loader2,
+  DollarSign,
+  Cpu,
 } from 'lucide-react';
 
-const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1`;
+import { API_V1 as API_BASE } from '@/lib/api';
 
 // ─── Types ───────────────────────────────────────────────────────
 interface CallLogResponse {
@@ -46,10 +48,12 @@ interface CallLogResponse {
   tags: string[] | null;
   callback_requested: boolean;
   estimated_cost: number;
+  provider: string | null;
   input_tokens: number | null;
   output_tokens: number | null;
   cached_tokens: number | null;
   model_used: string | null;
+  amd_status: string | null;
 }
 
 interface CallsResponse {
@@ -107,7 +111,53 @@ function formatDuration(seconds: number) {
 }
 
 function formatCost(cost: number) {
+  if (!cost || cost === 0) return '$0.0000';
   return `$${cost.toFixed(4)}`;
+}
+
+function formatCostColor(cost: number) {
+  if (!cost || cost === 0) return 'text-muted-foreground';
+  if (cost < 0.01) return 'text-green-500';
+  if (cost < 0.05) return 'text-yellow-500';
+  return 'text-orange-500';
+}
+
+// ─── Provider Badge ──────────────────────────────────────────────
+function ProviderBadge({ provider }: { provider: string | null }) {
+  if (!provider) return <span className="text-xs text-muted-foreground">N/A</span>;
+
+  const isUltravox = provider === 'ultravox';
+  return (
+    <span className={cn(
+      'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
+      isUltravox
+        ? 'bg-violet-500/10 text-violet-500'
+        : 'bg-emerald-500/10 text-emerald-500'
+    )}>
+      <Cpu className="h-3 w-3" />
+      {isUltravox ? 'Ultravox' : 'OpenAI'}
+    </span>
+  );
+}
+
+// ─── AMD Badge ───────────────────────────────────────────────────
+function AmdBadge({ status }: { status: string | null }) {
+  if (!status) return null;
+
+  const isMachine = status === 'MACHINE';
+  const isHuman = status === 'HUMAN';
+  return (
+    <span className={cn(
+      'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
+      isMachine
+        ? 'bg-red-500/10 text-red-500'
+        : isHuman
+          ? 'bg-green-500/10 text-green-500'
+          : 'bg-yellow-500/10 text-yellow-500'
+    )}>
+      {isMachine ? '🤖 Machine' : isHuman ? '👤 Human' : '❓ Unsure'}
+    </span>
+  );
 }
 
 // ─── Status Badge ────────────────────────────────────────────────
@@ -266,7 +316,8 @@ export default function CallLogsPage() {
 
     const headers = [
       'Date', 'Customer', 'Phone', 'Agent', 'Campaign', 'Duration',
-      'Status', 'Outcome', 'SIP Code', 'Hangup Cause', 'Cost', 'Sentiment'
+      'Status', 'Outcome', 'Provider', 'Model', 'AMD', 'SIP Code', 'Hangup Cause',
+      'Cost', 'Input Tokens', 'Output Tokens', 'Cached Tokens', 'Sentiment'
     ];
 
     const rows = calls.map(call => [
@@ -278,9 +329,15 @@ export default function CallLogsPage() {
       formatDuration(call.duration),
       call.status,
       call.outcome || '',
+      call.provider || '',
+      call.model_used || '',
+      call.amd_status || '',
       call.sip_code || '',
       call.hangup_cause || '',
-      call.estimated_cost.toFixed(4),
+      (call.estimated_cost || 0).toFixed(4),
+      call.input_tokens || '',
+      call.output_tokens || '',
+      call.cached_tokens || '',
       call.sentiment || '',
     ]);
 
@@ -338,6 +395,52 @@ export default function CallLogsPage() {
             Export CSV
           </button>
         </div>
+
+        {/* Cost Summary Bar */}
+        {calls.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-card border border-border rounded-lg p-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                <PhoneCall className="h-4 w-4" />
+                Total Calls
+              </div>
+              <p className="text-2xl font-bold">{total}</p>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                <DollarSign className="h-4 w-4" />
+                Page Total Cost
+              </div>
+              <p className={cn('text-2xl font-bold font-mono', formatCostColor(
+                calls.reduce((sum, c) => sum + (c.estimated_cost || 0), 0)
+              ))}>
+                {formatCost(calls.reduce((sum, c) => sum + (c.estimated_cost || 0), 0))}
+              </p>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                <Clock className="h-4 w-4" />
+                Avg Duration
+              </div>
+              <p className="text-2xl font-bold">
+                {calls.length > 0
+                  ? `${Math.round(calls.reduce((sum, c) => sum + (c.duration || 0), 0) / calls.length)}s`
+                  : '-'}
+              </p>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                <DollarSign className="h-4 w-4" />
+                Avg Cost / Call
+              </div>
+              <p className={cn('text-2xl font-bold font-mono', formatCostColor(
+                calls.reduce((sum, c) => sum + (c.estimated_cost || 0), 0) / calls.length
+              ))}>
+                {formatCost(calls.reduce((sum, c) => sum + (c.estimated_cost || 0), 0) / calls.length)}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Filters Bar */}
         <div className="space-y-4">
@@ -528,7 +631,7 @@ export default function CallLogsPage() {
                       <th className="text-left py-3 px-4 font-medium">Duration</th>
                       <th className="text-left py-3 px-4 font-medium">Status</th>
                       <th className="text-left py-3 px-4 font-medium">Outcome</th>
-                      <th className="text-left py-3 px-4 font-medium">SIP Code</th>
+                      <th className="text-left py-3 px-4 font-medium">Provider</th>
                       <th className="text-right py-3 px-4 font-medium">Cost</th>
                       <th className="text-center py-3 px-4 font-medium w-8"></th>
                     </tr>
@@ -577,9 +680,9 @@ export default function CallLogsPage() {
                             <OutcomeBadge outcome={call.outcome} />
                           </td>
                           <td className="py-3 px-4">
-                            <SipCodeBadge code={call.sip_code} />
+                            <ProviderBadge provider={call.provider} />
                           </td>
-                          <td className="py-3 px-4 text-right font-mono">
+                          <td className={cn('py-3 px-4 text-right font-mono', formatCostColor(call.estimated_cost))}>
                             {formatCost(call.estimated_cost)}
                           </td>
                           <td className="py-3 px-4 text-center">
@@ -611,6 +714,20 @@ export default function CallLogsPage() {
 
                                 {/* Details Grid */}
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pl-6">
+                                  {/* Cost Detail */}
+                                  <div>
+                                    <p className="text-xs text-muted-foreground mb-1">Cost</p>
+                                    <p className={cn('text-sm font-medium font-mono', formatCostColor(call.estimated_cost))}>
+                                      {formatCost(call.estimated_cost)}
+                                    </p>
+                                  </div>
+
+                                  {/* SIP Code */}
+                                  <div>
+                                    <p className="text-xs text-muted-foreground mb-1">SIP Code</p>
+                                    <SipCodeBadge code={call.sip_code} />
+                                  </div>
+
                                   {/* Hangup Cause */}
                                   <div>
                                     <p className="text-xs text-muted-foreground mb-1">Hangup Cause</p>
@@ -618,6 +735,14 @@ export default function CallLogsPage() {
                                       {call.hangup_cause || 'N/A'}
                                     </p>
                                   </div>
+
+                                  {/* AMD Status */}
+                                  {call.amd_status && (
+                                    <div>
+                                      <p className="text-xs text-muted-foreground mb-1">AMD</p>
+                                      <AmdBadge status={call.amd_status} />
+                                    </div>
+                                  )}
 
                                   {/* Sentiment */}
                                   {call.sentiment && (
@@ -654,32 +779,79 @@ export default function CallLogsPage() {
                                   )}
                                 </div>
 
-                                {/* Token Usage */}
-                                {(call.input_tokens || call.output_tokens || call.cached_tokens) && (
-                                  <div className="pl-6">
-                                    <h4 className="text-sm font-semibold mb-2">Token Usage</h4>
+                                {/* Cost & Usage Detail */}
+                                <div className="pl-6">
+                                  <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                                    <DollarSign className="h-4 w-4" />
+                                    Cost Breakdown
+                                  </h4>
+
+                                  {call.provider === 'ultravox' ? (
+                                    // Ultravox: minute-based billing
                                     <div className="flex items-center gap-6 text-xs">
-                                      {call.input_tokens && (
+                                      <div>
+                                        <span className="text-muted-foreground">Provider: </span>
+                                        <span className="font-medium text-violet-500">Ultravox</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-muted-foreground">Duration: </span>
+                                        <span className="font-medium">{call.duration ? `${call.duration}s` : '-'}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-muted-foreground">Billed Units: </span>
+                                        <span className="font-medium">{call.duration ? `${Math.ceil(call.duration / 6)} deciminutes` : '-'}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-muted-foreground">Rate: </span>
+                                        <span className="font-medium">$0.005/6s</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-muted-foreground">Total: </span>
+                                        <span className={cn('font-medium font-mono', formatCostColor(call.estimated_cost))}>
+                                          {formatCost(call.estimated_cost)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    // OpenAI: token-based billing
+                                    <div className="flex items-center gap-6 text-xs">
+                                      <div>
+                                        <span className="text-muted-foreground">Provider: </span>
+                                        <span className="font-medium text-emerald-500">OpenAI</span>
+                                      </div>
+                                      {call.model_used && (
+                                        <div>
+                                          <span className="text-muted-foreground">Model: </span>
+                                          <span className="font-medium">{call.model_used}</span>
+                                        </div>
+                                      )}
+                                      {call.input_tokens != null && call.input_tokens > 0 && (
                                         <div>
                                           <span className="text-muted-foreground">Input: </span>
-                                          <span className="font-medium">{call.input_tokens.toLocaleString()}</span>
+                                          <span className="font-medium">{call.input_tokens.toLocaleString()} tokens</span>
                                         </div>
                                       )}
-                                      {call.output_tokens && (
+                                      {call.output_tokens != null && call.output_tokens > 0 && (
                                         <div>
                                           <span className="text-muted-foreground">Output: </span>
-                                          <span className="font-medium">{call.output_tokens.toLocaleString()}</span>
+                                          <span className="font-medium">{call.output_tokens.toLocaleString()} tokens</span>
                                         </div>
                                       )}
-                                      {call.cached_tokens && (
+                                      {call.cached_tokens != null && call.cached_tokens > 0 && (
                                         <div>
                                           <span className="text-muted-foreground">Cached: </span>
-                                          <span className="font-medium">{call.cached_tokens.toLocaleString()}</span>
+                                          <span className="font-medium">{call.cached_tokens.toLocaleString()} tokens</span>
                                         </div>
                                       )}
+                                      <div>
+                                        <span className="text-muted-foreground">Total: </span>
+                                        <span className={cn('font-medium font-mono', formatCostColor(call.estimated_cost))}>
+                                          {formatCost(call.estimated_cost)}
+                                        </span>
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
+                                  )}
+                                </div>
 
                                 {/* Tags */}
                                 {call.tags && call.tags.length > 0 && (

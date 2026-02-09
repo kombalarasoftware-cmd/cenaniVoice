@@ -1,0 +1,87 @@
+{
+  "$schema": "Hooks configuration - automated checks before/after tool operations",
+  "$doc": "Generic hook system. Match patterns auto-detect language. {file} = edited file path, {dir} = file's directory.",
+
+  "hooks": {
+    "pre_edit": [
+      {
+        "description": "Python syntax check before editing",
+        "match": ["**/*.py"],
+        "command": "python -m py_compile {file}",
+        "enabled": true
+      },
+      {
+        "description": "TypeScript type check before editing",
+        "match": ["**/*.ts", "**/*.tsx"],
+        "command": "npx tsc --noEmit --pretty",
+        "enabled": false
+      },
+      {
+        "description": "ESLint check before editing JS/JSX",
+        "match": ["**/*.js", "**/*.jsx"],
+        "command": "npx eslint {file}",
+        "enabled": false
+      }
+    ],
+    "post_edit": [
+      {
+        "description": "Python syntax verify after edit",
+        "match": ["**/*.py"],
+        "command": "python -m py_compile {file}",
+        "enabled": true
+      },
+      {
+        "description": "TypeScript type check after edit",
+        "match": ["**/*.ts", "**/*.tsx"],
+        "command": "npx tsc --noEmit --pretty",
+        "enabled": false
+      },
+      {
+        "description": "Format Python file after edit (black)",
+        "match": ["**/*.py"],
+        "command": "python -m black --check {file}",
+        "enabled": false
+      },
+      {
+        "description": "Format JS/TS file after edit (prettier)",
+        "match": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],
+        "command": "npx prettier --check {file}",
+        "enabled": false
+      }
+    ],
+    "pre_commit": [
+      {
+        "description": "Run Python tests before commit",
+        "match": ["**/*.py"],
+        "command": "python -m pytest -x --tb=short",
+        "enabled": false
+      },
+      {
+        "description": "Run JS/TS tests before commit",
+        "match": ["**/*.ts", "**/*.tsx", "**/*.js"],
+        "command": "npx vitest run --reporter=verbose",
+        "enabled": false
+      }
+    ],
+    "post_create": [
+      {
+        "description": "Format newly created Python files",
+        "match": ["**/*.py"],
+        "command": "python -m black {file}",
+        "enabled": false
+      },
+      {
+        "description": "Format newly created JS/TS files",
+        "match": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],
+        "command": "npx prettier --write {file}",
+        "enabled": false
+      }
+    ]
+  },
+
+  "settings": {
+    "stop_on_failure": true,
+    "show_output": true,
+    "timeout_seconds": 30
+  }
+}
