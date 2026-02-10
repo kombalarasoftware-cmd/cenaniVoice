@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { API_V1 } from '@/lib/api';
+import { API_V1, api } from '@/lib/api';
 import {
   Users,
   Phone,
@@ -55,7 +55,7 @@ interface Stats {
   by_priority: Record<string, number>;
 }
 
-const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
+const statusConfig: Record<string, { label: string; color: string; icon: typeof UserPlus }> = {
   new: { label: 'New', color: 'bg-blue-500', icon: UserPlus },
   contacted: { label: 'Contacted', color: 'bg-yellow-500', icon: Phone },
   qualified: { label: 'Qualified', color: 'bg-purple-500', icon: Star },
@@ -115,10 +115,7 @@ export default function LeadsPage() {
       if (priorityFilter) params.append('priority', priorityFilter);
       if (searchQuery) params.append('search', searchQuery);
       
-      const response = await fetch(`${API_V1}/leads/?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch leads');
-      
-      const data = await response.json();
+      const data = await api.get<{ items: Lead[]; pages: number; total: number }>(`/leads/?${params}`);
       setLeads(data.items);
       setTotalPages(data.pages);
       setTotal(data.total);
@@ -132,11 +129,8 @@ export default function LeadsPage() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(`${API_V1}/leads/stats`);
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
-      }
+      const data = await api.get<Stats>('/leads/stats');
+      setStats(data);
     } catch (error) {
       console.error('Stats fetch error:', error);
     }
@@ -150,14 +144,7 @@ export default function LeadsPage() {
 
   const handleStatusChange = async (leadId: number, newStatus: string) => {
     try {
-      const response = await fetch(`${API_V1}/leads/${leadId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      
-      if (!response.ok) throw new Error('Update failed');
-      
+      await api.patch(`/leads/${leadId}`, { status: newStatus });
       toast.success('Lead status updated');
       fetchLeads();
       fetchStats();

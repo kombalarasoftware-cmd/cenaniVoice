@@ -3,11 +3,16 @@ VoiceAI Platform - FastAPI Backend
 Main application entry point
 """
 
+from collections import defaultdict
 from contextlib import asynccontextmanager
+import json as _json
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 import logging
 import time
 import uuid
@@ -19,12 +24,123 @@ from app.api.prompt_generator import router as prompt_generator_router
 from app.api.outbound_calls import router as outbound_calls_router
 from app.core.database import engine, Base, get_health_status
 
-# Configure logging
-logging.basicConfig(
-    level=logging.DEBUG if settings.DEBUG else logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+
+# =============================================================================
+# Structured JSON Logging
+# =============================================================================
+
+class JSONFormatter(logging.Formatter):
+    """Emit each log record as a single JSON line."""
+
+    # Extra keys to promote into the JSON envelope when passed via logger.info(..., extra={})
+    _EXTRA_KEYS = (
+        "request_id", "method", "path", "status_code",
+        "duration_ms", "client_ip", "user_id",
+    )
+
+    def format(self, record: logging.LogRecord) -> str:
+        log_data = {
+            "timestamp": self.formatTime(record),
+            "level": record.levelname,
+            "message": record.getMessage(),
+            "module": record.module,
+            "function": record.funcName,
+        }
+        for key in self._EXTRA_KEYS:
+            value = getattr(record, key, None)
+            if value is not None:
+                log_data[key] = value
+        if record.exc_info and record.exc_info[0] is not None:
+            log_data["exception"] = self.formatException(record.exc_info)
+        return _json.dumps(log_data)
+
+
+def _configure_logging() -> None:
+    """Set up root logger with JSON formatter for production, human-readable for debug."""
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG if settings.DEBUG else logging.INFO)
+
+    handler = logging.StreamHandler()
+    if settings.DEBUG:
+        handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+    else:
+        handler.setFormatter(JSONFormatter())
+    root.addHandler(handler)
+
+
+_configure_logging()
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Security Middleware
+# =============================================================================
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to all responses."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        return response
+
+
+class RequestBodySizeLimitMiddleware(BaseHTTPMiddleware):
+    """Reject requests with body larger than the configured limit."""
+
+    def __init__(self, app, max_size_mb: int = 10):
+        super().__init__(app)
+        self.max_size = max_size_mb * 1024 * 1024
+
+    async def dispatch(self, request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > self.max_size:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": f"Request body too large. Maximum size is {self.max_size // (1024 * 1024)}MB."},
+            )
+        return await call_next(request)
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """
+    Simple in-memory rate limiter based on client IP.
+    Uses a sliding window per minute.
+    """
+
+    def __init__(self, app, requests_per_minute: int = 60):
+        super().__init__(app)
+        self.requests_per_minute = requests_per_minute
+        self._hits: dict[str, list[float]] = defaultdict(list)
+
+    async def dispatch(self, request: Request, call_next):
+        # Skip rate limiting for health/ready endpoints
+        if request.url.path in ("/health", "/ready"):
+            return await call_next(request)
+
+        client_ip = request.client.host if request.client else "unknown"
+        now = time.time()
+        window_start = now - 60
+
+        # Clean old entries and add current request
+        hits = self._hits[client_ip]
+        self._hits[client_ip] = [t for t in hits if t > window_start]
+        self._hits[client_ip].append(now)
+
+        if len(self._hits[client_ip]) > self.requests_per_minute:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded. Try again later."},
+                headers={"Retry-After": "60"},
+            )
+
+        return await call_next(request)
 
 
 @asynccontextmanager
@@ -59,30 +175,62 @@ app = FastAPI(
 )
 
 
-# Request ID middleware for tracing
-@app.middleware("http")
-async def add_request_id(request: Request, call_next):
-    """Add unique request ID for tracing"""
-    request_id = str(uuid.uuid4())[:8]
-    request.state.request_id = request_id
+class RequestIdMiddleware(BaseHTTPMiddleware):
+    """Attach a unique request ID to every request for distributed tracing."""
 
-    start_time = time.time()
-    response = await call_next(request)
-    process_time = time.time() - start_time
+    async def dispatch(self, request: Request, call_next):
+        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        request.state.request_id = request_id
 
-    response.headers["X-Request-ID"] = request_id
-    response.headers["X-Process-Time"] = str(round(process_time * 1000, 2))
+        start_time = time.time()
+        response = await call_next(request)
+        process_time = time.time() - start_time
 
-    return response
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Process-Time"] = str(round(process_time * 1000, 2))
+
+        # Structured access log (skip noisy health probes)
+        if request.url.path not in ("/health", "/ready"):
+            logger.info(
+                "request_completed",
+                extra={
+                    "request_id": request_id,
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status_code": response.status_code,
+                    "duration_ms": round(process_time * 1000, 2),
+                    "client_ip": request.client.host if request.client else "unknown",
+                },
+            )
+
+        return response
 
 
-# Configure CORS
+# Security middleware (order matters: outermost middleware runs first)
+app.add_middleware(RequestIdMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestBodySizeLimitMiddleware, max_size_mb=settings.MAX_UPLOAD_SIZE_MB)
+app.add_middleware(
+    RateLimitMiddleware,
+    requests_per_minute=settings.RATE_LIMIT_REQUESTS_PER_MINUTE,
+)
+
+# Configure CORS with restricted methods and headers
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "Accept",
+        "Origin",
+        "X-Requested-With",
+        "X-Request-ID",
+        "X-Webhook-Secret",
+        "X-Webhook-Signature",
+    ],
 )
 
 
@@ -160,20 +308,21 @@ async def global_exception_handler(request: Request, exc: Exception):
     """
     Global exception handler for unexpected errors.
     Only catches non-HTTP exceptions.
+    Does NOT expose internal error types or stack traces to the client.
     """
     request_id = getattr(request.state, "request_id", "unknown")
 
-    # Log full exception with traceback
+    # Log full exception with traceback (server-side only)
     logger.exception(
         f"Unhandled exception: {type(exc).__name__}: {exc} - "
         f"path={request.url.path} method={request.method} request_id={request_id}"
     )
 
+    # Return sanitized error to client - no internal details
     return JSONResponse(
         status_code=500,
         content={
-            "detail": "An unexpected error occurred",
-            "error_type": type(exc).__name__,
+            "detail": "An internal error occurred. Please try again later.",
             "request_id": request_id,
         },
     )

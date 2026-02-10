@@ -2,7 +2,9 @@
 
 import { Header } from '@/components/layout/header';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
+import { api } from '@/lib/api';
 import {
   Settings,
   User,
@@ -22,13 +24,137 @@ import {
   Trash2,
   Eye,
   EyeOff,
+  Loader2,
 } from 'lucide-react';
 
 type SettingsTab = 'general' | 'sip' | 'api' | 'webhooks' | 'notifications' | 'security';
 
+interface NotificationPref {
+  label: string;
+  description: string;
+  key: string;
+  enabled: boolean;
+}
+
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [showApiKey, setShowApiKey] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+
+  // General settings state
+  const [companyName, setCompanyName] = useState('My Company');
+  const [defaultLanguage, setDefaultLanguage] = useState('en');
+  const [timezone, setTimezone] = useState('Europe/Istanbul');
+  const [openaiApiKey, setOpenaiApiKey] = useState('sk-proj-xxxxxxxxxxxxxxxxxxxxx');
+  const [defaultModel, setDefaultModel] = useState('gpt-realtime-mini');
+
+  // SIP settings state
+  const [sipServer, setSipServer] = useState('sip.example.com');
+  const [sipPort, setSipPort] = useState('5060');
+  const [sipUsername, setSipUsername] = useState('voiceai_trunk');
+  const [sipPassword, setSipPassword] = useState('');
+  const [concurrentCalls, setConcurrentCalls] = useState('50');
+  const [codec, setCodec] = useState('opus');
+  const [transport, setTransport] = useState('udp');
+  const [sipConnected, setSipConnected] = useState(true);
+
+  // Notifications state
+  const [notifications, setNotifications] = useState<NotificationPref[]>([
+    { label: 'Campaign completed', description: 'Get notified when a campaign finishes', key: 'campaign_completed', enabled: true },
+    { label: 'Daily summary', description: 'Receive daily call statistics', key: 'daily_summary', enabled: true },
+    { label: 'Error alerts', description: 'Get alerts for system errors', key: 'error_alerts', enabled: true },
+    { label: 'Low balance warning', description: 'Alert when credits are running low', key: 'low_balance', enabled: false },
+  ]);
+
+  // IP Whitelist
+  const [ipWhitelist, setIpWhitelist] = useState('');
+
+  const toggleNotification = (index: number) => {
+    setNotifications((prev) =>
+      prev.map((n, i) => (i === index ? { ...n, enabled: !n.enabled } : n))
+    );
+  };
+
+  const handleSaveAll = async () => {
+    setIsSaving(true);
+    try {
+      await api.post('/settings', {
+        company_name: companyName,
+        default_language: defaultLanguage,
+        timezone,
+        openai_api_key: openaiApiKey,
+        default_model: defaultModel,
+        sip: {
+          server: sipServer,
+          port: sipPort,
+          username: sipUsername,
+          password: sipPassword,
+          concurrent_calls: parseInt(concurrentCalls, 10),
+          codec,
+          transport,
+        },
+        notifications: notifications.reduce<Record<string, boolean>>((acc, n) => {
+          acc[n.key] = n.enabled;
+          return acc;
+        }, {}),
+        ip_whitelist: ipWhitelist,
+      });
+      toast.success('Settings saved successfully');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save settings');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleTestSip = async () => {
+    setIsTesting(true);
+    try {
+      await api.post('/settings/sip/test', {
+        server: sipServer,
+        port: sipPort,
+        username: sipUsername,
+        password: sipPassword,
+      });
+      toast.success('SIP connection test successful');
+      setSipConnected(true);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'SIP connection test failed');
+      setSipConnected(false);
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const handleGenerateKey = async () => {
+    try {
+      const data = await api.post<{ key: string; name: string }>('/settings/api-keys/generate');
+      toast.success(`New API key generated: ${data.name}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to generate API key');
+    }
+  };
+
+  const handleDeleteApiKey = async (keyName: string) => {
+    if (!confirm(`Delete API key "${keyName}"?`)) return;
+    try {
+      await api.delete(`/settings/api-keys/${encodeURIComponent(keyName)}`);
+      toast.success('API key deleted');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete API key');
+    }
+  };
+
+  const handleDeleteWebhook = async (index: number) => {
+    if (!confirm('Delete this webhook endpoint?')) return;
+    try {
+      await api.delete(`/settings/webhooks/${index}`);
+      toast.success('Webhook deleted');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete webhook');
+    }
+  };
 
   const tabs = [
     { id: 'general' as SettingsTab, label: 'General', icon: Settings },
@@ -84,7 +210,8 @@ export default function SettingsPage() {
                       <label className="block text-sm font-medium mb-2">Company Name</label>
                       <input
                         type="text"
-                        defaultValue="My Company"
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
                         className={cn(
                           'w-full px-4 py-2.5 rounded-lg bg-background border border-border',
                           'focus:border-primary-500 focus:outline-none transition-colors'
@@ -95,21 +222,25 @@ export default function SettingsPage() {
                       <div>
                         <label className="block text-sm font-medium mb-2">Default Language</label>
                         <select
-                          defaultValue="tr"
+                          value={defaultLanguage}
+                          onChange={(e) => setDefaultLanguage(e.target.value)}
                           className={cn(
                             'w-full px-4 py-2.5 rounded-lg bg-background border border-border',
                             'focus:border-primary-500 focus:outline-none transition-colors'
                           )}
                         >
-                          <option value="tr">Türkçe</option>
                           <option value="en">English</option>
+                          <option value="tr">Turkish</option>
                           <option value="de">Deutsch</option>
+                          <option value="fr">French</option>
+                          <option value="es">Spanish</option>
                         </select>
                       </div>
                       <div>
                         <label className="block text-sm font-medium mb-2">Timezone</label>
                         <select
-                          defaultValue="Europe/Istanbul"
+                          value={timezone}
+                          onChange={(e) => setTimezone(e.target.value)}
                           className={cn(
                             'w-full px-4 py-2.5 rounded-lg bg-background border border-border',
                             'focus:border-primary-500 focus:outline-none transition-colors'
@@ -118,6 +249,7 @@ export default function SettingsPage() {
                           <option value="Europe/Istanbul">Europe/Istanbul (UTC+3)</option>
                           <option value="Europe/London">Europe/London (UTC+0)</option>
                           <option value="America/New_York">America/New York (UTC-5)</option>
+                          <option value="America/Los_Angeles">America/Los Angeles (UTC-8)</option>
                         </select>
                       </div>
                     </div>
@@ -135,7 +267,8 @@ export default function SettingsPage() {
                       <div className="relative">
                         <input
                           type={showApiKey ? 'text' : 'password'}
-                          defaultValue="sk-proj-xxxxxxxxxxxxxxxxxxxxx"
+                          value={openaiApiKey}
+                          onChange={(e) => setOpenaiApiKey(e.target.value)}
                           className={cn(
                             'w-full px-4 py-2.5 pr-20 rounded-lg bg-background border border-border',
                             'focus:border-primary-500 focus:outline-none transition-colors font-mono'
@@ -152,7 +285,8 @@ export default function SettingsPage() {
                     <div>
                       <label className="block text-sm font-medium mb-2">Default Model</label>
                       <select
-                        defaultValue="gpt-realtime-mini"
+                        value={defaultModel}
+                        onChange={(e) => setDefaultModel(e.target.value)}
                         className={cn(
                           'w-full px-4 py-2.5 rounded-lg bg-background border border-border',
                           'focus:border-primary-500 focus:outline-none transition-colors'
@@ -181,9 +315,17 @@ export default function SettingsPage() {
                       SIP Trunk Configuration
                     </h3>
                     <div className="flex items-center gap-2">
-                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success-500/10 text-success-500 text-sm font-medium">
-                        <CheckCircle className="h-4 w-4" />
-                        Connected
+                      <span className={cn(
+                        'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium',
+                        sipConnected
+                          ? 'bg-success-500/10 text-success-500'
+                          : 'bg-error-500/10 text-error-500'
+                      )}>
+                        {sipConnected ? (
+                          <><CheckCircle className="h-4 w-4" /> Connected</>
+                        ) : (
+                          <><AlertCircle className="h-4 w-4" /> Disconnected</>
+                        )}
                       </span>
                     </div>
                   </div>
@@ -194,7 +336,8 @@ export default function SettingsPage() {
                         <label className="block text-sm font-medium mb-2">SIP Server</label>
                         <input
                           type="text"
-                          defaultValue="sip.example.com"
+                          value={sipServer}
+                          onChange={(e) => setSipServer(e.target.value)}
                           className={cn(
                             'w-full px-4 py-2.5 rounded-lg bg-background border border-border',
                             'focus:border-primary-500 focus:outline-none transition-colors font-mono'
@@ -205,7 +348,8 @@ export default function SettingsPage() {
                         <label className="block text-sm font-medium mb-2">Port</label>
                         <input
                           type="text"
-                          defaultValue="5060"
+                          value={sipPort}
+                          onChange={(e) => setSipPort(e.target.value)}
                           className={cn(
                             'w-full px-4 py-2.5 rounded-lg bg-background border border-border',
                             'focus:border-primary-500 focus:outline-none transition-colors font-mono'
@@ -218,7 +362,8 @@ export default function SettingsPage() {
                         <label className="block text-sm font-medium mb-2">Username</label>
                         <input
                           type="text"
-                          defaultValue="voiceai_trunk"
+                          value={sipUsername}
+                          onChange={(e) => setSipUsername(e.target.value)}
                           className={cn(
                             'w-full px-4 py-2.5 rounded-lg bg-background border border-border',
                             'focus:border-primary-500 focus:outline-none transition-colors font-mono'
@@ -229,7 +374,9 @@ export default function SettingsPage() {
                         <label className="block text-sm font-medium mb-2">Password</label>
                         <input
                           type="password"
-                          defaultValue="••••••••"
+                          value={sipPassword}
+                          onChange={(e) => setSipPassword(e.target.value)}
+                          placeholder="Enter password"
                           className={cn(
                             'w-full px-4 py-2.5 rounded-lg bg-background border border-border',
                             'focus:border-primary-500 focus:outline-none transition-colors font-mono'
@@ -241,7 +388,8 @@ export default function SettingsPage() {
                       <label className="block text-sm font-medium mb-2">Concurrent Calls Limit</label>
                       <input
                         type="number"
-                        defaultValue="50"
+                        value={concurrentCalls}
+                        onChange={(e) => setConcurrentCalls(e.target.value)}
                         className={cn(
                           'w-full px-4 py-2.5 rounded-lg bg-background border border-border',
                           'focus:border-primary-500 focus:outline-none transition-colors'
@@ -255,21 +403,23 @@ export default function SettingsPage() {
                       <div>
                         <label className="block text-sm font-medium mb-2">Codec Priority</label>
                         <select
-                          defaultValue="opus"
+                          value={codec}
+                          onChange={(e) => setCodec(e.target.value)}
                           className={cn(
                             'w-full px-4 py-2.5 rounded-lg bg-background border border-border',
                             'focus:border-primary-500 focus:outline-none transition-colors'
                           )}
                         >
                           <option value="opus">Opus (Recommended)</option>
-                          <option value="g711u">G.711 µ-law</option>
+                          <option value="g711u">G.711 u-law</option>
                           <option value="g711a">G.711 A-law</option>
                         </select>
                       </div>
                       <div>
                         <label className="block text-sm font-medium mb-2">Transport</label>
                         <select
-                          defaultValue="udp"
+                          value={transport}
+                          onChange={(e) => setTransport(e.target.value)}
                           className={cn(
                             'w-full px-4 py-2.5 rounded-lg bg-background border border-border',
                             'focus:border-primary-500 focus:outline-none transition-colors'
@@ -284,12 +434,20 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="flex items-center gap-3 mt-6 pt-6 border-t border-border">
-                    <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary-500/10 text-secondary-500 hover:bg-secondary-500/20 text-sm font-medium transition-colors">
-                      <TestTube className="h-4 w-4" />
+                    <button
+                      onClick={handleTestSip}
+                      disabled={isTesting}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary-500/10 text-secondary-500 hover:bg-secondary-500/20 text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      {isTesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <TestTube className="h-4 w-4" />}
                       Test Connection
                     </button>
-                    <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium transition-colors">
-                      <Save className="h-4 w-4" />
+                    <button
+                      onClick={handleSaveAll}
+                      disabled={isSaving}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                       Save Changes
                     </button>
                   </div>
@@ -306,7 +464,10 @@ export default function SettingsPage() {
                       <Webhook className="h-5 w-5 text-primary-500" />
                       Webhook Endpoints
                     </h3>
-                    <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium transition-colors">
+                    <button
+                      onClick={() => toast.info('Webhook creation dialog coming soon')}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium transition-colors"
+                    >
                       <Plus className="h-4 w-4" />
                       Add Webhook
                     </button>
@@ -334,7 +495,10 @@ export default function SettingsPage() {
                               <CheckCircle className="h-3 w-3" />
                               Active
                             </span>
-                            <button className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-error-500/10 text-error-500 transition-colors">
+                            <button
+                              onClick={() => handleDeleteWebhook(index)}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-error-500/10 text-error-500 transition-colors"
+                            >
                               <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
@@ -347,14 +511,14 @@ export default function SettingsPage() {
                 <div className="p-4 rounded-xl bg-muted/30">
                   <h4 className="font-medium mb-2">Available Events</h4>
                   <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
-                    <span>• call.started</span>
-                    <span>• call.completed</span>
-                    <span>• call.failed</span>
-                    <span>• call.transferred</span>
-                    <span>• transcription.ready</span>
-                    <span>• campaign.started</span>
-                    <span>• campaign.completed</span>
-                    <span>• recording.ready</span>
+                    <span>call.started</span>
+                    <span>call.completed</span>
+                    <span>call.failed</span>
+                    <span>call.transferred</span>
+                    <span>transcription.ready</span>
+                    <span>campaign.started</span>
+                    <span>campaign.completed</span>
+                    <span>recording.ready</span>
                   </div>
                 </div>
               </div>
@@ -369,7 +533,10 @@ export default function SettingsPage() {
                       <Key className="h-5 w-5 text-primary-500" />
                       API Keys
                     </h3>
-                    <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium transition-colors">
+                    <button
+                      onClick={handleGenerateKey}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium transition-colors"
+                    >
                       <Plus className="h-4 w-4" />
                       Generate Key
                     </button>
@@ -383,7 +550,10 @@ export default function SettingsPage() {
                       <div key={index} className="p-4 rounded-lg border border-border">
                         <div className="flex items-center justify-between mb-2">
                           <p className="font-medium">{apiKey.name}</p>
-                          <button className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-error-500/10 text-error-500 transition-colors">
+                          <button
+                            onClick={() => handleDeleteApiKey(apiKey.name)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-error-500/10 text-error-500 transition-colors"
+                          >
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
@@ -409,18 +579,14 @@ export default function SettingsPage() {
                   </h3>
 
                   <div className="space-y-4">
-                    {[
-                      { label: 'Campaign completed', description: 'Get notified when a campaign finishes', enabled: true },
-                      { label: 'Daily summary', description: 'Receive daily call statistics', enabled: true },
-                      { label: 'Error alerts', description: 'Get alerts for system errors', enabled: true },
-                      { label: 'Low balance warning', description: 'Alert when credits are running low', enabled: false },
-                    ].map((notification, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 rounded-lg bg-muted/30">
+                    {notifications.map((notification, index) => (
+                      <div key={notification.key} className="flex items-center justify-between p-4 rounded-lg bg-muted/30">
                         <div>
                           <p className="font-medium">{notification.label}</p>
                           <p className="text-sm text-muted-foreground">{notification.description}</p>
                         </div>
                         <button
+                          onClick={() => toggleNotification(index)}
                           className={cn(
                             'relative w-12 h-6 rounded-full transition-colors',
                             notification.enabled ? 'bg-primary-500' : 'bg-muted'
@@ -468,6 +634,8 @@ export default function SettingsPage() {
                       <textarea
                         placeholder="Enter IP addresses, one per line..."
                         rows={4}
+                        value={ipWhitelist}
+                        onChange={(e) => setIpWhitelist(e.target.value)}
                         className={cn(
                           'w-full px-4 py-2.5 rounded-lg bg-background border border-border',
                           'focus:border-primary-500 focus:outline-none transition-colors font-mono text-sm'
@@ -484,8 +652,12 @@ export default function SettingsPage() {
 
             {/* Save button */}
             <div className="flex justify-end mt-6">
-              <button className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary-500 hover:bg-primary-600 text-white font-medium transition-colors">
-                <Save className="h-4 w-4" />
+              <button
+                onClick={handleSaveAll}
+                disabled={isSaving}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary-500 hover:bg-primary-600 text-white font-medium transition-colors disabled:opacity-50"
+              >
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 Save All Changes
               </button>
             </div>

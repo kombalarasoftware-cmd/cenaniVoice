@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { API_V1 } from '@/lib/api';
+import { API_V1, api } from '@/lib/api';
 import {
   Calendar,
   Clock,
@@ -50,7 +50,7 @@ interface Stats {
   by_type: Record<string, number>;
 }
 
-const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
+const statusConfig: Record<string, { label: string; color: string; icon: typeof AlertCircle }> = {
   pending: { label: 'Pending', color: 'bg-yellow-500', icon: AlertCircle },
   confirmed: { label: 'Confirmed', color: 'bg-green-500', icon: CheckCircle },
   cancelled: { label: 'Cancelled', color: 'bg-red-500', icon: XCircle },
@@ -97,10 +97,7 @@ export default function AppointmentsPage() {
       if (typeFilter) params.append('appointment_type', typeFilter);
       if (searchQuery) params.append('search', searchQuery);
       
-      const response = await fetch(`${API_V1}/appointments/?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch appointments');
-      
-      const data = await response.json();
+      const data = await api.get<{ items: Appointment[]; pages: number; total: number }>(`/appointments/?${params}`);
       setAppointments(data.items);
       setTotalPages(data.pages);
       setTotal(data.total);
@@ -114,11 +111,8 @@ export default function AppointmentsPage() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(`${API_V1}/appointments/stats`);
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
-      }
+      const data = await api.get<Stats>('/appointments/stats');
+      setStats(data);
     } catch (error) {
       console.error('Stats fetch error:', error);
     }
@@ -133,12 +127,7 @@ export default function AppointmentsPage() {
   const handleStatusChange = async (appointmentId: number, action: 'cancel' | 'complete') => {
     try {
       const endpoint = action === 'cancel' ? 'cancel' : 'complete';
-      const response = await fetch(`${API_V1}/appointments/${appointmentId}/${endpoint}`, {
-        method: 'POST',
-      });
-      
-      if (!response.ok) throw new Error('Action failed');
-      
+      await api.post(`/appointments/${appointmentId}/${endpoint}`);
       toast.success(action === 'cancel' ? 'Appointment cancelled' : 'Appointment marked as completed');
       fetchAppointments();
       fetchStats();

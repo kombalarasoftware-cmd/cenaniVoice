@@ -14,9 +14,11 @@ from sqlalchemy import select, func, and_, or_
 
 from app.core.database import get_db
 from app.models.models import Appointment, AppointmentStatus, AppointmentType, Agent, Campaign
+from app.models import User
+from app.api.v1.auth import get_current_user
 from app.schemas.schemas import (
-    AppointmentResponse, 
-    AppointmentUpdate, 
+    AppointmentResponse,
+    AppointmentUpdate,
     AppointmentListResponse
 )
 
@@ -36,7 +38,8 @@ async def list_appointments(
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
     search: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     List appointments with filtering and pagination.
@@ -135,7 +138,8 @@ async def get_appointment_stats(
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
     agent_id: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get appointment statistics.
@@ -181,7 +185,8 @@ async def get_appointment_stats(
 @router.get("/{appointment_id}", response_model=AppointmentResponse)
 async def get_appointment(
     appointment_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get a specific appointment by ID"""
     appointment = db.get(Appointment, appointment_id)
@@ -230,7 +235,8 @@ async def get_appointment(
 async def update_appointment(
     appointment_id: int,
     update_data: AppointmentUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Update an appointment"""
     appointment = db.get(Appointment, appointment_id)
@@ -251,7 +257,8 @@ async def update_appointment(
 @router.delete("/{appointment_id}")
 async def delete_appointment(
     appointment_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Delete an appointment"""
     appointment = db.get(Appointment, appointment_id)
@@ -268,7 +275,8 @@ async def delete_appointment(
 async def cancel_appointment(
     appointment_id: int,
     reason: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Cancel an appointment"""
     appointment = db.get(Appointment, appointment_id)
@@ -277,7 +285,7 @@ async def cancel_appointment(
     
     appointment.status = AppointmentStatus.CANCELLED
     if reason:
-        appointment.notes = f"{appointment.notes or ''}\n\nİptal sebebi: {reason}".strip()
+        appointment.notes = f"{appointment.notes or ''}\n\nCancellation reason: {reason}".strip()
     
     db.commit()
     
@@ -288,7 +296,8 @@ async def cancel_appointment(
 async def complete_appointment(
     appointment_id: int,
     notes: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Mark appointment as completed"""
     appointment = db.get(Appointment, appointment_id)
@@ -297,7 +306,7 @@ async def complete_appointment(
     
     appointment.status = AppointmentStatus.COMPLETED
     if notes:
-        appointment.notes = f"{appointment.notes or ''}\n\nTamamlanma notu: {notes}".strip()
+        appointment.notes = f"{appointment.notes or ''}\n\nCompletion note: {notes}".strip()
     
     db.commit()
     

@@ -1,11 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+import hashlib
+import hmac
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 import logging
 import json
 from datetime import datetime
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.api.v1.auth import get_current_user
 from app.models import WebhookEndpoint, User, CallLog
 from app.models.models import CallStatus, CallOutcome
@@ -14,6 +18,30 @@ from app.schemas import WebhookCreate, WebhookResponse
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
+
+
+async def verify_incoming_webhook_signature(
+    request: Request,
+    x_webhook_signature: Optional[str] = Header(None),
+) -> None:
+    """
+    Verify HMAC-SHA256 signature on incoming webhooks (Ultravox, AMD).
+    Skipped if WEBHOOK_SECRET is not configured.
+    """
+    secret = settings.WEBHOOK_SECRET
+    if not secret:
+        return  # No secret configured, skip verification
+
+    if not x_webhook_signature:
+        raise HTTPException(status_code=403, detail="Missing webhook signature")
+
+    body = await request.body()
+    expected = hmac.new(
+        secret.encode(), body, hashlib.sha256
+    ).hexdigest()
+
+    if not hmac.compare_digest(expected, x_webhook_signature):
+        raise HTTPException(status_code=403, detail="Invalid webhook signature")
 
 # Available webhook events
 WEBHOOK_EVENTS = [
@@ -300,7 +328,11 @@ class AMDResultRequest(PydanticBaseModel):
 
 
 @router.post("/amd-result")
-async def amd_result_webhook(payload: AMDResultRequest, db: Session = Depends(get_db)):
+async def amd_result_webhook(
+    payload: AMDResultRequest,
+    db: Session = Depends(get_db),
+    _sig: None = Depends(verify_incoming_webhook_signature),
+):
     """
     Receive AMD (Answering Machine Detection) result from Asterisk dialplan.
 
@@ -339,7 +371,11 @@ ULTRAVOX_DECIMINUTE_RATE = 0.005  # $0.005 per 6-second increment
 
 
 @router.post("/ultravox")
-async def ultravox_webhook(request: Request, db: Session = Depends(get_db)):
+async def ultravox_webhook(
+    request: Request,
+    db: Session = Depends(get_db),
+    _sig: None = Depends(verify_incoming_webhook_signature),
+):
     """
     Receive webhook events from Ultravox.
 

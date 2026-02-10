@@ -6,6 +6,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from typing import Optional
 import logging
+import redis
 
 from app.core.database import get_db
 from app.core.config import settings
@@ -19,6 +20,82 @@ logger = logging.getLogger(__name__)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
+# Redis client for token blacklist and account lockout
+try:
+    _redis_client = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+    _redis_client.ping()
+except Exception:
+    _redis_client = None
+    logger.warning("Redis not available for token blacklist / account lockout")
+
+# Account lockout settings
+MAX_FAILED_ATTEMPTS = 5
+LOCKOUT_TTL_SECONDS = 900  # 15 minutes
+
+
+def _is_token_blacklisted(jti: str) -> bool:
+    """Check if a token JTI is in the blacklist."""
+    if not _redis_client:
+        return False
+    try:
+        return _redis_client.sismember("token_blacklist", jti)
+    except Exception:
+        return False
+
+
+def _blacklist_token(jti: str, ttl: int) -> None:
+    """Add a token JTI to the blacklist."""
+    if not _redis_client:
+        return
+    try:
+        _redis_client.sadd("token_blacklist", jti)
+        # Also set an expiring key so we can auto-clean
+        _redis_client.setex(f"token_bl:{jti}", ttl, "1")
+    except Exception as e:
+        logger.warning(f"Failed to blacklist token: {e}")
+
+
+def _check_account_lockout(email: str) -> None:
+    """Raise 429 if account is locked out due to too many failed attempts."""
+    if not _redis_client:
+        return
+    key = f"login_failures:{email}"
+    try:
+        attempts = _redis_client.get(key)
+        if attempts and int(attempts) >= MAX_FAILED_ATTEMPTS:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Account temporarily locked due to too many failed login attempts. Try again later.",
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+
+
+def _record_failed_login(email: str) -> None:
+    """Increment failed login counter with TTL."""
+    if not _redis_client:
+        return
+    key = f"login_failures:{email}"
+    try:
+        pipe = _redis_client.pipeline()
+        pipe.incr(key)
+        pipe.expire(key, LOCKOUT_TTL_SECONDS)
+        pipe.execute()
+    except Exception:
+        pass
+
+
+def _clear_failed_logins(email: str) -> None:
+    """Clear failed login counter on successful login."""
+    if not _redis_client:
+        return
+    try:
+        _redis_client.delete(f"login_failures:{email}")
+    except Exception:
+        pass
+
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
@@ -29,12 +106,13 @@ def get_password_hash(password: str) -> str:
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    import uuid
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "jti": str(uuid.uuid4())})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
@@ -47,7 +125,17 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM]
         )
+        # Check token blacklist
+        jti = payload.get("jti")
+        if jti and _is_token_blacklisted(jti):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         return payload
+    except HTTPException:
+        raise
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -82,7 +170,7 @@ async def get_current_user_optional(
     db: Session = Depends(get_db),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional)
 ) -> Optional[User]:
-    """Get current user if authenticated, otherwise return default dev user"""
+    """Get current user if authenticated, otherwise raise 401."""
     if credentials:
         try:
             payload = jwt.decode(
@@ -90,21 +178,20 @@ async def get_current_user_optional(
                 settings.SECRET_KEY,
                 algorithms=[settings.ALGORITHM]
             )
+            # Check token blacklist
+            jti = payload.get("jti")
+            if jti and _is_token_blacklisted(jti):
+                raise HTTPException(status_code=401, detail="Token has been revoked")
             user_id = payload.get("sub")
             if user_id:
                 user = db.query(User).filter(User.id == user_id).first()
-                if user:
+                if user and user.is_active:
                     return user
+        except HTTPException:
+            raise
         except Exception:
             pass
-    
-    # In dev mode, return first user as default
-    if settings.DEBUG:
-        default_user = db.query(User).first()
-        if default_user:
-            logger.warning("DEBUG mode: returning default user for unauthenticated request")
-            return default_user
-    
+
     raise HTTPException(status_code=401, detail="Not authenticated")
 
 
@@ -132,20 +219,26 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
 @router.post("/login", response_model=Token)
 async def login(credentials: LoginRequest, db: Session = Depends(get_db)):
     """Authenticate user and return JWT token"""
+    # Check account lockout before attempting authentication
+    _check_account_lockout(credentials.email)
+
     user = db.query(User).filter(User.email == credentials.email).first()
-    
+
     if not user or not verify_password(credentials.password, user.hashed_password):
+        _record_failed_login(credentials.email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
-    
+
+    # Clear failed login counter on success
+    _clear_failed_logins(credentials.email)
     access_token = create_access_token(data={"sub": str(user.id)})
-    
+
     return Token(access_token=access_token)
 
 
@@ -163,6 +256,15 @@ async def refresh_token(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/logout")
-async def logout(current_user: User = Depends(get_current_user)):
-    """Logout (client should discard the token)"""
+async def logout(
+    current_user: User = Depends(get_current_user),
+    token: dict = Depends(verify_token),
+):
+    """Logout and blacklist the current token"""
+    jti = token.get("jti")
+    exp = token.get("exp")
+    if jti and exp:
+        # Blacklist until the token would have expired
+        ttl = max(int(exp - datetime.now(timezone.utc).timestamp()), 0)
+        _blacklist_token(jti, ttl)
     return {"message": "Successfully logged out"}

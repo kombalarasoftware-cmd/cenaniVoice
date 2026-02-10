@@ -22,7 +22,7 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const navigation = [
   {
@@ -91,6 +91,19 @@ export function Sidebar() {
   const { theme, setTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [userName, setUserName] = useState('User');
+  const [userEmail, setUserEmail] = useState('');
+
+  useEffect(() => {
+    try {
+      const name = localStorage.getItem('user_name');
+      const email = localStorage.getItem('user_email');
+      if (name) setUserName(name);
+      if (email) setUserEmail(email);
+    } catch {
+      // localStorage unavailable
+    }
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');
@@ -241,8 +254,8 @@ export function Sidebar() {
               </div>
               {!collapsed && (
                 <div className="flex-1 min-w-0 text-left">
-                  <p className="text-sm font-medium truncate">Admin User</p>
-                  <p className="text-xs text-muted-foreground truncate">admin@voiceai.com</p>
+                  <p className="text-sm font-medium truncate">{userName}</p>
+                  <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
                 </div>
               )}
             </button>

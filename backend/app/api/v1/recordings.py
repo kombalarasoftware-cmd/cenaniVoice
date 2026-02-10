@@ -61,7 +61,7 @@ async def list_recordings(
         recordings.append(RecordingResponse(
             id=call.id,
             call_sid=call.call_sid,
-            phone_number=call.to_number or "",
+            to_number=call.to_number or "",
             customer_name=call.customer_name,
             campaign_name=call.campaign.name if call.campaign else None,
             agent_name=call.agent.name if call.agent else None,
@@ -111,7 +111,7 @@ async def get_recording(
         "summary": call.summary,
         "recording_url": call.recording_url,
         "transcription": call.transcription,
-        "metadata": call.metadata,
+        "metadata": call.call_metadata,
         "created_at": call.created_at
     }
 

@@ -2,7 +2,6 @@
 Leads API Endpoints
 
 Handles lead listing, filtering, updating, and management.
-Potansiyel müşteri (lead) yönetimi için API endpoint'leri.
 """
 
 import logging
@@ -15,6 +14,8 @@ from sqlalchemy import or_
 
 from app.core.database import get_db
 from app.models.models import Lead, LeadStatus, LeadInterestType, Agent, Campaign
+from app.models import User
+from app.api.v1.auth import get_current_user
 from app.schemas.schemas import (
     LeadResponse,
     LeadUpdate,
@@ -39,7 +40,8 @@ async def list_leads(
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
     search: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     List leads with filtering and pagination.
@@ -145,7 +147,8 @@ async def get_lead_stats(
     date_to: Optional[date] = None,
     agent_id: Optional[int] = None,
     campaign_id: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get lead statistics.
@@ -200,12 +203,13 @@ async def get_lead_stats(
 @router.get("/{lead_id}", response_model=LeadResponse)
 async def get_lead(
     lead_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get a specific lead by ID."""
     lead = db.get(Lead, lead_id)
     if not lead:
-        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+        raise HTTPException(status_code=404, detail="Lead not found")
     
     agent_name = None
     campaign_name = None
@@ -250,7 +254,8 @@ async def get_lead(
 async def update_lead(
     lead_id: int,
     update_data: LeadUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Update a lead.
@@ -259,8 +264,8 @@ async def update_lead(
     """
     lead = db.get(Lead, lead_id)
     if not lead:
-        raise HTTPException(status_code=404, detail="Lead bulunamadı")
-    
+        raise HTTPException(status_code=404, detail="Lead not found")
+
     update_dict = update_data.model_dump(exclude_unset=True)
     
     # Track status changes
@@ -323,14 +328,15 @@ async def update_lead(
 @router.delete("/{lead_id}")
 async def delete_lead(
     lead_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Delete a lead."""
     lead = db.get(Lead, lead_id)
     if not lead:
-        raise HTTPException(status_code=404, detail="Lead bulunamadı")
-    
+        raise HTTPException(status_code=404, detail="Lead not found")
+
     db.delete(lead)
     db.commit()
-    
-    return {"message": "Lead başarıyla silindi", "id": lead_id}
+
+    return {"message": "Lead deleted successfully", "id": lead_id}

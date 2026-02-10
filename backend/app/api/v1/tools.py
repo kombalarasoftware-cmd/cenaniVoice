@@ -15,19 +15,64 @@ import logging
 import re
 from datetime import datetime
 from typing import Optional
+from urllib.parse import urlparse
 
 import aiohttp
 from bs4 import BeautifulSoup
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request, Depends, HTTPException, Header
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.models.models import CallLog, Lead
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/tools", tags=["AI Tools"])
+
+async def verify_webhook_secret(
+    x_webhook_secret: Optional[str] = Header(None),
+) -> None:
+    """Verify the shared webhook secret for Ultravox tool callbacks."""
+    expected = settings.WEBHOOK_SECRET
+    if expected and x_webhook_secret != expected:
+        logger.warning("Tool callback rejected: invalid or missing webhook secret")
+        raise HTTPException(status_code=403, detail="Invalid webhook secret")
+
+
+router = APIRouter(
+    prefix="/tools",
+    tags=["AI Tools"],
+    dependencies=[Depends(verify_webhook_secret)],
+)
+
+
+# ------------------------------------------------------------- SSRF Protection
+
+# Blocked hostnames and IP ranges for SSRF prevention
+_BLOCKED_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]", "metadata.google.internal"}
+_BLOCKED_PREFIXES = ("10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.",
+                     "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.",
+                     "172.27.", "172.28.", "172.29.", "172.30.", "172.31.",
+                     "192.168.", "169.254.", "fd", "fc")
+
+
+def _is_safe_url(url: str) -> bool:
+    """Check if URL is safe to fetch (not pointing to internal resources)."""
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        host = (parsed.hostname or "").lower()
+        if not host:
+            return False
+        if host in _BLOCKED_HOSTS:
+            return False
+        if any(host.startswith(p) for p in _BLOCKED_PREFIXES):
+            return False
+        return True
+    except Exception:
+        return False
 
 
 # ------------------------------------------------------------- Helpers
@@ -313,6 +358,12 @@ async def search_web_source(request: Request, db: Session = Depends(get_db)):
         url = source.get("url", "")
         if not url:
             continue
+
+        # SSRF protection: only allow http/https and block internal networks
+        if not _is_safe_url(url):
+            logger.warning(f"Blocked unsafe URL in web source: {url}")
+            continue
+
         try:
             content = await _fetch_web_content(url, query)
             if content:
@@ -410,7 +461,7 @@ async def confirm_appointment(request: Request, db: Session = Depends(get_db)):
 
         appointment = Appointment(
             agent_id=agent_id,
-            call_id=call_id,
+            call_id=call_log.id if call_log else None,
             campaign_id=campaign_id,
             customer_name=customer_name,
             customer_phone=customer_phone,
@@ -472,7 +523,7 @@ async def capture_lead(request: Request, db: Session = Depends(get_db)):
 
         lead = Lead(
             agent_id=agent_id,
-            call_id=call_id,
+            call_id=call_log.id if call_log else None,
             campaign_id=campaign_id,
             customer_name=customer_name,
             customer_phone=body.get("customer_phone", ""),
@@ -509,7 +560,7 @@ async def get_caller_datetime(request: Request, db: Session = Depends(get_db)):
         customer_phone = ""
         call_log = _find_call_log(db, call_id)
         if call_log:
-            customer_phone = call_log.phone_number or ""
+            customer_phone = call_log.to_number or ""
 
         timezone_str = "Europe/Istanbul"
 
@@ -528,13 +579,13 @@ async def get_caller_datetime(request: Request, db: Session = Depends(get_db)):
 
         hour = now.hour
         if 5 <= hour < 12:
-            greeting = "Günaydın"
+            greeting = "Good morning"
         elif 12 <= hour < 18:
-            greeting = "İyi günler"
+            greeting = "Good afternoon"
         elif 18 <= hour < 22:
-            greeting = "İyi akşamlar"
+            greeting = "Good evening"
         else:
-            greeting = "İyi geceler"
+            greeting = "Good night"
 
         return {
             "status": "success",
@@ -551,7 +602,7 @@ async def get_caller_datetime(request: Request, db: Session = Depends(get_db)):
             "status": "success",
             "datetime": now.strftime("%Y-%m-%d %H:%M"),
             "timezone": "UTC",
-            "greeting": "Merhaba",
+            "greeting": "Hello",
             "message": f"Default time used: {now.strftime('%H:%M')} (UTC)",
         }
 
@@ -628,14 +679,15 @@ async def submit_survey_answer(request: Request, db: Session = Depends(get_db)):
             return {"status": "error", "message": f"Question not found: {question_id}"}
 
         # Find or create survey response
+        call_log_id = call_log.id if call_log else None
         survey_response = db.query(SurveyResponse).filter(
-            SurveyResponse.call_id == call_id,
+            SurveyResponse.call_id == call_log_id,
             SurveyResponse.agent_id == agent_id,
         ).first()
 
         if not survey_response:
             survey_response = SurveyResponse(
-                call_id=call_id,
+                call_id=call_log_id,
                 agent_id=agent_id,
                 campaign_id=campaign_id,
                 status=SurveyStatus.IN_PROGRESS,
@@ -712,9 +764,11 @@ async def survey_control(request: Request, db: Session = Depends(get_db)):
             survey_config = getattr(call_log.agent, "survey_config", {}) or {}
         questions = survey_config.get("questions", [])
 
+        call_log_id = call_log.id if call_log else None
+
         if action == "start":
             survey_response = SurveyResponse(
-                call_id=call_id,
+                call_id=call_log_id,
                 agent_id=agent_id,
                 campaign_id=campaign_id,
                 status=SurveyStatus.IN_PROGRESS,
@@ -744,7 +798,7 @@ async def survey_control(request: Request, db: Session = Depends(get_db)):
 
         elif action == "abort":
             survey_response = db.query(SurveyResponse).filter(
-                SurveyResponse.call_id == call_id,
+                SurveyResponse.call_id == call_log_id,
                 SurveyResponse.agent_id == agent_id,
                 SurveyResponse.status == SurveyStatus.IN_PROGRESS,
             ).first()

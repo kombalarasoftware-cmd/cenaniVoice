@@ -12,6 +12,15 @@ interface CreateAgentDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+const templateColorClasses: Record<string, { bg: string; text: string }> = {
+  primary: { bg: 'bg-primary-500/10', text: 'text-primary-500' },
+  secondary: { bg: 'bg-secondary-500/10', text: 'text-secondary-500' },
+  accent: { bg: 'bg-accent-500/10', text: 'text-accent-500' },
+  success: { bg: 'bg-success-500/10', text: 'text-success-500' },
+  warning: { bg: 'bg-warning-500/10', text: 'text-warning-500' },
+  error: { bg: 'bg-error-500/10', text: 'text-error-500' },
+};
+
 const templates = [
   {
     id: 'blank',
@@ -58,8 +67,8 @@ const templates = [
 ];
 
 const languages = [
-  { code: 'tr', name: 'Türkçe' },
   { code: 'en', name: 'English' },
+  { code: 'tr', name: 'Turkish' },
   { code: 'de', name: 'Deutsch' },
   { code: 'fr', name: 'Français' },
   { code: 'es', name: 'Español' },
@@ -174,7 +183,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
   const [agentName, setAgentName] = useState('');
   const [agentDescription, setAgentDescription] = useState('');
   const [selectedProvider, setSelectedProvider] = useState('openai');
-  const [selectedLanguage, setSelectedLanguage] = useState('tr');
+  const [selectedLanguage, setSelectedLanguage] = useState('en');
   const [selectedVoice, setSelectedVoice] = useState('alloy');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -269,7 +278,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
     setAgentName('');
     setAgentDescription('');
     setSelectedProvider('openai');
-    setSelectedLanguage('tr');
+    setSelectedLanguage('en');
     setSelectedVoice('alloy');
   };
 
@@ -334,11 +343,11 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
                       <div
                         className={cn(
                           'flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0',
-                          `bg-${template.color}-500/10`
+                          templateColorClasses[template.color]?.bg
                         )}
                       >
                         <template.icon
-                          className={cn('h-5 w-5', `text-${template.color}-500`)}
+                          className={cn('h-5 w-5', templateColorClasses[template.color]?.text)}
                         />
                       </div>
                       <div>

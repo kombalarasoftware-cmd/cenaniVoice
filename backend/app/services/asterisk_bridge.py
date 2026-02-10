@@ -104,15 +104,15 @@ LOCAL_BIND_HOSTS = {"0.0.0.0", "127.0.0.1", "::", "::1", "localhost"}
 # Asterisk ARI ayarları (channel variables için)
 ARI_HOST = os.environ.get("ASTERISK_HOST", "asterisk")
 ARI_PORT = int(os.environ.get("ASTERISK_ARI_PORT", "8088"))
-ARI_USERNAME = os.environ.get("ASTERISK_ARI_USER", "voiceai")
-ARI_PASSWORD = os.environ.get("ASTERISK_ARI_PASSWORD", "voiceai_ari_secret")
+ARI_USERNAME = os.environ.get("ASTERISK_ARI_USER", "")
+ARI_PASSWORD = os.environ.get("ASTERISK_ARI_PASSWORD", "")
 
 # PostgreSQL ayarları (agent bilgileri için)
 DB_HOST = os.environ.get("POSTGRES_HOST", "postgres")
 DB_PORT = int(os.environ.get("POSTGRES_PORT", "5432"))
 DB_NAME = os.environ.get("POSTGRES_DB", "voiceai")
-DB_USER = os.environ.get("POSTGRES_USER", "voiceai")
-DB_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "voiceai_secret")
+DB_USER = os.environ.get("POSTGRES_USER", "")
+DB_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "")
 
 # Redis ayarları (call setup bilgileri için)
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
@@ -150,6 +150,48 @@ COST_PER_TOKEN = {
 
 # OpenAI WebSocket URL
 OPENAI_WS_URL = f"wss://api.openai.com/v1/realtime?model={MODEL}"
+
+# ============================================================================
+# ASTERISK HANGUP CAUSE → SIP CODE MAPPING
+# ============================================================================
+# Maps common Asterisk hangup cause strings to standard SIP response codes.
+# Reference: https://wiki.asterisk.org/wiki/display/AST/Hangup+Cause+Mappings
+HANGUP_CAUSE_TO_SIP = {
+    "Normal Clearing": 200,
+    "User Busy": 486,
+    "No Answer": 480,
+    "Call Rejected": 403,
+    "Number Changed": 410,
+    "Normal Unspecified": 200,
+    "No Route": 404,
+    "No Route To Destination": 404,
+    "Channel Unacceptable": 406,
+    "Destination Out Of Order": 502,
+    "Invalid Number Format": 484,
+    "Facility Rejected": 501,
+    "Normal Circuit Congestion": 503,
+    "Network Out Of Order": 503,
+    "Temporary Failure": 503,
+    "Switch Congestion": 503,
+    "Requested Channel Unavailable": 503,
+    "Resource Unavailable": 503,
+    "Facility Not Subscribed": 403,
+    "Service Unavailable": 503,
+    "Bearercapability Not Available": 503,
+    "Bearercapability Not Implemented": 501,
+    "Interworking": 500,
+    "Subscriber Absent": 480,
+    "Agent End Call": 200,
+    "User Hangup (Manual)": 200,
+    "orphan_cleanup": 500,
+}
+
+
+def hangup_cause_to_sip_code(cause: str) -> int:
+    """Convert Asterisk hangup cause string to SIP response code."""
+    if not cause:
+        return 200
+    return HANGUP_CAUSE_TO_SIP.get(cause, 500)
 
 # ============================================================================
 # TITLE TRANSLATIONS - Language-aware Mr/Mrs
@@ -616,177 +658,17 @@ If any tool call fails:
 """
 
 # ============================================================================
-# TOOL DEFINITIONS
+# TOOL DEFINITIONS — imported from universal tool registry
 # ============================================================================
+# The hardcoded TOOLS list has been replaced by the central tool_registry.
+# Use to_openai_tools(agent_config) to get OpenAI-format tools at runtime.
+# The bridge calls _build_tools() during session setup to resolve them.
 
-TOOLS = [
-    {
-        "type": "function",
-        "name": "save_customer_name",
-        "description": "Müşterinin ad ve soyadını kaydet. Müşteri onayladıktan SONRA çağır.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "first_name": {"type": "string", "description": "Müşterinin adı"},
-                "last_name": {"type": "string", "description": "Müşterinin soyadı"},
-                "confirmed": {"type": "boolean", "description": "Müşteri onayladı mı"}
-            },
-            "required": ["first_name", "last_name", "confirmed"]
-        }
-    },
-    {
-        "type": "function",
-        "name": "save_phone_number",
-        "description": "Müşterinin telefon numarasını kaydet. Numarayı rakam rakam teyit ettikten ve onay aldıktan SONRA çağır. Sadece rakamlar.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "phone_number": {"type": "string", "description": "Telefon numarası, sadece rakamlar: 05321234567"},
-                "confirmed": {"type": "boolean", "description": "Müşteri onayladı mı"}
-            },
-            "required": ["phone_number", "confirmed"]
-        }
-    },
-    {
-        "type": "function",
-        "name": "save_email",
-        "description": "Müşterinin e-mail adresini kaydet. E-maili harf harf spell ederek teyit ettikten ve onay aldıktan SONRA çağır.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "email": {"type": "string", "description": "E-mail adresi, küçük harflerle"},
-                "confirmed": {"type": "boolean", "description": "Müşteri onayladı mı"}
-            },
-            "required": ["email", "confirmed"]
-        }
-    },
-    {
-        "type": "function",
-        "name": "save_address",
-        "description": "Müşterinin adresini kaydet. Adresi özetleyip teyit ettikten ve onay aldıktan SONRA çağır.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "city": {"type": "string", "description": "Şehir"},
-                "district": {"type": "string", "description": "İlçe"},
-                "neighborhood": {"type": "string", "description": "Mahalle"},
-                "street": {"type": "string", "description": "Sokak/cadde ve numara"},
-                "building_no": {"type": "string", "description": "Bina no"},
-                "apartment_no": {"type": "string", "description": "Daire no"},
-                "confirmed": {"type": "boolean", "description": "Müşteri onayladı mı"}
-            },
-            "required": ["city", "district", "confirmed"]
-        }
-    },
-    {
-        "type": "function",
-        "name": "complete_registration",
-        "description": "Tüm bilgiler toplandıktan ve müşteri onay verdikten sonra kaydı tamamla.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "summary": {"type": "string", "description": "Toplanan bilgilerin özeti"}
-            },
-            "required": ["summary"]
-        }
-    },
-    {
-        "type": "function",
-        "name": "transfer_to_human",
-        "description": "Müşteriyi yetkili birime/gerçek operatöre yönlendir. Müşteri istediğinde veya çözülemeyen durumlarda çağır.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "reason": {"type": "string", "description": "Yönlendirme sebebi"},
-                "department": {"type": "string", "description": "Hedef departman: destek, satis, teknik"}
-            },
-            "required": ["reason"]
-        }
-    },
-    {
-        "type": "function",
-        "name": "schedule_callback",
-        "description": "Müşteriyle geri arama randevusu planla. Müşterinin tercih ettiği tarih ve saati al, teyit ettikten SONRA çağır.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "date": {"type": "string", "description": "Geri arama tarihi (YYYY-MM-DD formatında)"},
-                "time": {"type": "string", "description": "Geri arama saati (HH:MM formatında, 24 saat)"},
-                "reason": {"type": "string", "description": "Geri arama sebebi: müşteri meşgul, bilgi araştırması gerekli, vs."},
-                "notes": {"type": "string", "description": "Geri arama için notlar: ne konuşulacak, hangi bilgiler hazırlanacak"},
-                "confirmed": {"type": "boolean", "description": "Müşteri randevu tarih/saatini onayladı mı"}
-            },
-            "required": ["date", "time", "reason", "confirmed"]
-        }
-    },
-    {
-        "type": "function",
-        "name": "set_call_sentiment",
-        "description": "Görüşme boyunca müşterinin genel duygu durumunu kaydet. Görüşmenin sonuna doğru çağır.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "sentiment": {"type": "string", "enum": ["positive", "neutral", "negative"], "description": "Müşterinin genel duygu durumu"},
-                "reason": {"type": "string", "description": "Duygu durumu değerlendirmesinin kısa açıklaması"}
-            },
-            "required": ["sentiment"]
-        }
-    },
-    {
-        "type": "function",
-        "name": "add_call_tags",
-        "description": "Görüşmeye etiket ekle. Görüşme içeriğine göre etiketleme yap. Birden fazla etiket eklenebilir.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "tags": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Etiketler listesi. Örnekler: interested (ilgili), callback (geri arama), complaint (şikayet), info_request (bilgi talebi), payment_issue (ödeme sorunu), satisfied (memnun), hot_lead (sıcak müşteri)"
-                }
-            },
-            "required": ["tags"]
-        }
-    },
-    {
-        "type": "function",
-        "name": "generate_call_summary",
-        "description": "Görüşme özetini oluştur. Görüşme sona ermeden HEMEN ÖNCE çağır. Konuşulan konuları, alınan kararları ve sonraki adımları özetle.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "summary": {"type": "string", "description": "Görüşmenin kısa ve öz özeti (max 200 kelime)"},
-                "action_items": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Yapılacaklar listesi. Örn: 'Müşteriye fatura gönderilecek', 'Teknik ekip arayacak'"
-                },
-                "customer_satisfaction": {"type": "string", "enum": ["very_satisfied", "satisfied", "neutral", "dissatisfied", "very_dissatisfied"], "description": "Müşteri memnuniyet tahmini"}
-            },
-            "required": ["summary"]
-        }
-    },
-    {
-        "type": "function",
-        "name": "end_call",
-        "description": "Görüşmeyi sonlandır. End the call. Müşteri vedalaştığında veya görüşme tamamlandığında çağır. Önce generate_call_summary ile özet oluştur, sonra bu fonksiyonu çağır.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "outcome": {
-                    "type": "string",
-                    "enum": ["success", "no_interest", "wrong_number", "callback", "other"],
-                    "description": "Görüşme sonucu / Call outcome"
-                },
-                "summary": {
-                    "type": "string",
-                    "description": "Görüşme özeti / Brief call summary"
-                }
-            },
-            "required": ["outcome"]
-        }
-    }
-]
+from app.services.tool_registry import to_openai_tools as _registry_to_openai_tools
+
+def _build_tools(agent_config: dict | None = None) -> list[dict]:
+    """Build OpenAI-format tools from the universal tool registry."""
+    return _registry_to_openai_tools(agent_config or {})
 
 # ============================================================================
 # AUDIOSOCKET PROTOKOLÜ
@@ -1328,7 +1210,7 @@ If you detect an answering machine, voicemail, or automated greeting system:
                     "model": self.agent_transcript_model,  # DB'den: gpt-4o-transcribe (best accuracy)
                     "language": self.agent_language,  # Agent ayarından alınıyor
                 },
-                "tools": TOOLS,
+                "tools": _build_tools(),
                 "tool_choice": "auto",
                 "max_response_output_tokens": self.agent_max_output_tokens,
             }
@@ -2000,6 +1882,54 @@ If you detect an answering machine, voicemail, or automated greeting system:
                         estimated_cost,
                     )
                     logger.info(f"[{self.call_uuid[:8]}] CallLog inserted successfully")
+
+                # Create DialAttempt record if this call has a dial_attempt_id
+                # The dial_attempt_id is set by the hopper-based autodialer
+                try:
+                    row = await conn.fetchrow(
+                        "SELECT id, dial_attempt_id FROM call_logs WHERE call_sid = $1",
+                        self.call_uuid,
+                    )
+                    if row and row["dial_attempt_id"]:
+                        attempt_id = row["dial_attempt_id"]
+                        # Map SIP code to a dial attempt result
+                        sip = self.sip_code or 200
+                        if sip == 200:
+                            attempt_result = "connected"
+                        elif sip == 486:
+                            attempt_result = "busy"
+                        elif sip in (480, 408):
+                            attempt_result = "no_answer"
+                        elif sip in (503, 502):
+                            attempt_result = "congestion"
+                        elif sip == 404:
+                            attempt_result = "invalid_number"
+                        else:
+                            attempt_result = "failed"
+
+                        await conn.execute(
+                            """UPDATE dial_attempts SET
+                                result = $1,
+                                sip_code = $2,
+                                hangup_cause = $3,
+                                duration = $4,
+                                call_log_id = $5,
+                                ended_at = NOW()
+                            WHERE id = $6""",
+                            attempt_result,
+                            self.sip_code,
+                            self.hangup_cause,
+                            int(duration),
+                            row["id"],
+                            attempt_id,
+                        )
+                        logger.info(
+                            f"[{self.call_uuid[:8]}] DialAttempt #{attempt_id} updated: "
+                            f"result={attempt_result}, sip={self.sip_code}"
+                        )
+                except Exception as da_err:
+                    logger.warning(f"[{self.call_uuid[:8]}] DialAttempt update error: {da_err}")
+
             finally:
                 await conn.close()
         except Exception as e:
@@ -2181,7 +2111,7 @@ async def main():
 ║    Temperature    : 0.6                                         ║
 ║    VAD            : semantic_vad (eagerness: low)               ║
 ║    Transcription  : gpt-4o-transcribe (DB-driven)               ║
-║    Tools          : {len(TOOLS)} adet                                         ║
+║    Tools          : {len(_build_tools())} (from registry)                      ║
 ║    Features       : Sentiment, Memory, Callback, QualityScore   ║
 ╠══════════════════════════════════════════════════════════════════╣
 ║  pip install websockets                                         ║

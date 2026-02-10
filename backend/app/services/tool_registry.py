@@ -378,6 +378,48 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "ultravox_endpoint": "/confirm-appointment",
     },
 
+    # ── DNC / Campaign Management ───────────────────────────────────────
+    {
+        "name": "register_dnc",
+        "description": (
+            "Register a phone number on the Do-Not-Call list. "
+            "Use when the customer explicitly requests to not be called again. "
+            "This permanently prevents future calls to this number."
+        ),
+        "parameters": {
+            "phone_number": {
+                "type": "string",
+                "description": "Phone number to add to DNC list",
+            },
+            "reason": {
+                "type": "string",
+                "description": "Reason for DNC registration (e.g. customer request, wrong number)",
+            },
+        },
+        "required": ["phone_number"],
+        "category": "core",
+        "condition": None,
+        "ultravox_endpoint": "/register-dnc",
+    },
+    {
+        "name": "add_campaign_note",
+        "description": (
+            "Add a note to the current call record. "
+            "Use to save important observations, customer requests, "
+            "or follow-up items discovered during the conversation."
+        ),
+        "parameters": {
+            "note_text": {
+                "type": "string",
+                "description": "Note content to save to the call record",
+            },
+        },
+        "required": ["note_text"],
+        "category": "data_capture",
+        "condition": None,
+        "ultravox_endpoint": "/add-campaign-note",
+    },
+
     # ── Utility ──────────────────────────────────────────────────────────
     {
         "name": "get_caller_datetime",

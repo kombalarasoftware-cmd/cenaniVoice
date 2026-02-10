@@ -26,11 +26,11 @@ try:
 except Exception:
     redis_client = None
 
-# Asterisk ARI config
-ARI_HOST = os.environ.get("ASTERISK_HOST", "asterisk")
-ARI_PORT = int(os.environ.get("ASTERISK_ARI_PORT", "8088"))
-ARI_USERNAME = os.environ.get("ASTERISK_ARI_USER", "voiceai")
-ARI_PASSWORD = os.environ.get("ASTERISK_ARI_PASSWORD", "voiceai_ari_secret")
+# Asterisk ARI config - from settings (environment variables)
+ARI_HOST = settings.ASTERISK_HOST
+ARI_PORT = settings.ASTERISK_ARI_PORT
+ARI_USERNAME = settings.ASTERISK_ARI_USER
+ARI_PASSWORD = settings.ASTERISK_ARI_PASSWORD
 
 # OpenAI Realtime pricing (per 1M tokens)
 COST_PER_TOKEN = {

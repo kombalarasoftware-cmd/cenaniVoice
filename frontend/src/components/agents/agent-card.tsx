@@ -122,8 +122,8 @@ export function AgentCard({ agent, onRefresh }: AgentCardProps) {
         const data = await response.json();
         throw new Error(data.detail || 'Delete failed');
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to delete agent');
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete agent');
     } finally {
       setIsLoading(false);
     }

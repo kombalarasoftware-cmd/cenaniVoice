@@ -305,13 +305,13 @@ async def _execute_campaign(campaign_id: int):
                     phone_record.call_attempts += 1
                     phone_record.last_call_at = datetime.utcnow()
 
-                    # Update campaign stats atomically
+                    # Only decrement active_calls after initiation.
+                    # Do NOT increment successful_calls here - that should happen
+                    # via webhooks/callbacks when the call actually completes.
                     db.execute(
                         text("""
                         UPDATE campaigns
-                        SET completed_calls = COALESCE(completed_calls, 0) + 1,
-                            successful_calls = COALESCE(successful_calls, 0) + 1,
-                            active_calls = GREATEST(COALESCE(active_calls, 1) - 1, 0)
+                        SET active_calls = GREATEST(COALESCE(active_calls, 1) - 1, 0)
                         WHERE id = :cid
                         """),
                         {"cid": campaign.id}
@@ -402,8 +402,14 @@ async def start_campaign(
     if _redis:
         _redis.delete(f"campaign_pause:{campaign_id}", f"campaign_stop:{campaign_id}")
 
-    # Launch campaign execution as a background task
-    background_tasks.add_task(_execute_campaign, campaign_id)
+    # Try Celery first, fall back to background task
+    try:
+        from app.tasks.celery_tasks import start_campaign_calls
+        start_campaign_calls.delay(campaign_id)  # type: ignore[attr-defined]
+        logger.info(f"Campaign {campaign_id} started via Celery")
+    except Exception as e:
+        logger.warning(f"Celery unavailable, using background task: {e}")
+        background_tasks.add_task(_execute_campaign, campaign_id)
 
     return {"success": True, "message": "Campaign started", "status": "running"}
 

@@ -115,15 +115,15 @@ function parsePromptSections(prompt: string): ParsedPromptSections {
   
   // Define section header patterns (ElevenLabs structure + legacy fallback)
   const sectionPatterns: { key: keyof ParsedPromptSections; patterns: RegExp[] }[] = [
-    { key: 'role', patterns: [/^#\s*(Personality|Role\s*&?\s*Objective|Rol\s*(?:Tanımı)?|Kişilik)/im] },
-    { key: 'personality', patterns: [/^#\s*(Environment|Ortam|Bağlam|Personality\s*&?\s*Tone)/im] },
-    { key: 'context', patterns: [/^#\s*(Tone|Ton|Üslup|Context)/im] },
-    { key: 'pronunciations', patterns: [/^#\s*(Goal|Hedef|Adımlar|Pronunciations?|Telaffuz)/im] },
-    { key: 'sample_phrases', patterns: [/^#\s*(Guardrails|Kurallar|Kısıtlamalar|Sample\s*Phrases?|Örnek\s*İfadeler?)/im] },
-    { key: 'tools', patterns: [/^#\s*(Tools?|Araçlar)/im] },
-    { key: 'rules', patterns: [/^#\s*(Character\s*normalization|Karakter\s*Normalizasyon|Instructions?|Rules?|Talimatlar)/im] },
-    { key: 'flow', patterns: [/^#\s*(Error\s*handling|Hata\s*Yönetimi|Flow|Akış|Süreç)/im] },
-    { key: 'safety', patterns: [/^#\s*(Safety\s*&?\s*Escalation|Safety|Güvenlik)/im] },
+    { key: 'role', patterns: [/^#\s*(Personality|Role\s*&?\s*Objective|Role\s*Definition)/im] },
+    { key: 'personality', patterns: [/^#\s*(Environment|Context|Personality\s*&?\s*Tone)/im] },
+    { key: 'context', patterns: [/^#\s*(Tone|Context)/im] },
+    { key: 'pronunciations', patterns: [/^#\s*(Goal|Steps|Pronunciations?)/im] },
+    { key: 'sample_phrases', patterns: [/^#\s*(Guardrails|Rules|Constraints|Sample\s*Phrases?|Example\s*Phrases?)/im] },
+    { key: 'tools', patterns: [/^#\s*(Tools?)/im] },
+    { key: 'rules', patterns: [/^#\s*(Character\s*normalization|Instructions?|Rules?)/im] },
+    { key: 'flow', patterns: [/^#\s*(Error\s*handling|Flow|Process)/im] },
+    { key: 'safety', patterns: [/^#\s*(Safety\s*&?\s*Escalation|Safety|Security)/im] },
   ];
   
   const lines = prompt.split('\n');
@@ -232,7 +232,7 @@ function PromptMakerModal({ isOpen, onClose, onGenerate, existingPrompt }: Promp
           agent_type: agentType || undefined,
           tone,
           existing_prompt: existingPrompt || undefined,
-          language: 'tr',
+          language: 'en',
         }),
       });
 

@@ -1,8 +1,9 @@
 from datetime import datetime
 from typing import Optional, List, Any
 from sqlalchemy import (
-    Integer, String, Text, Boolean, DateTime, 
-    ForeignKey, Float, JSON, Enum as SQLEnum
+    Integer, String, Text, Boolean, DateTime,
+    ForeignKey, Float, JSON, Enum as SQLEnum,
+    Index, UniqueConstraint, func
 )
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 import enum
@@ -352,25 +353,28 @@ class NumberList(Base):
 
 class PhoneNumber(Base):
     __tablename__ = "phone_numbers"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     phone: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     name: Mapped[Optional[str]] = mapped_column(String(255))
     is_valid: Mapped[bool] = mapped_column(Boolean, default=True)
-    
+    timezone: Mapped[Optional[str]] = mapped_column(String(50))  # e.g., "Europe/Istanbul"
+
     # Custom data from Excel
     custom_data: Mapped[Optional[dict]] = mapped_column(JSON)
-    
+
     # Call tracking
     call_attempts: Mapped[int] = mapped_column(Integer, default=0)
     last_call_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     last_outcome: Mapped[Optional[CallOutcome]] = mapped_column(SQLEnum(CallOutcome))
-    
+
     number_list_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("number_lists.id"))
-    
+    lead_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("leads.id"), nullable=True)
+
     # Relationships
     number_list: Mapped[Optional["NumberList"]] = relationship("NumberList", back_populates="phone_numbers")
     call_logs: Mapped[List["CallLog"]] = relationship("CallLog", back_populates="phone_number")
+    lead: Mapped[Optional["Lead"]] = relationship("Lead", backref="phone_numbers")
 
 
 class Campaign(Base):
@@ -398,6 +402,7 @@ class Campaign(Base):
     # Configuration
     concurrent_calls: Mapped[int] = mapped_column(Integer, default=10)
     retry_strategy: Mapped[Optional[dict]] = mapped_column(JSON)  # Retry configuration
+    dialing_mode: Mapped[str] = mapped_column(String(20), default="power")  # progressive, power, preview
 
     # Ultravox batch tracking
     ultravox_batch_id: Mapped[Optional[str]] = mapped_column(String(255))
@@ -481,15 +486,18 @@ class CallLog(Base):
     # Tags for categorization (JSON array of strings)
     tags: Mapped[Optional[list]] = mapped_column(JSON, default=list)  # ["interested", "hot_lead", etc.]
     
+    # ViciDial dialing link
+    dial_attempt_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("dial_attempts.id"), nullable=True)
+
     # Relationships
     campaign_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("campaigns.id"))
     agent_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("agents.id"))
     phone_number_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("phone_numbers.id"))
-    
+
     campaign: Mapped[Optional["Campaign"]] = relationship("Campaign", back_populates="call_logs")
     agent: Mapped[Optional["Agent"]] = relationship("Agent", back_populates="call_logs")
     phone_number: Mapped[Optional["PhoneNumber"]] = relationship("PhoneNumber", back_populates="call_logs")
-    
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -824,3 +832,189 @@ class SurveyResponse(Base):
     call: Mapped[Optional["CallLog"]] = relationship("CallLog", backref="survey_responses")
     agent: Mapped["Agent"] = relationship("Agent", backref="survey_responses")
     campaign: Mapped[Optional["Campaign"]] = relationship("Campaign", backref="survey_responses")
+
+
+# ============================================
+# ViciDial-Style Dialing Models
+# ============================================
+
+class DialListStatus(str, enum.Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    ARCHIVED = "archived"
+
+
+class DialEntryStatus(str, enum.Enum):
+    NEW = "new"
+    CONTACTED = "contacted"
+    DNC = "dnc"
+    CALLBACK = "callback"
+    COMPLETED = "completed"
+    INVALID = "invalid"
+    BUSY = "busy"
+    NO_ANSWER = "no_answer"
+    FAILED = "failed"
+
+
+class DialAttemptResult(str, enum.Enum):
+    CONNECTED = "connected"
+    NO_ANSWER = "no_answer"
+    BUSY = "busy"
+    FAILED = "failed"
+    VOICEMAIL = "voicemail"
+    DNC = "dnc"
+    INVALID_NUMBER = "invalid_number"
+    CONGESTION = "congestion"
+    TIMEOUT = "timeout"
+
+
+class DialingMode(str, enum.Enum):
+    PROGRESSIVE = "progressive"
+    POWER = "power"
+    PREVIEW = "preview"
+
+
+class DialList(Base):
+    __tablename__ = "dial_lists"
+
+    id = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name = mapped_column(String(255), nullable=False)
+    description = mapped_column(Text)
+    status = mapped_column(String(20), default=DialListStatus.ACTIVE)
+    total_numbers = mapped_column(Integer, default=0)
+    active_numbers = mapped_column(Integer, default=0)
+    completed_numbers = mapped_column(Integer, default=0)
+    invalid_numbers = mapped_column(Integer, default=0)
+    owner_id = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    owner = relationship("User", backref="dial_lists")
+    entries = relationship("DialListEntry", back_populates="dial_list", cascade="all, delete-orphan")
+    campaign_lists = relationship("CampaignList", back_populates="dial_list")
+
+
+class DialListEntry(Base):
+    __tablename__ = "dial_list_entries"
+
+    id = mapped_column(Integer, primary_key=True, autoincrement=True)
+    list_id = mapped_column(Integer, ForeignKey("dial_lists.id", ondelete="CASCADE"), nullable=False)
+    phone_number = mapped_column(String(20), nullable=False, index=True)
+    first_name = mapped_column(String(100))
+    last_name = mapped_column(String(100))
+    email = mapped_column(String(255))
+    company = mapped_column(String(255))
+    timezone = mapped_column(String(50))  # e.g., "Europe/Istanbul"
+    priority = mapped_column(Integer, default=0)
+    status = mapped_column(String(20), default=DialEntryStatus.NEW)
+    call_attempts = mapped_column(Integer, default=0)
+    max_attempts = mapped_column(Integer, default=3)
+    last_attempt_at = mapped_column(DateTime(timezone=True))
+    next_callback_at = mapped_column(DateTime(timezone=True))
+    dnc_flag = mapped_column(Boolean, default=False)
+    custom_fields = mapped_column(JSON, default=dict)
+    notes = mapped_column(Text)
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    dial_list = relationship("DialList", back_populates="entries")
+    dial_attempts = relationship("DialAttempt", back_populates="entry", cascade="all, delete-orphan")
+
+    # Composite indexes for efficient querying
+    __table_args__ = (
+        Index('idx_entry_list_status', 'list_id', 'status'),
+        Index('idx_entry_phone', 'phone_number'),
+        Index('idx_entry_callback', 'next_callback_at'),
+    )
+
+
+class DialAttempt(Base):
+    __tablename__ = "dial_attempts"
+
+    id = mapped_column(Integer, primary_key=True, autoincrement=True)
+    entry_id = mapped_column(Integer, ForeignKey("dial_list_entries.id", ondelete="CASCADE"), nullable=False)
+    campaign_id = mapped_column(Integer, ForeignKey("campaigns.id"), nullable=False)
+    call_log_id = mapped_column(Integer, ForeignKey("call_logs.id"))
+    attempt_number = mapped_column(Integer, nullable=False)
+    result = mapped_column(String(20), nullable=False)
+    sip_code = mapped_column(Integer)
+    hangup_cause = mapped_column(String(100))
+    duration = mapped_column(Integer, default=0)  # seconds
+    started_at = mapped_column(DateTime(timezone=True), server_default=func.now())
+    ended_at = mapped_column(DateTime(timezone=True))
+
+    # Relationships
+    entry = relationship("DialListEntry", back_populates="dial_attempts")
+    campaign = relationship("Campaign")
+    call_log = relationship("CallLog")
+
+    __table_args__ = (
+        Index('idx_attempt_campaign', 'campaign_id', 'result'),
+        Index('idx_attempt_entry', 'entry_id', 'attempt_number'),
+    )
+
+
+class DNCList(Base):
+    __tablename__ = "dnc_list"
+
+    id = mapped_column(Integer, primary_key=True, autoincrement=True)
+    phone_number = mapped_column(String(20), nullable=False, unique=True, index=True)
+    source = mapped_column(String(50))  # "manual", "customer_request", "regulatory", "import"
+    reason = mapped_column(Text)
+    added_by = mapped_column(Integer, ForeignKey("users.id"))
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    owner = relationship("User")
+
+
+class CampaignList(Base):
+    __tablename__ = "campaign_lists"
+
+    id = mapped_column(Integer, primary_key=True, autoincrement=True)
+    campaign_id = mapped_column(Integer, ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False)
+    list_id = mapped_column(Integer, ForeignKey("dial_lists.id", ondelete="CASCADE"), nullable=False)
+    priority = mapped_column(Integer, default=0)  # Higher = dialed first
+    active = mapped_column(Boolean, default=True)
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    campaign = relationship("Campaign", backref="campaign_lists")
+    dial_list = relationship("DialList", back_populates="campaign_lists")
+
+    __table_args__ = (
+        UniqueConstraint('campaign_id', 'list_id', name='uq_campaign_list'),
+    )
+
+
+class DialHopper(Base):
+    __tablename__ = "dial_hopper"
+
+    id = mapped_column(Integer, primary_key=True, autoincrement=True)
+    campaign_id = mapped_column(Integer, ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
+    entry_id = mapped_column(Integer, ForeignKey("dial_list_entries.id", ondelete="CASCADE"), nullable=False)
+    priority = mapped_column(Integer, default=0)
+    status = mapped_column(String(20), default="waiting")  # waiting, dialing, done
+    inserted_at = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    campaign = relationship("Campaign")
+    entry = relationship("DialListEntry")
+
+    __table_args__ = (
+        Index('idx_hopper_campaign_status', 'campaign_id', 'status', 'priority'),
+    )
+
+
+class CampaignDisposition(Base):
+    __tablename__ = "campaign_dispositions"
+
+    id = mapped_column(Integer, primary_key=True, autoincrement=True)
+    campaign_id = mapped_column(Integer, ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False)
+    name = mapped_column(String(100), nullable=False)
+    category = mapped_column(String(50))  # "success", "failure", "retry", "dnc"
+    next_action = mapped_column(String(50))  # "none", "retry", "callback", "dnc", "transfer"
+    retry_delay_minutes = mapped_column(Integer, default=60)
+    is_final = mapped_column(Boolean, default=False)
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    campaign = relationship("Campaign", backref="dispositions")

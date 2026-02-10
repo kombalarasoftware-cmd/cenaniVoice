@@ -1,7 +1,7 @@
 """
 Knowledge Base API Endpoints
 ============================
-RAG (Retrieval Augmented Generation) için Knowledge Base yönetimi
+Knowledge Base management for RAG (Retrieval Augmented Generation)
 """
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
@@ -12,6 +12,8 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.models.models import KnowledgeBase, KnowledgeDocument
+from app.models import User
+from app.api.v1.auth import get_current_user
 
 router = APIRouter(prefix="/knowledge-base", tags=["Knowledge Base"])
 
@@ -79,7 +81,8 @@ class AvailableVariablesResponse(BaseModel):
 async def list_knowledge_bases(
     skip: int = 0,
     limit: int = 20,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """List all knowledge bases"""
     return db.query(KnowledgeBase)\
@@ -92,7 +95,8 @@ async def list_knowledge_bases(
 @router.post("", response_model=KnowledgeBaseResponse, status_code=status.HTTP_201_CREATED)
 async def create_knowledge_base(
     data: KnowledgeBaseCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Create a new knowledge base"""
     kb = KnowledgeBase(
@@ -114,7 +118,8 @@ async def create_knowledge_base(
 @router.get("/{kb_id}", response_model=KnowledgeBaseResponse)
 async def get_knowledge_base(
     kb_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get a specific knowledge base"""
     kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
@@ -129,7 +134,8 @@ async def get_knowledge_base(
 async def update_knowledge_base(
     kb_id: int,
     data: KnowledgeBaseUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Update a knowledge base"""
     kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
@@ -151,7 +157,8 @@ async def update_knowledge_base(
 @router.delete("/{kb_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_knowledge_base(
     kb_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Delete a knowledge base and all its documents"""
     kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
@@ -170,7 +177,8 @@ async def delete_knowledge_base(
 @router.get("/{kb_id}/documents", response_model=List[KnowledgeDocumentResponse])
 async def list_documents(
     kb_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """List all documents in a knowledge base"""
     return db.query(KnowledgeDocument)\
@@ -183,7 +191,8 @@ async def list_documents(
 async def upload_document(
     kb_id: int,
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Upload a document to a knowledge base"""
     # Verify KB exists
@@ -232,7 +241,8 @@ async def upload_document(
 async def delete_document(
     kb_id: int,
     doc_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Delete a document from a knowledge base"""
     doc = db.query(KnowledgeDocument)\
@@ -273,7 +283,8 @@ class QueryResponse(BaseModel):
 async def query_knowledge_base(
     kb_id: int,
     request: QueryRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Query a knowledge base using semantic search
@@ -294,7 +305,7 @@ async def query_knowledge_base(
     return QueryResponse(
         query=request.query,
         results=[],
-        context="[RAG henüz aktif değil - Vector DB entegrasyonu gerekli]"
+        context="[RAG not yet active - Vector DB integration required]"
     )
 
 

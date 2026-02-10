@@ -9,10 +9,56 @@ from celery.exceptions import MaxRetriesExceededError
 from datetime import datetime, timedelta
 from typing import Optional
 import asyncio
+import threading
 import traceback
 
 from sqlalchemy import text
 from app.core.config import settings
+
+
+# ---------------------------------------------------------------------------
+# Circuit Breaker — per-provider failure tracking (in-memory, per-worker)
+# ---------------------------------------------------------------------------
+
+_circuit_lock = threading.Lock()
+_circuit_state: dict = {}  # {"openai": {"failures": 0, "open_until": None}, ...}
+
+CIRCUIT_FAILURE_THRESHOLD = 5   # consecutive failures to open circuit
+CIRCUIT_COOLDOWN_SECONDS = 30   # seconds before retrying after circuit opens
+
+
+def _circuit_is_open(provider: str) -> bool:
+    """Check if the circuit breaker is open for a provider."""
+    with _circuit_lock:
+        state = _circuit_state.get(provider)
+        if not state:
+            return False
+        if state.get("open_until") and datetime.utcnow() < state["open_until"]:
+            return True
+        # Cooldown expired — half-open, allow next attempt
+        if state.get("open_until") and datetime.utcnow() >= state["open_until"]:
+            state["failures"] = 0
+            state["open_until"] = None
+        return False
+
+
+def _circuit_record_success(provider: str) -> None:
+    """Record a successful call, resetting the failure counter."""
+    with _circuit_lock:
+        _circuit_state[provider] = {"failures": 0, "open_until": None}
+
+
+def _circuit_record_failure(provider: str) -> None:
+    """Record a failure; open the circuit if threshold is reached."""
+    with _circuit_lock:
+        state = _circuit_state.setdefault(provider, {"failures": 0, "open_until": None})
+        state["failures"] += 1
+        if state["failures"] >= CIRCUIT_FAILURE_THRESHOLD:
+            state["open_until"] = datetime.utcnow() + timedelta(seconds=CIRCUIT_COOLDOWN_SECONDS)
+            logger.warning(
+                f"Circuit breaker OPEN for provider '{provider}' — "
+                f"{state['failures']} consecutive failures, cooldown {CIRCUIT_COOLDOWN_SECONDS}s"
+            )
 
 # Create Celery app
 celery_app = Celery(
@@ -115,49 +161,48 @@ def make_call(self, call_data: dict):
             "max_duration": agent.max_duration,
         }
 
-        # Make the call
+        # Make the call using the provider factory
         async def execute_call():
-            from app.services import AudioBridge, ARIConfig
+            from app.services.provider_factory import get_provider
 
-            bridge = AudioBridge(
-                openai_api_key=settings.OPENAI_API_KEY,
-                asterisk_config=ARIConfig(
-                    host=settings.ASTERISK_HOST,
-                    port=settings.ASTERISK_ARI_PORT,
-                    username=settings.ASTERISK_ARI_USER,
-                    password=settings.ASTERISK_ARI_PASSWORD
-                ),
-                on_call_complete=lambda session: handle_call_complete(session, db, call_log)
-            )
+            provider_type = getattr(agent, "provider", "openai") or "openai"
 
-            await bridge.start()
+            # Circuit breaker check
+            if _circuit_is_open(provider_type):
+                raise TransientError(
+                    f"Circuit breaker open for provider '{provider_type}' — skipping call"
+                )
 
-            channel_id = await bridge.originate_call(
-                call_id=call_id,
-                phone_number=phone_number,
-                customer_name=customer_name or "",
-                agent_config=agent_config,
-                customer_data=customer_data
-            )
+            provider = get_provider(provider_type)
 
-            # Update call log
+            # Update call log status
             call_log.status = CallStatus.RINGING
+            call_log.provider = provider_type
             db.commit()
 
-            # Wait for call to complete (with timeout)
-            timeout = agent.max_duration + 60
-            start_time = datetime.utcnow()
+            result = await provider.initiate_call(
+                agent=agent,
+                phone_number=phone_number,
+                caller_id=phone_number,
+                customer_name=customer_name or "",
+                customer_title="",
+                conversation_history="",
+                variables={"campaign_id": str(campaign_id)},
+            )
 
-            while channel_id in bridge.sessions:
-                await asyncio.sleep(1)
-                if (datetime.utcnow() - start_time).seconds > timeout:
-                    await bridge.hangup_call(channel_id)
-                    break
-
-            await bridge.stop()
+            # Update call log with provider result
+            if result.get("call_id"):
+                call_log.call_sid = result["call_id"]
+            if result.get("ultravox_call_id"):
+                call_log.ultravox_call_id = result["ultravox_call_id"]
+            db.commit()
 
         # Run async code
         asyncio.run(execute_call())
+
+        # Record provider success for circuit breaker
+        _provider = getattr(agent, "provider", "openai") or "openai"
+        _circuit_record_success(_provider)
 
         logger.info(f"Call {call_id} completed")
         return {"success": True, "call_id": call_id}
@@ -179,6 +224,12 @@ def make_call(self, call_data: dict):
     except Exception as e:
         # Log full traceback for unexpected errors
         logger.error(f"Unexpected error in call: {e}\n{traceback.format_exc()}")
+
+        # Record provider failure for circuit breaker
+        _provider = "openai"
+        if call_log and call_log.provider:
+            _provider = call_log.provider
+        _circuit_record_failure(_provider)
 
         # Update call log on failure
         if call_log:
@@ -274,13 +325,129 @@ def handle_call_complete(session, db, call_log):
 
 
 @shared_task
-def start_campaign_calls(campaign_id: int):
+def load_hopper(campaign_id: int):
     """
-    Start processing calls for a campaign
+    Load the dial hopper for a campaign from its assigned dial lists.
+
+    Queries DialListEntries from all active CampaignLists for the campaign.
+    Filters for dialable entries (NEW or CALLBACK-ready, non-DNC).
+    Limits hopper size to 2x concurrent_calls to avoid memory bloat.
     """
     from app.core.database import SessionLocal
-    from app.models import Campaign, PhoneNumber, NumberList
-    from app.models.models import CampaignStatus
+    from app.models.models import (
+        Campaign, CampaignList, DialListEntry, DialHopper, DNCList,
+        CampaignStatus, DialEntryStatus,
+    )
+
+    db = SessionLocal()
+
+    try:
+        campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+        if not campaign or campaign.status != CampaignStatus.RUNNING:
+            return
+
+        # How many entries should be in the hopper at most
+        hopper_limit = (campaign.concurrent_calls or 10) * 2
+
+        # Count current waiting entries in hopper
+        current_waiting = (
+            db.query(DialHopper)
+            .filter(DialHopper.campaign_id == campaign_id, DialHopper.status == "waiting")
+            .count()
+        )
+
+        slots_needed = hopper_limit - current_waiting
+        if slots_needed <= 0:
+            return
+
+        # Get active list IDs for this campaign
+        active_list_ids = [
+            row[0]
+            for row in db.query(CampaignList.list_id)
+            .filter(CampaignList.campaign_id == campaign_id, CampaignList.active == True)
+            .all()
+        ]
+
+        if not active_list_ids:
+            # Fallback: use legacy number_list_id if no campaign_lists assigned
+            logger.info(f"Campaign {campaign_id}: No campaign_lists, skipping hopper load")
+            return
+
+        # Pre-load DNC numbers
+        dnc_numbers = set(row[0] for row in db.query(DNCList.phone_number).all())
+
+        # IDs already in the hopper to avoid duplicates
+        hopper_entry_ids = set(
+            row[0]
+            for row in db.query(DialHopper.entry_id)
+            .filter(DialHopper.campaign_id == campaign_id, DialHopper.status.in_(["waiting", "dialing"]))
+            .all()
+        )
+
+        now = datetime.utcnow()
+
+        # Query dialable entries: NEW or (CALLBACK with next_callback_at <= now)
+        entries = (
+            db.query(DialListEntry)
+            .filter(
+                DialListEntry.list_id.in_(active_list_ids),
+                DialListEntry.dnc_flag == False,
+                DialListEntry.call_attempts < DialListEntry.max_attempts,
+                DialListEntry.id.notin_(hopper_entry_ids) if hopper_entry_ids else True,
+            )
+            .filter(
+                (DialListEntry.status == DialEntryStatus.NEW)
+                | (
+                    (DialListEntry.status == DialEntryStatus.CALLBACK)
+                    & (DialListEntry.next_callback_at <= now)
+                )
+            )
+            .order_by(DialListEntry.priority.desc(), DialListEntry.id)
+            .limit(slots_needed)
+            .all()
+        )
+
+        inserted = 0
+        for entry in entries:
+            # Double-check DNC at insertion time
+            if entry.phone_number in dnc_numbers:
+                entry.dnc_flag = True
+                entry.status = DialEntryStatus.DNC
+                continue
+
+            hopper_entry = DialHopper(
+                campaign_id=campaign_id,
+                entry_id=entry.id,
+                priority=entry.priority,
+                status="waiting",
+            )
+            db.add(hopper_entry)
+            inserted += 1
+
+        db.commit()
+        logger.info(f"Campaign {campaign_id}: Loaded {inserted} entries into hopper")
+
+    except Exception as e:
+        logger.error(f"Error in load_hopper: {e}\n{traceback.format_exc()}")
+        db.rollback()
+    finally:
+        db.close()
+
+
+@shared_task
+def start_campaign_calls(campaign_id: int):
+    """
+    Start processing calls for a campaign using the hopper system.
+
+    Pulls entries from dial_hopper (status=waiting), creates call tasks,
+    and records DialAttempt entries on completion.
+    Falls back to legacy PhoneNumber query if no hopper entries found.
+    """
+    from app.core.database import SessionLocal
+    from app.models import Campaign, PhoneNumber, NumberList, Agent
+    from app.models.models import (
+        CampaignStatus, DialHopper, DialListEntry, DialAttempt, DialEntryStatus,
+    )
 
     db = SessionLocal()
 
@@ -294,17 +461,7 @@ def start_campaign_calls(campaign_id: int):
             logger.info(f"Campaign {campaign_id} is not running")
             return
 
-        # Get phone numbers to call
-        max_retries = campaign.agent.max_retries if campaign.agent else 3
-        numbers = db.query(PhoneNumber).filter(
-            PhoneNumber.number_list_id == campaign.number_list_id,
-            PhoneNumber.is_valid == True,
-            PhoneNumber.call_attempts < max_retries
-        ).all()
-
-        logger.info(f"Campaign {campaign_id}: {len(numbers)} numbers to call")
-
-        # Check call hours with null safety
+        # Check call hours
         now = datetime.now()
 
         call_hours_start = campaign.call_hours_start or "09:00"
@@ -314,7 +471,7 @@ def start_campaign_calls(campaign_id: int):
             start_hour, start_min = map(int, call_hours_start.split(":"))
             end_hour, end_min = map(int, call_hours_end.split(":"))
         except (ValueError, AttributeError):
-            logger.warning(f"Invalid call hours format for campaign {campaign_id}, using defaults")
+            logger.warning(f"Invalid call hours for campaign {campaign_id}, using defaults")
             start_hour, start_min = 9, 0
             end_hour, end_min = 20, 0
 
@@ -331,49 +488,161 @@ def start_campaign_calls(campaign_id: int):
             logger.info(f"Campaign {campaign_id}: Not an active day")
             return
 
-        # Queue calls respecting concurrent limit
-        import uuid
+        # Calculate available slots based on dialing mode
+        active_tasks = campaign.active_calls or 0
+        concurrent_limit = campaign.concurrent_calls or 10
+        dialing_mode = getattr(campaign, "dialing_mode", "power") or "power"
 
-        active_tasks = campaign.active_calls
-        available_slots = campaign.concurrent_calls - active_tasks
+        if dialing_mode == "progressive":
+            # Progressive: only dial 1 call when no active calls (1:1 agent ratio)
+            available_slots = 1 if active_tasks == 0 else 0
+        else:
+            # Power mode (default): fill up to concurrent limit
+            available_slots = concurrent_limit - active_tasks
 
-        for number in numbers[:available_slots]:
-            call_id = str(uuid.uuid4())
+        if available_slots <= 0:
+            return
 
-            # Queue the call
-            make_call.delay({  # type: ignore[attr-defined]
-                "call_id": call_id,
-                "phone_number": number.phone,
-                "customer_name": number.name,
-                "agent_id": campaign.agent_id,
-                "campaign_id": campaign.id,
-                "customer_data": number.custom_data or {}
-            })
+        # Determine provider from agent settings
+        provider_type = "openai"
+        if campaign.agent:
+            provider_type = getattr(campaign.agent, "provider", "openai") or "openai"
 
-            # Update number with atomic increment
-            db.execute(
-                text("""
-                UPDATE phone_numbers
-                SET call_attempts = call_attempts + 1,
-                    last_call_at = :now
-                WHERE id = :number_id
-                """),
-                {"number_id": number.id, "now": datetime.utcnow()}
+        # Circuit breaker check — skip campaign if provider is down
+        if _circuit_is_open(provider_type):
+            logger.warning(f"Campaign {campaign_id}: Circuit breaker open for {provider_type}, skipping")
+            return
+
+        # --- Try hopper-based dialing first ---
+        hopper_entries = (
+            db.query(DialHopper)
+            .filter(DialHopper.campaign_id == campaign_id, DialHopper.status == "waiting")
+            .order_by(DialHopper.priority.desc(), DialHopper.inserted_at)
+            .limit(available_slots)
+            .all()
+        )
+
+        if hopper_entries:
+            import uuid
+
+            queued = 0
+            for hopper in hopper_entries:
+                entry = db.get(DialListEntry, hopper.entry_id)
+                if not entry:
+                    hopper.status = "done"
+                    continue
+
+                call_id = str(uuid.uuid4())
+
+                # Mark hopper entry as dialing
+                hopper.status = "dialing"
+
+                # Update the dial list entry
+                entry.call_attempts += 1
+                entry.last_attempt_at = datetime.utcnow()
+                entry.status = DialEntryStatus.CONTACTED
+
+                # Create DialAttempt record
+                attempt = DialAttempt(
+                    entry_id=entry.id,
+                    campaign_id=campaign_id,
+                    attempt_number=entry.call_attempts,
+                    result="pending",
+                    started_at=datetime.utcnow(),
+                )
+                db.add(attempt)
+                db.flush()  # Get attempt.id
+
+                # Build customer name from entry
+                customer_name = " ".join(
+                    filter(None, [entry.first_name, entry.last_name])
+                ) or ""
+
+                # Queue the call
+                make_call.delay({  # type: ignore[attr-defined]
+                    "call_id": call_id,
+                    "phone_number": entry.phone_number,
+                    "customer_name": customer_name,
+                    "agent_id": campaign.agent_id,
+                    "campaign_id": campaign.id,
+                    "customer_data": entry.custom_fields or {},
+                    "provider": provider_type,
+                    "dial_attempt_id": attempt.id,
+                    "hopper_id": hopper.id,
+                    "entry_id": entry.id,
+                })
+
+                # Update campaign active calls atomically
+                db.execute(
+                    text("""
+                    UPDATE campaigns
+                    SET active_calls = active_calls + 1
+                    WHERE id = :campaign_id
+                    """),
+                    {"campaign_id": campaign.id},
+                )
+
+                queued += 1
+
+            db.commit()
+
+            # Reload hopper if running low
+            remaining = (
+                db.query(DialHopper)
+                .filter(DialHopper.campaign_id == campaign_id, DialHopper.status == "waiting")
+                .count()
             )
+            if remaining < (campaign.concurrent_calls or 10):
+                load_hopper.delay(campaign_id)  # type: ignore[attr-defined]
 
-            # Update campaign active calls atomically
-            db.execute(
-                text("""
-                UPDATE campaigns
-                SET active_calls = active_calls + 1
-                WHERE id = :campaign_id
-                """),
-                {"campaign_id": campaign.id}
-            )
+            logger.info(f"Campaign {campaign_id}: Queued {queued} calls from hopper")
+            return
 
-        db.commit()
+        # --- Fallback: legacy PhoneNumber-based dialing ---
+        if campaign.number_list_id:
+            max_retries = campaign.agent.max_retries if campaign.agent else 3
+            numbers = db.query(PhoneNumber).filter(
+                PhoneNumber.number_list_id == campaign.number_list_id,
+                PhoneNumber.is_valid == True,
+                PhoneNumber.call_attempts < max_retries,
+            ).all()
 
-        logger.info(f"Campaign {campaign_id}: Queued {min(len(numbers), available_slots)} calls")
+            import uuid
+
+            for number in numbers[:available_slots]:
+                call_id = str(uuid.uuid4())
+
+                make_call.delay({  # type: ignore[attr-defined]
+                    "call_id": call_id,
+                    "phone_number": number.phone,
+                    "customer_name": number.name,
+                    "agent_id": campaign.agent_id,
+                    "campaign_id": campaign.id,
+                    "customer_data": number.custom_data or {},
+                    "provider": provider_type,
+                })
+
+                db.execute(
+                    text("""
+                    UPDATE phone_numbers
+                    SET call_attempts = call_attempts + 1,
+                        last_call_at = :now
+                    WHERE id = :number_id
+                    """),
+                    {"number_id": number.id, "now": datetime.utcnow()},
+                )
+
+                db.execute(
+                    text("""
+                    UPDATE campaigns
+                    SET active_calls = active_calls + 1
+                    WHERE id = :campaign_id
+                    """),
+                    {"campaign_id": campaign.id},
+                )
+
+            db.commit()
+            logger.info(f"Campaign {campaign_id}: Queued {min(len(numbers), available_slots)} calls (legacy)")
 
     except Exception as e:
         logger.error(f"Error in start_campaign_calls: {e}\n{traceback.format_exc()}")
@@ -386,8 +655,9 @@ def start_campaign_calls(campaign_id: int):
 @shared_task
 def process_campaign_batch():
     """
-    Periodic task to process all running campaigns
-    Run every 30 seconds to maintain call volume
+    Periodic task to process all running campaigns.
+    Run every 30 seconds to maintain call volume.
+    Loads hopper first, then dispatches calls.
     """
     from app.core.database import SessionLocal
     from app.models import Campaign
@@ -401,6 +671,8 @@ def process_campaign_batch():
         ).all()
 
         for campaign in campaigns:
+            # Ensure hopper is loaded before dispatching calls
+            load_hopper.delay(campaign.id)  # type: ignore[attr-defined]
             start_campaign_calls.delay(campaign.id)  # type: ignore[attr-defined]
 
         logger.info(f"Processing {len(campaigns)} running campaigns")
@@ -486,11 +758,19 @@ def transcribe_recording(call_id: int):
         # Transcribe with Whisper
         client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
 
+        # Determine language from agent settings, default to English
+        language = "en"
+        if call.agent_id:
+            from app.models import Agent
+            agent = db.query(Agent).filter(Agent.id == call.agent_id).first()
+            if agent and agent.language:
+                language = agent.language
+
         with open(tmp_path, "rb") as audio_file:
             transcript = client.audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file,
-                language="tr"  # Turkish
+                language=language
             )
 
         # Update call log
@@ -690,6 +970,241 @@ def send_webhook(self, webhook_id: int, event: str, data: dict):
         db.close()
 
 
+@shared_task
+def process_callbacks():
+    """
+    Periodic task to re-queue callback entries into the hopper.
+
+    Every 5 minutes, checks for DialListEntries with status=CALLBACK
+    and next_callback_at <= now, then adds them to the hopper for
+    re-dialing.
+    """
+    from app.core.database import SessionLocal
+    from app.models.models import (
+        Campaign, CampaignList, DialListEntry, DialHopper,
+        CampaignStatus, DialEntryStatus,
+    )
+
+    db = SessionLocal()
+
+    try:
+        now = datetime.utcnow()
+
+        # Find all running campaigns
+        running_campaigns = (
+            db.query(Campaign)
+            .filter(Campaign.status == CampaignStatus.RUNNING)
+            .all()
+        )
+
+        total_requeued = 0
+
+        for campaign in running_campaigns:
+            # Get active list IDs for this campaign
+            active_list_ids = [
+                row[0]
+                for row in db.query(CampaignList.list_id)
+                .filter(CampaignList.campaign_id == campaign.id, CampaignList.active == True)
+                .all()
+            ]
+
+            if not active_list_ids:
+                continue
+
+            # IDs already in the hopper
+            hopper_entry_ids = set(
+                row[0]
+                for row in db.query(DialHopper.entry_id)
+                .filter(
+                    DialHopper.campaign_id == campaign.id,
+                    DialHopper.status.in_(["waiting", "dialing"]),
+                )
+                .all()
+            )
+
+            # Find callback-ready entries
+            callback_entries = (
+                db.query(DialListEntry)
+                .filter(
+                    DialListEntry.list_id.in_(active_list_ids),
+                    DialListEntry.status == DialEntryStatus.CALLBACK,
+                    DialListEntry.next_callback_at <= now,
+                    DialListEntry.dnc_flag == False,
+                    DialListEntry.call_attempts < DialListEntry.max_attempts,
+                    DialListEntry.id.notin_(hopper_entry_ids) if hopper_entry_ids else True,
+                )
+                .order_by(DialListEntry.priority.desc())
+                .limit(50)  # Cap per campaign per cycle
+                .all()
+            )
+
+            for entry in callback_entries:
+                hopper_entry = DialHopper(
+                    campaign_id=campaign.id,
+                    entry_id=entry.id,
+                    priority=entry.priority + 10,  # Boost priority for callbacks
+                    status="waiting",
+                )
+                db.add(hopper_entry)
+                total_requeued += 1
+
+        db.commit()
+
+        if total_requeued:
+            logger.info(f"Callbacks: Re-queued {total_requeued} entries into hoppers")
+
+    except Exception as e:
+        logger.error(f"Error in process_callbacks: {e}\n{traceback.format_exc()}")
+        db.rollback()
+    finally:
+        db.close()
+
+
+@shared_task
+def cleanup_orphan_calls():
+    """
+    Periodic task to find and clean up orphaned calls.
+
+    Looks for calls stuck in RINGING or CONNECTED status for > 10 minutes
+    and marks them as FAILED. Creates an error DialAttempt if linked.
+    Also cleans up stale hopper entries stuck in 'dialing' status.
+    """
+    from app.core.database import SessionLocal
+    from app.models.models import (
+        CallLog, CallStatus, CallOutcome, DialHopper,
+        DialAttempt, DialListEntry, DialEntryStatus,
+    )
+
+    db = SessionLocal()
+
+    try:
+        cutoff = datetime.utcnow() - timedelta(minutes=10)
+
+        # Find orphaned calls
+        orphaned_calls = (
+            db.query(CallLog)
+            .filter(
+                CallLog.status.in_([CallStatus.RINGING, CallStatus.CONNECTED]),
+                CallLog.started_at < cutoff,
+            )
+            .all()
+        )
+
+        cleaned = 0
+        for call in orphaned_calls:
+            call.status = CallStatus.FAILED
+            call.outcome = CallOutcome.FAILED
+            call.ended_at = datetime.utcnow()
+            call.hangup_cause = "orphan_cleanup"
+
+            # Create DialAttempt error record if linked
+            if call.dial_attempt_id:
+                attempt = db.get(DialAttempt, call.dial_attempt_id)
+                if attempt:
+                    attempt.result = "failed"
+                    attempt.hangup_cause = "orphan_cleanup_timeout"
+                    attempt.ended_at = datetime.utcnow()
+
+                    # Update the entry status back to allow retry
+                    entry = db.get(DialListEntry, attempt.entry_id)
+                    if entry and entry.call_attempts < entry.max_attempts:
+                        entry.status = DialEntryStatus.NEW
+                    elif entry:
+                        entry.status = DialEntryStatus.FAILED
+
+            # Update campaign active calls
+            if call.campaign_id:
+                db.execute(
+                    text("""
+                    UPDATE campaigns
+                    SET active_calls = GREATEST(active_calls - 1, 0),
+                        failed_calls = failed_calls + 1
+                    WHERE id = :campaign_id
+                    """),
+                    {"campaign_id": call.campaign_id},
+                )
+
+            cleaned += 1
+
+        # Clean up stale hopper entries (stuck in 'dialing' for > 10 min)
+        stale_hopper_count = (
+            db.query(DialHopper)
+            .filter(
+                DialHopper.status == "dialing",
+                DialHopper.inserted_at < cutoff,
+            )
+            .update({"status": "done"})
+        )
+
+        db.commit()
+
+        if cleaned or stale_hopper_count:
+            logger.info(
+                f"Cleanup: {cleaned} orphan calls, {stale_hopper_count} stale hopper entries"
+            )
+
+    except Exception as e:
+        logger.error(f"Error in cleanup_orphan_calls: {e}\n{traceback.format_exc()}")
+        db.rollback()
+    finally:
+        db.close()
+
+
+@shared_task
+def manage_campaign_schedule():
+    """
+    Periodic task to auto-start and auto-stop campaigns based on their schedule.
+
+    - SCHEDULED campaigns with scheduled_start <= now → set to RUNNING
+    - RUNNING campaigns with scheduled_end <= now → set to COMPLETED
+    Runs every 60 seconds.
+    """
+    from app.core.database import SessionLocal
+    from app.models.models import Campaign, CampaignStatus
+
+    db = SessionLocal()
+
+    try:
+        now = datetime.utcnow()
+
+        # Auto-start scheduled campaigns
+        campaigns_to_start = (
+            db.query(Campaign)
+            .filter(
+                Campaign.status == CampaignStatus.SCHEDULED,
+                Campaign.scheduled_start <= now,
+            )
+            .all()
+        )
+
+        for campaign in campaigns_to_start:
+            campaign.status = CampaignStatus.RUNNING
+            logger.info(f"Auto-started campaign {campaign.id} ({campaign.name})")
+
+        # Auto-stop campaigns past their end time
+        campaigns_to_stop = (
+            db.query(Campaign)
+            .filter(
+                Campaign.status == CampaignStatus.RUNNING,
+                Campaign.scheduled_end != None,
+                Campaign.scheduled_end <= now,
+            )
+            .all()
+        )
+
+        for campaign in campaigns_to_stop:
+            campaign.status = CampaignStatus.COMPLETED
+            logger.info(f"Auto-completed campaign {campaign.id} ({campaign.name}) — past scheduled_end")
+
+        db.commit()
+
+    except Exception as e:
+        logger.error(f"Error in manage_campaign_schedule: {e}\n{traceback.format_exc()}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 # Celery Beat Schedule
 celery_app.conf.beat_schedule = {
     "process-campaigns": {
@@ -698,6 +1213,18 @@ celery_app.conf.beat_schedule = {
     },
     "check-completion": {
         "task": "app.tasks.celery_tasks.check_campaign_completion",
+        "schedule": 60.0,  # Every minute
+    },
+    "process-callbacks": {
+        "task": "app.tasks.celery_tasks.process_callbacks",
+        "schedule": 300.0,  # Every 5 minutes
+    },
+    "cleanup-orphan-calls": {
+        "task": "app.tasks.celery_tasks.cleanup_orphan_calls",
+        "schedule": 300.0,  # Every 5 minutes
+    },
+    "manage-campaign-schedule": {
+        "task": "app.tasks.celery_tasks.manage_campaign_schedule",
         "schedule": 60.0,  # Every minute
     },
 }

@@ -21,6 +21,19 @@ export default function DashboardLayout({
       router.replace('/login');
       return;
     }
+
+    // Validate token expiry by decoding JWT payload
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (payload.exp && payload.exp * 1000 < Date.now()) {
+        localStorage.removeItem('access_token');
+        router.replace('/login');
+        return;
+      }
+    } catch {
+      // If token is not a valid JWT, still allow access (dev mode)
+    }
+
     setIsAuthenticated(true);
     setIsLoading(false);
   }, [router]);

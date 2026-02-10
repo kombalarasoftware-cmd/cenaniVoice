@@ -1,14 +1,19 @@
 from typing import Optional, List
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
+import csv
+import io
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, case, Integer, cast, String as SAString, text
 from datetime import datetime, timedelta
 
 from app.core.database import get_db
 from app.api.v1.auth import get_current_user
 from app.models import (
-    User, Agent, Campaign, CallLog, CampaignStatus, 
-    CallStatus, CallOutcome
+    User, Agent, Campaign, CallLog, CampaignStatus,
+    CallStatus, CallOutcome,
+    DialAttempt, DialAttemptResult, DialListEntry, CampaignList,
 )
 from app.schemas import DashboardStats, CallStats
 
@@ -775,3 +780,320 @@ async def get_agent_ai_comparison(
         })
     
     return sorted(results, key=lambda x: x["avg_quality_score"], reverse=True)
+
+
+# ===================================================================
+# Phase 7 - Advanced Reporting Endpoints
+# ===================================================================
+
+@router.get("/campaigns/{campaign_id}/detailed-stats")
+async def get_campaign_detailed_stats(
+    campaign_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Detailed campaign statistics: ASR, ACD, SIP code distribution, cost breakdown, calls per hour."""
+    campaign = db.query(Campaign).filter(
+        Campaign.id == campaign_id,
+        Campaign.owner_id == current_user.id,
+    ).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    calls = db.query(CallLog).filter(CallLog.campaign_id == campaign_id).all()
+
+    total_numbers = campaign.total_numbers or 0
+    dialed = len(calls)
+    remaining = max(total_numbers - dialed, 0)
+
+    # ASR = (connected / total_attempts) * 100
+    connected_statuses = {CallStatus.CONNECTED, CallStatus.TALKING, CallStatus.COMPLETED}
+    connected = sum(1 for c in calls if c.status in connected_statuses)
+    asr = (connected / dialed * 100) if dialed > 0 else 0.0
+
+    # ACD = average duration of connected calls
+    connected_durations = [c.duration for c in calls if c.status in connected_statuses and c.duration and c.duration > 0]
+    acd = sum(connected_durations) / len(connected_durations) if connected_durations else 0.0
+
+    # SIP code distribution
+    sip_distribution: dict[str, int] = {}
+    for c in calls:
+        code = str(c.sip_code) if c.sip_code else "unknown"
+        sip_distribution[code] = sip_distribution.get(code, 0) + 1
+
+    # Cost breakdown
+    total_cost = sum(c.estimated_cost or 0.0 for c in calls)
+    avg_cost = total_cost / dialed if dialed > 0 else 0.0
+
+    # Calls per hour
+    hour_counts: dict[int, int] = {}
+    for c in calls:
+        if c.created_at:
+            h = c.created_at.hour
+            hour_counts[h] = hour_counts.get(h, 0) + 1
+    calls_per_hour = [{"hour": h, "count": cnt} for h, cnt in sorted(hour_counts.items())]
+
+    return {
+        "campaign_id": campaign_id,
+        "campaign_name": campaign.name,
+        "total_numbers": total_numbers,
+        "dialed_count": dialed,
+        "remaining": remaining,
+        "asr": round(asr, 2),
+        "acd": round(acd, 2),
+        "sip_code_distribution": sip_distribution,
+        "cost_breakdown": {
+            "total_cost": round(total_cost, 4),
+            "avg_cost_per_call": round(avg_cost, 4),
+        },
+        "calls_per_hour": calls_per_hour,
+    }
+
+
+@router.get("/campaigns/{campaign_id}/attempts")
+async def get_campaign_attempts(
+    campaign_id: int,
+    result: Optional[str] = None,
+    sip_code: Optional[int] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List dial attempts for a campaign with filtering and pagination."""
+    # Verify ownership
+    campaign = db.query(Campaign).filter(
+        Campaign.id == campaign_id,
+        Campaign.owner_id == current_user.id,
+    ).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    query = db.query(DialAttempt).filter(
+        DialAttempt.campaign_id == campaign_id
+    )
+
+    if result:
+        query = query.filter(DialAttempt.result == result)
+    if sip_code is not None:
+        query = query.filter(DialAttempt.sip_code == sip_code)
+    if date_from:
+        query = query.filter(DialAttempt.started_at >= datetime.fromisoformat(date_from))
+    if date_to:
+        query = query.filter(DialAttempt.started_at <= datetime.fromisoformat(date_to))
+
+    total = query.count()
+    attempts = query.order_by(DialAttempt.started_at.desc()).offset(skip).limit(limit).all()
+
+    items = []
+    for a in attempts:
+        entry = db.query(DialListEntry).filter(DialListEntry.id == a.entry_id).first()
+        items.append({
+            "id": a.id,
+            "entry_id": a.entry_id,
+            "phone_number": entry.phone_number if entry else None,
+            "name": f"{entry.first_name or ''} {entry.last_name or ''}".strip() if entry else None,
+            "attempt_number": a.attempt_number,
+            "result": a.result,
+            "sip_code": a.sip_code,
+            "hangup_cause": a.hangup_cause,
+            "duration": a.duration,
+            "started_at": a.started_at.isoformat() if a.started_at else None,
+            "ended_at": a.ended_at.isoformat() if a.ended_at else None,
+        })
+
+    return {"total": total, "skip": skip, "limit": limit, "items": items}
+
+
+@router.get("/providers/comparison")
+async def get_provider_comparison(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Compare provider (openai vs ultravox) performance: calls, duration, success rate, cost, ASR."""
+    query = db.query(CallLog).join(CallLog.campaign).filter(
+        CallLog.campaign.has(owner_id=current_user.id),
+    )
+    if date_from:
+        query = query.filter(CallLog.created_at >= datetime.fromisoformat(date_from))
+    if date_to:
+        query = query.filter(CallLog.created_at <= datetime.fromisoformat(date_to))
+
+    calls = query.all()
+
+    providers: dict[str, dict] = {}
+    for c in calls:
+        p = c.provider or "openai"
+        if p not in providers:
+            providers[p] = {
+                "total_calls": 0,
+                "durations": [],
+                "successes": 0,
+                "costs": [],
+                "connected": 0,
+            }
+        providers[p]["total_calls"] += 1
+        if c.duration and c.duration > 0:
+            providers[p]["durations"].append(c.duration)
+        if c.outcome == CallOutcome.SUCCESS:
+            providers[p]["successes"] += 1
+        if c.estimated_cost:
+            providers[p]["costs"].append(c.estimated_cost)
+        connected_statuses = {CallStatus.CONNECTED, CallStatus.TALKING, CallStatus.COMPLETED}
+        if c.status in connected_statuses:
+            providers[p]["connected"] += 1
+
+    result = {}
+    for p, data in providers.items():
+        total = data["total_calls"]
+        durations = data["durations"]
+        costs = data["costs"]
+        result[p] = {
+            "total_calls": total,
+            "avg_duration": round(sum(durations) / len(durations), 2) if durations else 0,
+            "success_rate": round(data["successes"] / total * 100, 2) if total > 0 else 0,
+            "avg_cost": round(sum(costs) / len(costs), 4) if costs else 0,
+            "asr": round(data["connected"] / total * 100, 2) if total > 0 else 0,
+        }
+
+    return result
+
+
+@router.get("/sip-codes")
+async def get_sip_code_distribution(
+    campaign_id: Optional[int] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """SIP code distribution across all calls with optional filters."""
+    query = db.query(CallLog).join(CallLog.campaign).filter(
+        CallLog.campaign.has(owner_id=current_user.id),
+    )
+    if campaign_id:
+        query = query.filter(CallLog.campaign_id == campaign_id)
+    if date_from:
+        query = query.filter(CallLog.created_at >= datetime.fromisoformat(date_from))
+    if date_to:
+        query = query.filter(CallLog.created_at <= datetime.fromisoformat(date_to))
+
+    calls = query.all()
+
+    distribution: dict[str, int] = {}
+    for c in calls:
+        code = str(c.sip_code) if c.sip_code else "unknown"
+        distribution[code] = distribution.get(code, 0) + 1
+
+    total = sum(distribution.values())
+    items = [
+        {"sip_code": code, "count": cnt, "percentage": round(cnt / total * 100, 2) if total > 0 else 0}
+        for code, cnt in sorted(distribution.items(), key=lambda x: x[1], reverse=True)
+    ]
+
+    return {"total_calls": total, "distribution": items}
+
+
+@router.get("/export/{export_type}")
+async def export_csv(
+    export_type: str,
+    campaign_id: Optional[int] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Export calls, campaigns, or attempts as CSV download."""
+    if export_type not in ("calls", "campaigns", "attempts"):
+        raise HTTPException(status_code=400, detail="export_type must be 'calls', 'campaigns', or 'attempts'")
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    if export_type == "calls":
+        writer.writerow([
+            "id", "call_sid", "provider", "status", "outcome", "duration",
+            "from_number", "to_number", "customer_name", "sip_code",
+            "sentiment", "estimated_cost", "created_at",
+        ])
+        query = db.query(CallLog).join(CallLog.campaign).filter(
+            CallLog.campaign.has(owner_id=current_user.id),
+        )
+        if campaign_id:
+            query = query.filter(CallLog.campaign_id == campaign_id)
+        if date_from:
+            query = query.filter(CallLog.created_at >= datetime.fromisoformat(date_from))
+        if date_to:
+            query = query.filter(CallLog.created_at <= datetime.fromisoformat(date_to))
+
+        for c in query.order_by(CallLog.created_at.desc()).all():
+            writer.writerow([
+                c.id, c.call_sid, c.provider,
+                c.status.value if c.status else "",
+                c.outcome.value if c.outcome else "",
+                c.duration, c.from_number, c.to_number,
+                c.customer_name, c.sip_code, c.sentiment,
+                c.estimated_cost,
+                c.created_at.isoformat() if c.created_at else "",
+            ])
+
+    elif export_type == "campaigns":
+        writer.writerow([
+            "id", "name", "status", "total_numbers", "completed_calls",
+            "successful_calls", "failed_calls", "created_at",
+        ])
+        campaigns = db.query(Campaign).filter(
+            Campaign.owner_id == current_user.id,
+        ).order_by(Campaign.created_at.desc()).all()
+
+        for camp in campaigns:
+            writer.writerow([
+                camp.id, camp.name,
+                camp.status.value if camp.status else "",
+                camp.total_numbers, camp.completed_calls,
+                camp.successful_calls, camp.failed_calls,
+                camp.created_at.isoformat() if camp.created_at else "",
+            ])
+
+    elif export_type == "attempts":
+        writer.writerow([
+            "id", "campaign_id", "phone_number", "first_name", "last_name",
+            "attempt_number", "result", "sip_code", "duration", "started_at",
+        ])
+        query = db.query(DialAttempt)
+        if campaign_id:
+            query = query.filter(DialAttempt.campaign_id == campaign_id)
+        if date_from:
+            query = query.filter(DialAttempt.started_at >= datetime.fromisoformat(date_from))
+        if date_to:
+            query = query.filter(DialAttempt.started_at <= datetime.fromisoformat(date_to))
+
+        # Filter by ownership via campaign
+        query = query.join(Campaign, DialAttempt.campaign_id == Campaign.id).filter(
+            Campaign.owner_id == current_user.id,
+        )
+
+        for a in query.order_by(DialAttempt.started_at.desc()).all():
+            entry = db.query(DialListEntry).filter(DialListEntry.id == a.entry_id).first()
+            writer.writerow([
+                a.id, a.campaign_id,
+                entry.phone_number if entry else "",
+                entry.first_name if entry else "",
+                entry.last_name if entry else "",
+                a.attempt_number, a.result, a.sip_code,
+                a.duration,
+                a.started_at.isoformat() if a.started_at else "",
+            ])
+
+    output.seek(0)
+    filename = f"{export_type}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )

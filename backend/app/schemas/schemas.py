@@ -24,6 +24,10 @@ from app.models.models import (
     LeadInterestType,
     CallTag,
     AIProvider,
+    DialListStatus,
+    DialEntryStatus,
+    DialAttemptResult,
+    DialingMode,
 )
 
 
@@ -336,7 +340,7 @@ class SurveyResponseUpdate(BaseModel):
 
 
 class SurveyResponseResponse(BaseModel):
-    """Anket yanıtı response"""
+    """Survey response"""
     id: int
     call_id: Optional[int] = None
     agent_id: int
@@ -456,8 +460,8 @@ class AgentDetailResponse(AgentResponse):
     prompt_language: Optional[str] = None  # Legacy
     knowledge_base: Optional[str] = None  # Static knowledge base content
     web_sources: Optional[List[Dict[str, Any]]] = None  # Web URLs for dynamic info
-    smart_features: Optional[Dict[str, Any]] = None  # Akıllı özellikler
-    survey_config: Optional[Dict[str, Any]] = None  # Anket yapılandırması
+    smart_features: Optional[Dict[str, Any]] = None  # Smart features
+    survey_config: Optional[Dict[str, Any]] = None  # Survey configuration
 
     timezone: str = "Europe/Istanbul"
     speech_speed: float
@@ -533,7 +537,14 @@ class CampaignResponse(CampaignBase):
     total_numbers: int
     completed_calls: int
     successful_calls: int
+    failed_calls: int = 0
     active_calls: int
+    number_list_id: Optional[int] = None
+    scheduled_end: Optional[datetime] = None
+    call_hours_start: Optional[str] = None
+    call_hours_end: Optional[str] = None
+    active_days: Optional[list] = None
+    concurrent_calls: Optional[int] = None
     created_at: datetime
 
     class Config:
@@ -606,6 +617,7 @@ class CallLogResponse(BaseModel):
 
     # AMD
     amd_status: Optional[str] = None  # HUMAN, MACHINE, NOTSURE
+    amd_cause: Optional[str] = None  # AMD decision reason
 
     # Tags
     tags: Optional[list] = None
@@ -641,7 +653,7 @@ class CallCostSummary(BaseModel):
 class RecordingResponse(BaseModel):
     id: int
     call_sid: str
-    phone_number: str
+    to_number: str
     customer_name: Optional[str]
     campaign_name: Optional[str]
     agent_name: Optional[str]
@@ -961,7 +973,17 @@ class LeadStats(BaseModel):
 class CallTagsUpdate(BaseModel):
     """Update call tags"""
     tags: List[str] = Field(default_factory=list)
-    
+    operation: str = Field(default="add", description="Tag operation: add, remove, or set")
+
+    @field_validator("operation")
+    @classmethod
+    def validate_operation(cls, v: str) -> str:
+        """Validate operation is one of the allowed values"""
+        allowed = {"add", "remove", "set"}
+        if v not in allowed:
+            raise ValueError(f"Invalid operation: {v}. Allowed: {allowed}")
+        return v
+
     @field_validator("tags")
     @classmethod
     def validate_tags(cls, v: List[str]) -> List[str]:
@@ -977,3 +999,196 @@ class CallTagsResponse(BaseModel):
     """Call tags response"""
     call_id: int
     tags: List[str]
+
+
+# ============ ViciDial-Style Dialing Schemas ============
+
+class DialListCreate(BaseModel):
+    """Create a new dial list"""
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+
+
+class DialListUpdate(BaseModel):
+    """Update a dial list"""
+    name: Optional[str] = Field(default=None, max_length=255)
+    description: Optional[str] = None
+    status: Optional[DialListStatus] = None
+
+
+class DialListResponse(BaseModel):
+    """Dial list response"""
+    id: int
+    name: str
+    description: Optional[str] = None
+    status: str
+    total_numbers: int
+    active_numbers: int
+    completed_numbers: int
+    invalid_numbers: int
+    owner_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DialListEntryCreate(BaseModel):
+    """Create a single dial list entry"""
+    phone_number: str = Field(..., min_length=1, max_length=20)
+    first_name: Optional[str] = Field(default=None, max_length=100)
+    last_name: Optional[str] = Field(default=None, max_length=100)
+    email: Optional[str] = Field(default=None, max_length=255)
+    company: Optional[str] = Field(default=None, max_length=255)
+    timezone: Optional[str] = Field(default=None, max_length=50)
+    priority: int = Field(default=0, ge=0, le=100)
+    max_attempts: int = Field(default=3, ge=1, le=20)
+    custom_fields: Optional[Dict[str, Any]] = None
+    notes: Optional[str] = None
+
+
+class DialListEntryUpdate(BaseModel):
+    """Update a dial list entry"""
+    status: Optional[str] = Field(default=None, max_length=20)
+    notes: Optional[str] = None
+    priority: Optional[int] = Field(default=None, ge=0, le=100)
+    next_callback_at: Optional[datetime] = None
+    dnc_flag: Optional[bool] = None
+
+
+class DialListEntryBulkCreate(BaseModel):
+    """Bulk create dial list entries (e.g., from Excel upload)"""
+    entries: List[DialListEntryCreate] = Field(..., min_length=1, max_length=10000)
+
+
+class DialListEntryResponse(BaseModel):
+    """Dial list entry response"""
+    id: int
+    list_id: int
+    phone_number: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    company: Optional[str] = None
+    timezone: Optional[str] = None
+    priority: int
+    status: str
+    call_attempts: int
+    max_attempts: int
+    last_attempt_at: Optional[datetime] = None
+    next_callback_at: Optional[datetime] = None
+    dnc_flag: bool
+    custom_fields: Optional[Dict[str, Any]] = None
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DialAttemptResponse(BaseModel):
+    """Dial attempt response"""
+    id: int
+    entry_id: int
+    campaign_id: int
+    call_log_id: Optional[int] = None
+    attempt_number: int
+    result: str
+    sip_code: Optional[int] = None
+    hangup_cause: Optional[str] = None
+    duration: int
+    started_at: datetime
+    ended_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class DNCListCreate(BaseModel):
+    """Add a number to DNC list"""
+    phone_number: str = Field(..., min_length=1, max_length=20)
+    source: Optional[str] = Field(default="manual", max_length=50)
+    reason: Optional[str] = None
+
+
+class DNCListResponse(BaseModel):
+    """DNC list entry response"""
+    id: int
+    phone_number: str
+    source: Optional[str] = None
+    reason: Optional[str] = None
+    added_by: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CampaignListCreate(BaseModel):
+    """Link a dial list to a campaign"""
+    campaign_id: int
+    list_id: int
+    priority: int = Field(default=0, ge=0, le=100)
+    active: bool = True
+
+
+class CampaignListResponse(BaseModel):
+    """Campaign-list link response"""
+    id: int
+    campaign_id: int
+    list_id: int
+    priority: int
+    active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DialHopperResponse(BaseModel):
+    """Dial hopper entry response"""
+    id: int
+    campaign_id: int
+    entry_id: int
+    priority: int
+    status: str
+    inserted_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CampaignDispositionCreate(BaseModel):
+    """Create a campaign disposition"""
+    campaign_id: int
+    name: str = Field(..., min_length=1, max_length=100)
+    category: Optional[str] = Field(default=None, max_length=50)
+    next_action: Optional[str] = Field(default="none", max_length=50)
+    retry_delay_minutes: int = Field(default=60, ge=1, le=10080)
+    is_final: bool = False
+
+
+class CampaignDispositionResponse(BaseModel):
+    """Campaign disposition response"""
+    id: int
+    campaign_id: int
+    name: str
+    category: Optional[str] = None
+    next_action: Optional[str] = None
+    retry_delay_minutes: int
+    is_final: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ExcelUploadResponse(BaseModel):
+    """Response for Excel/CSV file upload results"""
+    total: int
+    success: int
+    errors: int
+    duplicates: int
+    error_details: Optional[List[Dict[str, Any]]] = None

@@ -178,6 +178,7 @@ async def create_agent(
     
     # Apply voice settings
     if agent_data.voice_settings:
+        agent.model_type = agent_data.voice_settings.model_type
         agent.voice = agent_data.voice_settings.voice
         agent.language = agent_data.voice_settings.language
         agent.timezone = agent_data.voice_settings.timezone
@@ -345,11 +346,11 @@ async def update_agent(
     if agent_data.web_sources is not None:
         agent.web_sources = agent_data.web_sources
     
-    # Update smart features (Akıllı Özellikler)
+    # Update smart features
     if agent_data.smart_features is not None:
         agent.smart_features = agent_data.smart_features.model_dump() if hasattr(agent_data.smart_features, 'model_dump') else agent_data.smart_features
     
-    # Update survey config (Anket Yapılandırması)
+    # Update survey config
     if agent_data.survey_config is not None:
         agent.survey_config = agent_data.survey_config.model_dump() if hasattr(agent_data.survey_config, 'model_dump') else agent_data.survey_config
     

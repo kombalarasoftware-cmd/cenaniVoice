@@ -10,11 +10,13 @@ from typing import List
 from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
 
-from app.core.database import get_db
+from app.core.database import get_db, AsyncSessionLocal
 from app.models.models import Agent, AgentDocument, DocumentChunk
+from app.models import User
+from app.api.v1.auth import get_current_user
 from app.schemas.schemas import AgentDocumentResponse, DocumentSearchRequest, DocumentSearchResponse, DocumentChunkResponse
 from app.services.document_service import DocumentService
 
@@ -39,39 +41,43 @@ async def process_document_background(
     agent_id: int,
     file_content: bytes,
     file_type: str,
-    db: AsyncSession
 ):
-    """Background task to process document"""
+    """Background task to process document using async session"""
     try:
-        # Update status to processing
-        doc = await db.get(AgentDocument, document_id)
-        if not doc:
-            return
-            
-        doc.status = "processing"
-        await db.commit()
-        
-        # Process document
-        service = DocumentService(db)
-        chunk_count, token_count = await service.process_document(
-            document_id, agent_id, file_content, file_type
-        )
-        
-        # Update document with results
-        doc.status = "ready"
-        doc.chunk_count = chunk_count
-        doc.token_count = token_count
-        await db.commit()
-        
-        logger.info(f"Document {document_id} processed: {chunk_count} chunks, {token_count} tokens")
-        
+        async with AsyncSessionLocal() as db:
+            # Update status to processing
+            doc = await db.get(AgentDocument, document_id)
+            if not doc:
+                return
+
+            doc.status = "processing"
+            await db.commit()
+
+            # Process document
+            service = DocumentService(db)
+            chunk_count, token_count = await service.process_document(
+                document_id, agent_id, file_content, file_type
+            )
+
+            # Update document with results
+            doc.status = "ready"
+            doc.chunk_count = chunk_count
+            doc.token_count = token_count
+            await db.commit()
+
+            logger.info(f"Document {document_id} processed: {chunk_count} chunks, {token_count} tokens")
+
     except Exception as e:
         logger.error(f"Document processing failed: {e}")
-        doc = await db.get(AgentDocument, document_id)
-        if doc:
-            doc.status = "error"
-            doc.error_message = str(e)[:500]
-            await db.commit()
+        try:
+            async with AsyncSessionLocal() as db:
+                doc = await db.get(AgentDocument, document_id)
+                if doc:
+                    doc.status = "error"
+                    doc.error_message = str(e)[:500]
+                    await db.commit()
+        except Exception as inner_e:
+            logger.error(f"Failed to update document error status: {inner_e}")
 
 
 @router.post("/upload", response_model=AgentDocumentResponse)
@@ -79,14 +85,15 @@ async def upload_document(
     agent_id: int,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Upload a document to an agent for RAG processing.
-    
+
     Supported formats: PDF, TXT, DOCX
     Max file size: 10 MB
-    
+
     The document will be processed in the background:
     1. Parse document text
     2. Split into chunks
@@ -94,32 +101,32 @@ async def upload_document(
     4. Store for semantic search
     """
     # Validate agent exists
-    agent = await db.get(Agent, agent_id)
+    agent = db.get(Agent, agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
-    
+
     # Validate file extension
     ext = get_file_extension(file.filename or "")
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail=f"File type not allowed. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
         )
-    
+
     # Read file content
     file_content = await file.read()
     file_size = len(file_content)
-    
+
     # Validate file size
     if file_size > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=400,
             detail=f"File too large. Max size: {MAX_FILE_SIZE // (1024*1024)} MB"
         )
-    
+
     if file_size == 0:
         raise HTTPException(status_code=400, detail="File is empty")
-    
+
     # Create document record
     document = AgentDocument(
         agent_id=agent_id,
@@ -129,39 +136,39 @@ async def upload_document(
         status="pending"
     )
     db.add(document)
-    await db.commit()
-    await db.refresh(document)
-    
-    # Start background processing
+    db.commit()
+    db.refresh(document)
+
+    # Start background processing (uses async session internally)
     background_tasks.add_task(
         process_document_background,
         document.id,
         agent_id,
         file_content,
         ext,
-        db
     )
-    
+
     return document
 
 
 @router.get("/", response_model=List[AgentDocumentResponse])
 async def list_documents(
     agent_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """List all documents for an agent"""
     # Validate agent exists
-    agent = await db.get(Agent, agent_id)
+    agent = db.get(Agent, agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
-    
-    result = await db.execute(
-        select(AgentDocument)
-        .where(AgentDocument.agent_id == agent_id)
+
+    documents = (
+        db.query(AgentDocument)
+        .filter(AgentDocument.agent_id == agent_id)
         .order_by(AgentDocument.created_at.desc())
+        .all()
     )
-    documents = result.scalars().all()
     return documents
 
 
@@ -169,10 +176,11 @@ async def list_documents(
 async def get_document(
     agent_id: int,
     document_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get a specific document"""
-    document = await db.get(AgentDocument, document_id)
+    document = db.get(AgentDocument, document_id)
     if not document or document.agent_id != agent_id:
         raise HTTPException(status_code=404, detail="Document not found")
     return document
@@ -182,17 +190,18 @@ async def get_document(
 async def delete_document(
     agent_id: int,
     document_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Delete a document and its chunks"""
-    document = await db.get(AgentDocument, document_id)
+    document = db.get(AgentDocument, document_id)
     if not document or document.agent_id != agent_id:
         raise HTTPException(status_code=404, detail="Document not found")
-    
+
     # Delete document (chunks are cascade deleted)
-    await db.delete(document)
-    await db.commit()
-    
+    db.delete(document)
+    db.commit()
+
     return {"success": True, "message": "Document deleted"}
 
 
@@ -200,25 +209,28 @@ async def delete_document(
 async def search_documents(
     agent_id: int,
     request: DocumentSearchRequest,
-    db: AsyncSession = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Semantic search across agent's documents.
-    
+
     Uses OpenAI embeddings and pgvector for similarity search.
     """
     # Validate agent exists
-    agent = await db.get(Agent, agent_id)
+    agent = db.get(Agent, agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
-    
-    service = DocumentService(db)
-    results = await service.semantic_search(
-        agent_id=agent_id,
-        query=request.query,
-        limit=request.limit
-    )
-    
+
+    # Use async session for vector search operations
+    async with AsyncSessionLocal() as async_db:
+        service = DocumentService(async_db)
+        results = await service.semantic_search(
+            agent_id=agent_id,
+            query=request.query,
+            limit=request.limit
+        )
+
     return DocumentSearchResponse(
         query=request.query,
         results=[

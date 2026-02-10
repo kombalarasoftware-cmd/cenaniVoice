@@ -452,12 +452,29 @@ async def add_call_notes(
 @router.websocket("/ws/{client_id}")
 async def websocket_endpoint(
     websocket: WebSocket,
-    client_id: str
+    client_id: str,
+    token: Optional[str] = None,
 ):
     """
     WebSocket endpoint for real-time call updates.
+    Requires JWT token via query param: ?token=<jwt>
     Includes connection limits, heartbeat, and proper cleanup.
     """
+    # Validate JWT token from query params
+    if not token:
+        await websocket.close(code=4001, reason="Missing authentication token")
+        return
+    try:
+        from jose import jwt as jose_jwt
+        payload = jose_jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            await websocket.close(code=4001, reason="Invalid token")
+            return
+    except Exception:
+        await websocket.close(code=4001, reason="Invalid or expired token")
+        return
+
     if not await connection_manager.connect(websocket, client_id):
         return  # Connection rejected due to limit
 
@@ -677,7 +694,7 @@ async def update_call_tags(
     elif tag_data.operation == "remove":
         # Remove specified tags
         current_tags = [t for t in current_tags if t not in new_tags]
-    else:  # replace
+    else:  # set
         current_tags = new_tags
     
     call.tags = current_tags

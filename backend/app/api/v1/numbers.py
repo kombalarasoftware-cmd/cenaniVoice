@@ -24,6 +24,38 @@ logger = logging.getLogger(__name__)
 MAX_FILE_SIZE = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
 MAX_ROWS = 50000
 
+# Excel formula injection prefixes
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
+
+# Known file signatures (magic bytes) for allowed types
+_FILE_SIGNATURES = {
+    b"PK": {".xlsx"},  # ZIP-based (xlsx, docx)
+    b"\xd0\xcf\x11\xe0": {".xls"},  # OLE2 compound (old Excel)
+}
+
+
+def _sanitize_cell_value(value: str) -> str:
+    """Sanitize a cell value to prevent Excel formula injection."""
+    if value and value[0] in _FORMULA_PREFIXES:
+        return "'" + value  # Prefix with single quote to escape formula
+    return value
+
+
+def _validate_file_signature(content: bytes, expected_ext: str) -> bool:
+    """Validate file content matches expected type by checking magic bytes."""
+    if expected_ext == ".csv":
+        return True  # CSV is plain text, no magic bytes to check
+
+    for sig, exts in _FILE_SIGNATURES.items():
+        if content[:len(sig)] == sig and expected_ext in exts:
+            return True
+
+    # xlsx files are ZIP archives starting with "PK"
+    if expected_ext == ".xlsx" and content[:2] == b"PK":
+        return True
+
+    return False
+
 
 def validate_phone_number(phone: str, default_region: str = "TR") -> tuple[bool, str]:
     """Validate and format phone number"""
@@ -108,6 +140,14 @@ async def upload_numbers(
     if not content:
         raise HTTPException(status_code=400, detail="Empty file uploaded")
 
+    # Validate file signature matches extension
+    file_ext = "." + filename.rsplit(".", 1)[-1].lower()
+    if not _validate_file_signature(content, file_ext):
+        raise HTTPException(
+            status_code=400,
+            detail="File content does not match its extension. Possible file type mismatch."
+        )
+
     try:
         # Parse file
         if filename.lower().endswith('.csv'):
@@ -165,29 +205,29 @@ async def upload_numbers(
                 continue
             seen.add(formatted_phone)
 
-            # Get name if column exists
+            # Get name if column exists (with formula injection protection)
             customer_name = None
             if name_column and name_column in df.columns:
                 raw_name = row[name_column]
                 if pd.notna(raw_name):
-                    customer_name = str(raw_name).strip()[:255]  # Limit name length
+                    customer_name = _sanitize_cell_value(str(raw_name).strip()[:255])
 
             # Get title if column exists
             customer_title = None
             if title_column and title_column in df.columns:
                 raw_title = row[title_column]
                 if pd.notna(raw_title):
-                    customer_title = str(raw_title).strip()[:50]
+                    customer_title = _sanitize_cell_value(str(raw_title).strip()[:50])
 
-            # Collect custom data (sanitize values)
+            # Collect custom data (sanitize values against formula injection)
             exclude_cols = [phone_column, name_column]
             if title_column:
                 exclude_cols.append(title_column)
             custom_data = {}
             for col in df.columns:
                 if col not in exclude_cols and pd.notna(row[col]):
-                    safe_col = str(col)[:100]
-                    safe_val = str(row[col])[:500]
+                    safe_col = _sanitize_cell_value(str(col)[:100])
+                    safe_val = _sanitize_cell_value(str(row[col])[:500])
                     custom_data[safe_col] = safe_val
 
             # Store title in custom_data for greeting processor

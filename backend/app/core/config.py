@@ -72,7 +72,7 @@ class Settings(BaseSettings):
     ASTERISK_EXTERNAL_HOST: str = ""  # Public IP/hostname for Asterisk SIP
     ASTERISK_SIP_PORT: int = 5060
     ULTRAVOX_SIP_USERNAME: str = "ultravox"  # Must match pjsip.conf [ultravox-auth]
-    ULTRAVOX_SIP_PASSWORD: str = "ultravox_voiceai_2026"
+    ULTRAVOX_SIP_PASSWORD: str = ""  # Must be set in .env, must match pjsip.conf
 
     # MinIO - Credentials from environment
     MINIO_ENDPOINT: str = "localhost:9000"
@@ -99,26 +99,21 @@ class Settings(BaseSettings):
     @field_validator("SECRET_KEY")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:
-        """Validate that SECRET_KEY is set and secure"""
+        """Validate that SECRET_KEY is set and secure. Fails hard if not set."""
         insecure_defaults = [
             "your-super-secret-jwt-key-change-in-production",
             "CHANGE_THIS_TO_A_SECURE_RANDOM_KEY_IN_PRODUCTION",
             "secret",
             "changeme",
-            ""
+            "",
         ]
         if v in insecure_defaults:
-            print(
-                "\n⚠️  WARNING: SECRET_KEY is not set or using an insecure default!\n"
-                "   Generate a secure key with: python -c \"import secrets; print(secrets.token_urlsafe(64))\"\n"
-                "   Set it in your .env file.\n"
+            raise ValueError(
+                "SECRET_KEY must be set to a secure value. "
+                "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
             )
-            # In production, you might want to raise an error instead:
-            # raise ValueError("SECRET_KEY must be set to a secure value")
-            # For development, generate a random key
-            return secrets.token_urlsafe(64)
         if len(v) < 32:
-            print("\n⚠️  WARNING: SECRET_KEY is too short. Use at least 32 characters.\n")
+            raise ValueError("SECRET_KEY is too short. Use at least 32 characters.")
         return v
 
     @field_validator("OPENAI_API_KEY")

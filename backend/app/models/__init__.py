@@ -18,6 +18,11 @@ from app.models.models import (
     SurveyQuestionType,
     SurveyStatus,
     SurveyResponse,
+    DialAttempt,
+    DialAttemptResult,
+    DialListEntry,
+    DialEntryStatus,
+    CampaignList,
 )
 
 __all__ = [
@@ -40,4 +45,9 @@ __all__ = [
     "SurveyQuestionType",
     "SurveyStatus",
     "SurveyResponse",
+    "DialAttempt",
+    "DialAttemptResult",
+    "DialListEntry",
+    "DialEntryStatus",
+    "CampaignList",
 ]

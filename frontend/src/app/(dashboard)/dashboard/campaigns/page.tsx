@@ -2,12 +2,16 @@
 
 import { Header } from '@/components/layout/header';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { api } from '@/lib/api';
 import {
   Megaphone,
   Play,
   Pause,
+  Square,
   MoreVertical,
   Plus,
   Calendar,
@@ -16,8 +20,8 @@ import {
   CheckCircle,
   Clock,
   TrendingUp,
-  Filter,
   Search,
+  Loader2,
 } from 'lucide-react';
 
 interface Campaign {
@@ -34,13 +38,95 @@ interface Campaign {
   createdAt: string;
 }
 
-const mockCampaigns: Campaign[] = [];
+interface ApiCampaign {
+  id: number;
+  name: string;
+  description: string;
+  agent_name?: string;
+  agent_id?: number;
+  status: string;
+  total_numbers: number;
+  completed_calls: number;
+  successful_calls: number;
+  active_calls: number;
+  scheduled_date?: string;
+  created_at: string;
+}
+
+function mapCampaign(c: ApiCampaign): Campaign {
+  return {
+    id: c.id.toString(),
+    name: c.name,
+    description: c.description || '',
+    agentName: c.agent_name || `Agent #${c.agent_id || '-'}`,
+    status: (c.status?.toLowerCase() || 'draft') as Campaign['status'],
+    totalNumbers: c.total_numbers || 0,
+    completedCalls: c.completed_calls || 0,
+    successfulCalls: c.successful_calls || 0,
+    activeCalls: c.active_calls || 0,
+    scheduledDate: c.scheduled_date,
+    createdAt: c.created_at ? new Date(c.created_at).toLocaleDateString('en-US') : '-',
+  };
+}
 
 export default function CampaignsPage() {
+  const router = useRouter();
   const [filter, setFilter] = useState<'all' | Campaign['status']>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const filteredCampaigns = mockCampaigns.filter((campaign) => {
+  const fetchCampaigns = useCallback(async () => {
+    try {
+      setError('');
+      const data = await api.get<ApiCampaign[]>('/campaigns');
+      setCampaigns(data.map(mapCampaign));
+    } catch (err) {
+      console.error('Failed to fetch campaigns:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load campaigns');
+      setCampaigns([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCampaigns();
+  }, [fetchCampaigns]);
+
+  const handlePause = async (campaignId: string) => {
+    try {
+      await api.post(`/campaigns/${campaignId}/pause`);
+      toast.success('Campaign paused');
+      fetchCampaigns();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to pause campaign');
+    }
+  };
+
+  const handleResume = async (campaignId: string) => {
+    try {
+      await api.post(`/campaigns/${campaignId}/resume`);
+      toast.success('Campaign resumed');
+      fetchCampaigns();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to resume campaign');
+    }
+  };
+
+  const handleStop = async (campaignId: string) => {
+    if (!confirm('Are you sure you want to stop this campaign?')) return;
+    try {
+      await api.post(`/campaigns/${campaignId}/stop`);
+      toast.success('Campaign stopped');
+      fetchCampaigns();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to stop campaign');
+    }
+  };
+
+  const filteredCampaigns = campaigns.filter((campaign) => {
     if (filter !== 'all' && campaign.status !== filter) return false;
     if (searchQuery && !campaign.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
@@ -61,7 +147,7 @@ export default function CampaignsPage() {
         description="Manage your outbound calling campaigns"
         action={{
           label: 'Create Campaign',
-          onClick: () => {},
+          onClick: () => router.push('/dashboard/campaigns/create'),
         }}
       />
 
@@ -110,7 +196,7 @@ export default function CampaignsPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold">
-                  {mockCampaigns.filter((c) => c.status === 'running').length}
+                  {campaigns.filter((c) => c.status === 'running').length}
                 </p>
                 <p className="text-sm text-muted-foreground">Active Campaigns</p>
               </div>
@@ -123,7 +209,7 @@ export default function CampaignsPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold">
-                  {mockCampaigns.reduce((acc, c) => acc + c.activeCalls, 0)}
+                  {campaigns.reduce((acc, c) => acc + c.activeCalls, 0)}
                 </p>
                 <p className="text-sm text-muted-foreground">Active Calls</p>
               </div>
@@ -136,7 +222,7 @@ export default function CampaignsPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold">
-                  {mockCampaigns.reduce((acc, c) => acc + c.totalNumbers, 0).toLocaleString('en-US')}
+                  {campaigns.reduce((acc, c) => acc + c.totalNumbers, 0).toLocaleString('en-US')}
                 </p>
                 <p className="text-sm text-muted-foreground">Total Numbers</p>
               </div>
@@ -149,10 +235,10 @@ export default function CampaignsPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold">
-                  {mockCampaigns.reduce((acc, c) => acc + c.completedCalls, 0) > 0
+                  {campaigns.reduce((acc, c) => acc + c.completedCalls, 0) > 0
                     ? Math.round(
-                        (mockCampaigns.reduce((acc, c) => acc + c.successfulCalls, 0) /
-                          mockCampaigns.reduce((acc, c) => acc + c.completedCalls, 0)) *
+                        (campaigns.reduce((acc, c) => acc + c.successfulCalls, 0) /
+                          campaigns.reduce((acc, c) => acc + c.completedCalls, 0)) *
                           100
                       )
                     : 0}%
@@ -163,141 +249,181 @@ export default function CampaignsPage() {
           </div>
         </div>
 
+        {/* Loading state */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
+          </div>
+        )}
+
+        {/* Error state */}
+        {error && !isLoading && (
+          <div className="text-center py-12">
+            <p className="text-error-500 mb-4">{error}</p>
+            <button
+              onClick={fetchCampaigns}
+              className="px-4 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 text-white font-medium transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Campaigns list */}
-        <div className="space-y-4">
-          {filteredCampaigns.map((campaign) => {
-            const progress = Math.round((campaign.completedCalls / campaign.totalNumbers) * 100);
-            const successRate = campaign.completedCalls > 0
-              ? Math.round((campaign.successfulCalls / campaign.completedCalls) * 100)
-              : 0;
+        {!isLoading && !error && (
+          <div className="space-y-4">
+            {filteredCampaigns.map((campaign) => {
+              const progress = campaign.totalNumbers > 0
+                ? Math.round((campaign.completedCalls / campaign.totalNumbers) * 100)
+                : 0;
+              const successRate = campaign.completedCalls > 0
+                ? Math.round((campaign.successfulCalls / campaign.completedCalls) * 100)
+                : 0;
 
-            return (
-              <div
-                key={campaign.id}
-                className={cn(
-                  'p-6 rounded-xl border border-border bg-card',
-                  'hover:shadow-lg transition-all duration-300 group'
-                )}
-              >
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  {/* Left section */}
-                  <div className="flex-1">
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500/20 to-secondary-500/20">
-                        <Megaphone className="h-6 w-6 text-primary-500" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-1">
-                          <Link
-                            href={`/dashboard/campaigns/${campaign.id}`}
-                            className="font-semibold hover:text-primary-500 transition-colors"
-                          >
-                            {campaign.name}
-                          </Link>
-                          <span
-                            className={cn(
-                              'px-2 py-0.5 rounded-full text-xs font-medium',
-                              statusConfig[campaign.status].bg,
-                              statusConfig[campaign.status].color
-                            )}
-                          >
-                            {statusConfig[campaign.status].label}
-                          </span>
-                          {campaign.activeCalls > 0 && (
-                            <span className="flex items-center gap-1 text-xs text-success-500">
-                              <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success-400 opacity-75" />
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-success-500" />
+              return (
+                <div
+                  key={campaign.id}
+                  className={cn(
+                    'p-6 rounded-xl border border-border bg-card',
+                    'hover:shadow-lg transition-all duration-300 group'
+                  )}
+                >
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    {/* Left section */}
+                    <div className="flex-1">
+                      <div className="flex items-start gap-4">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500/20 to-secondary-500/20">
+                          <Megaphone className="h-6 w-6 text-primary-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-3 mb-1">
+                            <Link
+                              href={`/dashboard/campaigns/${campaign.id}`}
+                              className="font-semibold hover:text-primary-500 transition-colors"
+                            >
+                              {campaign.name}
+                            </Link>
+                            <span
+                              className={cn(
+                                'px-2 py-0.5 rounded-full text-xs font-medium',
+                                statusConfig[campaign.status].bg,
+                                statusConfig[campaign.status].color
+                              )}
+                            >
+                              {statusConfig[campaign.status].label}
+                            </span>
+                            {campaign.activeCalls > 0 && (
+                              <span className="flex items-center gap-1 text-xs text-success-500">
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success-400 opacity-75" />
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-success-500" />
+                                </span>
+                                {campaign.activeCalls} active
                               </span>
-                              {campaign.activeCalls} active
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          {campaign.description}
-                        </p>
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Users className="h-3.5 w-3.5" />
-                            Agent: {campaign.agentName}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3.5 w-3.5" />
-                            Created: {campaign.createdAt}
-                          </span>
-                          {campaign.scheduledDate && (
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-2">
+                            {campaign.description}
+                          </p>
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
-                              <Clock className="h-3.5 w-3.5" />
-                              Scheduled: {campaign.scheduledDate}
+                              <Users className="h-3.5 w-3.5" />
+                              Agent: {campaign.agentName}
                             </span>
-                          )}
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3.5 w-3.5" />
+                              Created: {campaign.createdAt}
+                            </span>
+                            {campaign.scheduledDate && (
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3.5 w-3.5" />
+                                Scheduled: {campaign.scheduledDate}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Progress section */}
-                  <div className="lg:w-64">
-                    <div className="flex items-center justify-between text-sm mb-2">
-                      <span className="text-muted-foreground">Progress</span>
-                      <span className="font-medium">{progress}%</span>
+                    {/* Progress section */}
+                    <div className="lg:w-64">
+                      <div className="flex items-center justify-between text-sm mb-2">
+                        <span className="text-muted-foreground">Progress</span>
+                        <span className="font-medium">{progress}%</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden mb-2">
+                        <div
+                          className={cn(
+                            'h-full rounded-full transition-all duration-500',
+                            campaign.status === 'running' ? 'bg-success-500' : 'bg-primary-500'
+                          )}
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{campaign.completedCalls.toLocaleString('en-US')} / {campaign.totalNumbers.toLocaleString('en-US')} calls</span>
+                        <span>{successRate}% success</span>
+                      </div>
                     </div>
-                    <div className="h-2 bg-muted rounded-full overflow-hidden mb-2">
-                      <div
-                        className={cn(
-                          'h-full rounded-full transition-all duration-500',
-                          campaign.status === 'running' ? 'bg-success-500' : 'bg-primary-500'
-                        )}
-                        style={{ width: `${progress}%` }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{campaign.completedCalls.toLocaleString('en-US')} / {campaign.totalNumbers.toLocaleString('en-US')} calls</span>
-                      <span>{successRate}% success</span>
-                    </div>
-                  </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 lg:pl-4 lg:border-l lg:border-border">
-                    {campaign.status === 'running' ? (
-                      <button
-                        className={cn(
-                          'flex h-9 w-9 items-center justify-center rounded-lg',
-                          'bg-warning-500/10 hover:bg-warning-500/20 text-warning-500',
-                          'transition-colors'
-                        )}
-                        title="Pause"
-                      >
-                        <Pause className="h-4 w-4" />
-                      </button>
-                    ) : campaign.status === 'paused' || campaign.status === 'scheduled' ? (
-                      <button
-                        className={cn(
-                          'flex h-9 w-9 items-center justify-center rounded-lg',
-                          'bg-success-500/10 hover:bg-success-500/20 text-success-500',
-                          'transition-colors'
-                        )}
-                        title="Start"
-                      >
-                        <Play className="h-4 w-4" />
-                      </button>
-                    ) : null}
-                    <button
-                      className={cn(
-                        'flex h-9 w-9 items-center justify-center rounded-lg',
-                        'hover:bg-muted transition-colors'
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 lg:pl-4 lg:border-l lg:border-border">
+                      {campaign.status === 'running' && (
+                        <>
+                          <button
+                            onClick={() => handlePause(campaign.id)}
+                            className={cn(
+                              'flex h-9 w-9 items-center justify-center rounded-lg',
+                              'bg-warning-500/10 hover:bg-warning-500/20 text-warning-500',
+                              'transition-colors'
+                            )}
+                            title="Pause"
+                          >
+                            <Pause className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleStop(campaign.id)}
+                            className={cn(
+                              'flex h-9 w-9 items-center justify-center rounded-lg',
+                              'bg-error-500/10 hover:bg-error-500/20 text-error-500',
+                              'transition-colors'
+                            )}
+                            title="Stop"
+                          >
+                            <Square className="h-4 w-4" />
+                          </button>
+                        </>
                       )}
-                    >
-                      <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                    </button>
+                      {(campaign.status === 'paused' || campaign.status === 'scheduled') && (
+                        <button
+                          onClick={() => handleResume(campaign.id)}
+                          className={cn(
+                            'flex h-9 w-9 items-center justify-center rounded-lg',
+                            'bg-success-500/10 hover:bg-success-500/20 text-success-500',
+                            'transition-colors'
+                          )}
+                          title="Resume"
+                        >
+                          <Play className="h-4 w-4" />
+                        </button>
+                      )}
+                      <button
+                        className={cn(
+                          'flex h-9 w-9 items-center justify-center rounded-lg',
+                          'hover:bg-muted transition-colors'
+                        )}
+                      >
+                        <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
-        {filteredCampaigns.length === 0 && (
+        {!isLoading && !error && filteredCampaigns.length === 0 && (
           <div className="text-center py-12">
             <Megaphone className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No campaigns found</h3>
@@ -307,6 +433,7 @@ export default function CampaignsPage() {
                 : 'Create your first campaign to get started'}
             </p>
             <button
+              onClick={() => router.push('/dashboard/campaigns/create')}
               className={cn(
                 'inline-flex items-center gap-2 px-4 py-2 rounded-lg',
                 'bg-primary-500 hover:bg-primary-600 text-white',

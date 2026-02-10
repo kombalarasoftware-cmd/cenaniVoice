@@ -18,14 +18,14 @@ import redis
 
 from datetime import datetime
 from app.core.database import get_db
+from app.core.config import settings
 from app.models.models import Agent, CallLog, CallStatus
 from app.services.provider_factory import get_provider
 from app.api.v1.auth import get_current_user_optional
 
 # Redis client for passing agent settings to asterisk bridge
-REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 try:
-    redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+    redis_client = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
 except Exception:
     redis_client = None
 
@@ -89,11 +89,11 @@ def build_conversation_history(db: Session, phone_number: str, agent_id: Optiona
         return ""
 
 
-# Asterisk ARI Configuration - from environment variables
-ARI_HOST = os.environ.get("ASTERISK_HOST", "asterisk")
-ARI_PORT = int(os.environ.get("ASTERISK_ARI_PORT", "8088"))
-ARI_USERNAME = os.environ.get("ASTERISK_ARI_USER", "voiceai")
-ARI_PASSWORD = os.environ.get("ASTERISK_ARI_PASSWORD", "voiceai_ari_secret")
+# Asterisk ARI Configuration - from settings (environment variables)
+ARI_HOST = settings.ASTERISK_HOST
+ARI_PORT = settings.ASTERISK_ARI_PORT
+ARI_USERNAME = settings.ASTERISK_ARI_USER
+ARI_PASSWORD = settings.ASTERISK_ARI_PASSWORD
 ARI_APP = "voiceai"
 
 

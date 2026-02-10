@@ -20,8 +20,8 @@ class ARIConfig:
     """Configuration for Asterisk ARI connection"""
     host: str = "localhost"
     port: int = 8088
-    username: str = "voiceai"
-    password: str = "voiceai_secret"
+    username: str = ""
+    password: str = ""
     app_name: str = "voiceai"
     use_ssl: bool = False
 
