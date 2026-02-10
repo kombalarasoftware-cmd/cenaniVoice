@@ -162,17 +162,29 @@ class UltravoxService:
             response.raise_for_status()
             return response.json()
 
-    async def end_call(self, call_id: str) -> dict:
-        """End an active call by sending a HangUp data message."""
+    async def end_call(self, call_id: str, message: str = "") -> dict:
+        """End an active call by sending a hang_up data message."""
         async with self._client() as client:
+            payload: dict[str, Any] = {"type": "hang_up"}
+            if message:
+                payload["message"] = message
             response = await client.post(
                 f"/calls/{call_id}/send-data-message",
-                json={"type": "HangUp"},
+                json=payload,
             )
             if response.status_code == 204:
                 return {"success": True, "message": "Call ended"}
             response.raise_for_status()
             return {"success": True, "message": "Call ended"}
+
+    async def delete_call(self, call_id: str) -> dict:
+        """Force-terminate a call via DELETE (fallback)."""
+        async with self._client() as client:
+            response = await client.delete(f"/calls/{call_id}")
+            if response.status_code in (200, 204, 404):
+                return {"success": True, "message": "Call deleted"}
+            response.raise_for_status()
+            return {"success": True, "message": "Call deleted"}
 
     async def get_call_messages(self, call_id: str) -> list:
         """

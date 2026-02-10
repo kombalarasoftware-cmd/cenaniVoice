@@ -235,17 +235,30 @@ async def end_call(request: Request, db: Session = Depends(get_db)):
 
     logger.info(f"[{call_id}] End call: outcome={outcome}")
 
-    # Send HangUp data message to Ultravox to disconnect the SIP call
+    # Send hang_up data message to Ultravox to disconnect the SIP call
     if call_id:
         try:
             from app.services.ultravox_service import UltravoxService
             svc = UltravoxService()
             await svc.end_call(call_id)
-            logger.info(f"[{call_id}] Ultravox HangUp sent via end_call tool")
+            logger.info(f"[{call_id}] Ultravox hang_up sent via end_call tool")
         except Exception as e:
-            logger.warning(f"[{call_id}] Ultravox HangUp failed (may already be ended): {e}")
+            logger.warning(f"[{call_id}] Ultravox hang_up failed, trying DELETE: {e}")
+            # Fallback: force-terminate via DELETE
+            try:
+                from app.services.ultravox_service import UltravoxService
+                svc2 = UltravoxService()
+                await svc2.delete_call(call_id)
+                logger.info(f"[{call_id}] Ultravox DELETE fallback succeeded")
+            except Exception as e2:
+                logger.warning(f"[{call_id}] Ultravox DELETE also failed: {e2}")
 
-    return {"status": "success", "message": f"Call ending with outcome: {outcome}"}
+    # Tell Ultravox to invoke the built-in hangUp tool
+    return {
+        "status": "success",
+        "message": f"Call ending with outcome: {outcome}",
+        "commands": [{"type": "tool", "toolName": "hangUp"}],
+    }
 
 
 # --------------------------------------------------------- Transfer to Human

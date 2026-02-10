@@ -42,9 +42,11 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "name": "end_call",
         "description": (
-            "Görüşmeyi sonlandır. End the call. "
-            "Call this when the conversation is complete. "
-            "Record the outcome and a brief summary before hanging up."
+            "Görüşmeyi sonlandır. End the call and disconnect. "
+            "Call this when the conversation is complete or the customer wants to end the call. "
+            "Record the outcome and a brief summary. "
+            "After calling this tool, say goodbye and stop speaking. "
+            "The call will be automatically disconnected."
         ),
         "parameters": {
             "outcome": {

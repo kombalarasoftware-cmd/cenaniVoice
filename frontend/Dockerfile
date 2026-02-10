@@ -1,22 +1,29 @@
 # VoiceAI Platform - Frontend Dockerfile
-FROM node:18-alpine
 
+# --- Dependencies Stage ---
+FROM node:18-alpine AS deps
 WORKDIR /app
-
-# Copy package files
 COPY package*.json ./
-
-# Install dependencies
 RUN npm ci
 
-# Copy application code
+# --- Build Stage ---
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# Build for production
 RUN npm run build
 
-# Expose port
+# --- Runtime Stage ---
+FROM node:18-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Copy only what's needed for production
+COPY --from=builder /app/next.config.js ./
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
 EXPOSE 3000
 
-# Run production server
-CMD ["npm", "run", "start"]
+CMD ["node", "server.js"]

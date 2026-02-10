@@ -23,6 +23,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: voiceai-backend
     ports:
       - "8000:8000"
     env_file:
@@ -42,9 +43,7 @@ services:
   # Celery Worker
   # ===========================================
   celery-worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: voiceai-backend
     env_file:
       - .env
     volumes:
@@ -60,9 +59,7 @@ services:
   # Celery Beat (Scheduler)
   # ===========================================
   celery-beat:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: voiceai-backend
     env_file:
       - .env
     volumes:
@@ -144,9 +141,7 @@ services:
   # Not used when agent.provider = "ultravox"
   # ===========================================
   asterisk-bridge:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: voiceai-backend
     ports:
       - "9092:9092"
     env_file:

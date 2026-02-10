@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim
+FROM debian:bullseye-slim AS builder
 
 LABEL maintainer="VoiceAI Platform"
 
@@ -57,6 +57,40 @@ RUN wget https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-20-curre
     && make samples \
     && make config \
     && ldconfig
+
+# ========================================
+# Runtime Stage - sadece config değişince rebuild olmaz
+# ========================================
+FROM debian:bullseye-slim AS runtime
+
+# Install only runtime dependencies (no build tools)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    libncurses5 \
+    libssl1.1 \
+    libxml2 \
+    libsqlite3-0 \
+    libuuid1 \
+    libjansson4 \
+    libsrtp2-1 \
+    libedit2 \
+    libxslt1.1 \
+    libspandsp2 \
+    libopus0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy compiled Asterisk from builder
+COPY --from=builder /usr/sbin/asterisk /usr/sbin/asterisk
+COPY --from=builder /usr/lib/asterisk/ /usr/lib/asterisk/
+COPY --from=builder /usr/lib/libasterisk* /usr/lib/
+COPY --from=builder /var/lib/asterisk/ /var/lib/asterisk/
+COPY --from=builder /var/spool/asterisk/ /var/spool/asterisk/
+COPY --from=builder /var/log/asterisk/ /var/log/asterisk/
+COPY --from=builder /var/run/asterisk/ /var/run/asterisk/
+COPY --from=builder /etc/asterisk/ /etc/asterisk/
+COPY --from=builder /usr/lib/x86_64-linux-gnu/libasterisk* /usr/lib/x86_64-linux-gnu/
+
+RUN ldconfig
 
 # Create asterisk user and set permissions
 RUN useradd -m asterisk \

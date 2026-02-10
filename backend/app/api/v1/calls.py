@@ -341,7 +341,7 @@ async def hangup_call(
     hangup_sent = False
 
     if call.provider == "ultravox" and call.ultravox_call_id:
-        # Ultravox: send HangUp data message via API
+        # Ultravox: send hang_up data message via API
         try:
             from app.services.ultravox_service import UltravoxService
             ultravox_svc = UltravoxService()
@@ -349,7 +349,14 @@ async def hangup_call(
             hangup_sent = True
             logger.info(f"Ultravox hangup sent for call {call_id} (ultravox_id={call.ultravox_call_id})")
         except Exception as e:
-            logger.error(f"Ultravox hangup failed for call {call_id}: {e}")
+            logger.warning(f"Ultravox hang_up failed for call {call_id}, trying DELETE: {e}")
+            # Fallback: force-terminate via DELETE
+            try:
+                await ultravox_svc.delete_call(call.ultravox_call_id)
+                hangup_sent = True
+                logger.info(f"Ultravox DELETE fallback succeeded for call {call_id}")
+            except Exception as e2:
+                logger.error(f"Ultravox DELETE also failed for call {call_id}: {e2}")
     else:
         # OpenAI/Asterisk: set Redis hangup signal → asterisk_bridge picks it up
         try:
