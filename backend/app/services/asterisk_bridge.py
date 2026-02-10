@@ -1021,7 +1021,7 @@ class CallBridge:
         
         # Output buffer - OpenAI'den gelen sesi düzgün akıtmak için
         self.output_buffer = bytearray()
-        self.output_buffer_min_ms = 80  # 80ms buffer dolmadan çalmaya başlama
+        self.output_buffer_min_ms = 40  # 40ms buffer dolmadan çalmaya başlama (80→40ms azaltıldı, daha hızlı ilk ses)
 
         # Asterisk'ten gelen audio tipi (otomatik algılama)
         self.detected_audio_type: Optional[int] = None
@@ -1145,9 +1145,19 @@ class CallBridge:
         }
 
         try:
+            # TCP_NODELAY: Disable Nagle's algorithm for lower audio latency
+            sock = self.writer.get_extra_info('socket')
+            if sock:
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                logger.debug(f"[{self.call_uuid[:8]}] 🔧 TCP_NODELAY enabled")
+
             await self._connect_openai()
+            
+            # Wait for session.created before configuring (instead of blind sleep)
+            await self._wait_for_event("session.created", timeout=5.0)
             await self._configure_session()
-            await asyncio.sleep(0.3)
+            # Wait for session.updated to confirm config applied (replaces asyncio.sleep(0.3))
+            await self._wait_for_event("session.updated", timeout=3.0)
             await self._trigger_greeting()
 
             await asyncio.gather(
@@ -1180,6 +1190,31 @@ class CallBridge:
             max_size=10 * 1024 * 1024,
         )
         logger.info(f"[{self.call_uuid[:8]}] 🔌 OpenAI bağlantısı kuruldu (model: {self.agent_model})")
+
+    async def _wait_for_event(self, target_type: str, timeout: float = 5.0):
+        """
+        Wait for a specific OpenAI event by type.
+        Replaces arbitrary asyncio.sleep() with deterministic event waiting.
+        Consumed events (session.created, session.updated) are not needed by _openai_to_asterisk.
+        """
+        try:
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                msg = await asyncio.wait_for(self.openai_ws.recv(), timeout=remaining)
+                event = json.loads(msg)
+                etype = event.get("type", "")
+                if etype == target_type:
+                    logger.info(f"[{self.call_uuid[:8]}] ✅ {target_type} alındı")
+                    return event
+                logger.debug(f"[{self.call_uuid[:8]}] ⏳ Beklenen: {target_type}, gelen: {etype}")
+        except asyncio.TimeoutError:
+            logger.warning(f"[{self.call_uuid[:8]}] ⚠️ {target_type} için {timeout}s timeout, devam ediliyor")
+        except Exception as e:
+            logger.warning(f"[{self.call_uuid[:8]}] ⚠️ {target_type} beklenirken hata: {e}")
+        return None
 
     def _get_localized_title(self) -> str:
         """Translate Mr/Mrs to the agent's language."""
@@ -1289,7 +1324,6 @@ If you detect an answering machine, voicemail, or automated greeting system:
                 "instructions": instructions,  # Agent ayarından alınıyor
                 "temperature": self.agent_temperature,
                 "turn_detection": turn_detection_config,
-                "input_audio_noise_reduction": {"type": "near_field"} if self.agent_noise_reduction else None,
                 "input_audio_transcription": {
                     "model": self.agent_transcript_model,  # DB'den: gpt-4o-transcribe (best accuracy)
                     "language": self.agent_language,  # Agent ayarından alınıyor
@@ -1299,9 +1333,16 @@ If you detect an answering machine, voicemail, or automated greeting system:
                 "max_response_output_tokens": self.agent_max_output_tokens,
             }
         }
+        
+        # Noise reduction: only include when enabled (don't send null - API may reject/ignore)
+        if self.agent_noise_reduction:
+            config["session"]["input_audio_noise_reduction"] = {"type": "near_field"}
+            logger.info(f"[{self.call_uuid[:8]}] 🔇 Noise reduction aktif: near_field")
+        
         await self.openai_ws.send(json.dumps(config))
         logger.info(f"[{self.call_uuid[:8]}] ⚙️ Session yapılandırıldı: voice={self.agent_voice}, lang={self.agent_language}, "
-                     f"temp={self.agent_temperature}, vad={self.agent_turn_detection}, transcript={self.agent_transcript_model}")
+                     f"temp={self.agent_temperature}, vad={self.agent_turn_detection}, transcript={self.agent_transcript_model}, "
+                     f"noise_reduction={self.agent_noise_reduction}")
 
     async def _trigger_greeting(self):
         """Trigger initial greeting based on agent settings."""
