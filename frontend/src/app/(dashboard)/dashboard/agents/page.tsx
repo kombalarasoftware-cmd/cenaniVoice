@@ -59,17 +59,18 @@ export default function AgentsPage() {
       if (response.ok) {
         const data = await response.json();
         // Map API response to frontend format
-        const mappedAgents: Agent[] = data.map((agent: Record<string, unknown>) => ({
-          id: agent.id.toString(),
-          name: agent.name,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mappedAgents: Agent[] = data.map((agent: any) => ({
+          id: String(agent.id),
+          name: agent.name || '',
           description: agent.description || '',
-          language: agent.language === 'en' ? 'English' : agent.language === 'tr' ? 'Turkish' : agent.language === 'de' ? 'German' : agent.language === 'fr' ? 'French' : agent.language === 'es' ? 'Spanish' : agent.language,
-          voice: agent.voice ? agent.voice.charAt(0).toUpperCase() + agent.voice.slice(1) : 'Alloy',
-          status: agent.status.toLowerCase() as 'active' | 'inactive' | 'draft',
-          totalCalls: agent.total_calls || 0,
-          successRate: agent.total_calls > 0 ? (agent.successful_calls / agent.total_calls * 100) : 0,
-          avgDuration: agent.avg_duration ? `${Math.floor(agent.avg_duration / 60)}:${(agent.avg_duration % 60).toString().padStart(2, '0')}` : '-',
-          lastUsed: agent.updated_at ? formatLastUsed(agent.updated_at) : 'Never used',
+          language: agent.language === 'en' ? 'English' : agent.language === 'tr' ? 'Turkish' : agent.language === 'de' ? 'German' : agent.language === 'fr' ? 'French' : agent.language === 'es' ? 'Spanish' : String(agent.language || ''),
+          voice: agent.voice ? String(agent.voice).charAt(0).toUpperCase() + String(agent.voice).slice(1) : 'Alloy',
+          status: (agent.status || 'draft').toLowerCase() as 'active' | 'inactive' | 'draft',
+          totalCalls: Number(agent.total_calls) || 0,
+          successRate: Number(agent.total_calls) > 0 ? (Number(agent.successful_calls) / Number(agent.total_calls) * 100) : 0,
+          avgDuration: agent.avg_duration ? `${Math.floor(Number(agent.avg_duration) / 60)}:${(Number(agent.avg_duration) % 60).toString().padStart(2, '0')}` : '-',
+          lastUsed: agent.updated_at ? formatLastUsed(String(agent.updated_at)) : 'Never used',
           isSystem: agent.is_system || false,
         }));
         setAgents(mappedAgents);
