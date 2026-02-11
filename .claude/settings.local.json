@@ -12,7 +12,9 @@
       "Bash(ls *)",
       "Bash(docker compose up *)",
       "Bash(docker compose exec *)",
-      "Bash(ssh *)"
+      "Bash(ssh *)",
+      "Bash(pip install:*)",
+      "Bash(npm install:*)"
     ]
   }
 }

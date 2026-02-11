@@ -51,6 +51,7 @@ export default function AgentTestPage() {
   const [callDuration, setCallDuration] = useState(0);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [testPhone, setTestPhone] = useState('');
+  const [activeCallId, setActiveCallId] = useState<number | null>(null);
 
   const fetchAgent = useCallback(async () => {
     try {
@@ -97,13 +98,24 @@ export default function AgentTestPage() {
     setCallDuration(0);
 
     try {
-      await api.post(`/agents/${agentId}/test-call`, {
-        phone_number: testPhone,
+      const result = await api.post<{
+        success: boolean;
+        call_id: string | null;
+        db_call_id: number | null;
+        channel_id: string | null;
+        message: string;
+      }>('/calls/outbound', {
+        phone_number: testPhone.replace(/[\s\-\(\)\+]/g, ''),
+        agent_id: agentId,
       });
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to start call');
+      }
+      setActiveCallId(result.db_call_id);
       setIsCallActive(true);
       setTranscript([{
         role: 'system',
-        text: 'Call connected',
+        text: 'Call initiated — ringing...',
         timestamp: new Date().toLocaleTimeString('en-US'),
       }]);
       toast.success('Test call started');
@@ -116,11 +128,14 @@ export default function AgentTestPage() {
 
   const handleEndCall = async () => {
     try {
-      await api.post(`/agents/${agentId}/test-call/end`);
+      if (activeCallId) {
+        await api.post(`/calls/${activeCallId}/hangup`);
+      }
     } catch (err) {
       console.error('Failed to end call:', err);
     }
     setIsCallActive(false);
+    setActiveCallId(null);
     setTranscript((prev) => [
       ...prev,
       {

@@ -113,6 +113,7 @@ class OutboundCallResponse(BaseModel):
     success: bool
     channel_id: Optional[str] = None
     call_id: Optional[str] = None  # AudioSocket UUID - used for SSE events and transcript
+    db_call_id: Optional[int] = None  # Database CallLog ID for hangup
     message: str
 
 
@@ -205,15 +206,19 @@ async def initiate_outbound_call(
                 )
                 db.add(call_log)
                 db.commit()
-                logger.info(f"CallLog created (ultravox): call_sid={result['call_id']}")
+                db.refresh(call_log)
+                db_call_id = call_log.id
+                logger.info(f"CallLog created (ultravox): call_sid={result['call_id']}, db_id={db_call_id}")
             except Exception as e:
                 logger.warning(f"Failed to create CallLog: {e}")
                 db.rollback()
+                db_call_id = None
 
             return OutboundCallResponse(
                 success=True,
                 channel_id=None,
                 call_id=result["call_id"],
+                db_call_id=db_call_id,
                 message=f"Ultravox call initiated to {phone_number}",
             )
         except Exception as e:
@@ -356,15 +361,19 @@ async def initiate_outbound_call(
                     )
                     db.add(call_log)
                     db.commit()
-                    logger.info(f"CallLog created: call_sid={call_uuid}, agent_id={agent_id_int}")
+                    db.refresh(call_log)
+                    db_call_id = call_log.id
+                    logger.info(f"CallLog created: call_sid={call_uuid}, agent_id={agent_id_int}, db_id={db_call_id}")
                 except Exception as e:
                     logger.warning(f"Failed to create CallLog: {e}")
                     db.rollback()
+                    db_call_id = None
 
                 return OutboundCallResponse(
                     success=True,
                     channel_id=channel_id,
                     call_id=call_uuid,
+                    db_call_id=db_call_id,
                     message=f"Call initiated to {phone_number}",
                 )
 

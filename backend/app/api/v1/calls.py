@@ -328,14 +328,21 @@ async def hangup_call(
     current_user: User = Depends(get_current_user)
 ):
     """Forcefully end an active call"""
-    call = db.query(CallLog).outerjoin(CallLog.campaign).outerjoin(CallLog.agent).filter(
+    from app.models.models import UserRole
+
+    query = db.query(CallLog).outerjoin(CallLog.campaign).outerjoin(CallLog.agent).filter(
         CallLog.id == call_id,
-        or_(
-            Campaign.owner_id == current_user.id,
-            Agent.owner_id == current_user.id,
-            (CallLog.campaign_id.is_(None) & CallLog.agent_id.is_(None)),
+    )
+    # Non-admin users can only hangup their own calls
+    if current_user.role != UserRole.ADMIN:
+        query = query.filter(
+            or_(
+                Campaign.owner_id == current_user.id,
+                Agent.owner_id == current_user.id,
+                (CallLog.campaign_id.is_(None) & CallLog.agent_id.is_(None)),
+            )
         )
-    ).first()
+    call = query.first()
 
     if not call:
         raise HTTPException(status_code=404, detail="Call not found")
