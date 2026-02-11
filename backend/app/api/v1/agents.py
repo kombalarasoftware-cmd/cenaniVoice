@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.core.config import settings
 from app.api.v1.auth import get_current_user, verify_token
 from app.models import Agent, User
-from app.models.models import AgentStatus as ModelAgentStatus
+from app.models.models import AgentStatus as ModelAgentStatus, UserRole
 from app.schemas import (
     AgentCreate, AgentUpdate, AgentResponse, AgentDetailResponse
 )
@@ -142,14 +142,17 @@ async def list_agents(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """List all agents for current user (including system agents)"""
+    """List all agents for current user (ADMIN sees all, others see own + system)"""
     from sqlalchemy import or_
-    query = db.query(Agent).filter(
-        or_(
-            Agent.owner_id == current_user.id,
-            Agent.is_system == True  # System agents visible to all
+    if current_user.role == UserRole.ADMIN:
+        query = db.query(Agent)
+    else:
+        query = db.query(Agent).filter(
+            or_(
+                Agent.owner_id == current_user.id,
+                Agent.is_system == True
+            )
         )
-    )
     
     if status:
         query = query.filter(Agent.status == status)
@@ -266,11 +269,14 @@ async def get_agent(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get agent details"""
-    agent = db.query(Agent).filter(
-        Agent.id == agent_id,
-        Agent.owner_id == current_user.id
-    ).first()
+    """Get agent details (ADMIN can access any agent)"""
+    if current_user.role == UserRole.ADMIN:
+        agent = db.query(Agent).filter(Agent.id == agent_id).first()
+    else:
+        agent = db.query(Agent).filter(
+            Agent.id == agent_id,
+            Agent.owner_id == current_user.id
+        ).first()
     
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -285,11 +291,14 @@ async def update_agent(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Update an agent"""
-    agent = db.query(Agent).filter(
-        Agent.id == agent_id,
-        Agent.owner_id == current_user.id
-    ).first()
+    """Update an agent (ADMIN can update any agent)"""
+    if current_user.role == UserRole.ADMIN:
+        agent = db.query(Agent).filter(Agent.id == agent_id).first()
+    else:
+        agent = db.query(Agent).filter(
+            Agent.id == agent_id,
+            Agent.owner_id == current_user.id
+        ).first()
     
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -393,11 +402,14 @@ async def delete_agent(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Delete an agent"""
-    agent = db.query(Agent).filter(
-        Agent.id == agent_id,
-        Agent.owner_id == current_user.id
-    ).first()
+    """Delete an agent (ADMIN can delete any agent)"""
+    if current_user.role == UserRole.ADMIN:
+        agent = db.query(Agent).filter(Agent.id == agent_id).first()
+    else:
+        agent = db.query(Agent).filter(
+            Agent.id == agent_id,
+            Agent.owner_id == current_user.id
+        ).first()
     
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -428,8 +440,8 @@ async def duplicate_agent(
     if not original:
         raise HTTPException(status_code=404, detail="Agent not found")
     
-    # Non-system agents can only be duplicated by owner
-    if not original.is_system and original.owner_id != current_user.id:
+    # Non-system agents can only be duplicated by owner (ADMIN can duplicate any)
+    if current_user.role != UserRole.ADMIN and not original.is_system and original.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Agent not found")
     
     # Create duplicate with ALL fields
@@ -510,11 +522,14 @@ async def activate_agent(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Activate an agent"""
-    agent = db.query(Agent).filter(
-        Agent.id == agent_id,
-        Agent.owner_id == current_user.id
-    ).first()
+    """Activate an agent (ADMIN can activate any agent)"""
+    if current_user.role == UserRole.ADMIN:
+        agent = db.query(Agent).filter(Agent.id == agent_id).first()
+    else:
+        agent = db.query(Agent).filter(
+            Agent.id == agent_id,
+            Agent.owner_id == current_user.id
+        ).first()
     
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -531,11 +546,14 @@ async def deactivate_agent(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Deactivate an agent"""
-    agent = db.query(Agent).filter(
-        Agent.id == agent_id,
-        Agent.owner_id == current_user.id
-    ).first()
+    """Deactivate an agent (ADMIN can deactivate any agent)"""
+    if current_user.role == UserRole.ADMIN:
+        agent = db.query(Agent).filter(Agent.id == agent_id).first()
+    else:
+        agent = db.query(Agent).filter(
+            Agent.id == agent_id,
+            Agent.owner_id == current_user.id
+        ).first()
     
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
