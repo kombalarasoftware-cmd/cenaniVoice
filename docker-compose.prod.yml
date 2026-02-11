@@ -1,0 +1,86 @@
+# ===========================================
+# VoiceAI Platform - Production Override
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# ===========================================
+
+services:
+  # ===========================================
+  # Frontend - Production mode
+  # ===========================================
+  frontend:
+    environment:
+      - NEXT_PUBLIC_API_URL=https://one.speakmaxi.com
+      - NEXT_PUBLIC_WS_URL=wss://one.speakmaxi.com
+      - NODE_ENV=production
+    ports: []  # Remove direct host port - nginx will proxy
+    restart: unless-stopped
+
+  # ===========================================
+  # Backend - Production mode (no reload, no volume mount)
+  # ===========================================
+  backend:
+    ports: []  # Remove direct host port - nginx will proxy
+    volumes: []  # No dev volume mount in production
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    restart: unless-stopped
+
+  # ===========================================
+  # Celery Worker - Production
+  # ===========================================
+  celery-worker:
+    volumes: []
+    restart: unless-stopped
+
+  # ===========================================
+  # Celery Beat - Production
+  # ===========================================
+  celery-beat:
+    volumes: []
+    restart: unless-stopped
+
+  # ===========================================
+  # Asterisk Bridge - Production
+  # ===========================================
+  asterisk-bridge:
+    volumes: []
+    restart: unless-stopped
+
+  # ===========================================
+  # Nginx Reverse Proxy with SSL
+  # ===========================================
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - certbot-webroot:/var/www/certbot:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - voiceai-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+
+  # ===========================================
+  # Certbot (SSL certificate auto-renewal)
+  # ===========================================
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./nginx/ssl:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - voiceai-network
+    restart: unless-stopped
+
+volumes:
+  certbot-webroot:
