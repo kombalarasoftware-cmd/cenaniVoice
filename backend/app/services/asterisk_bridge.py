@@ -1687,6 +1687,36 @@ If you detect an answering machine, voicemail, or automated greeting system:
         customer = call_data.get("customer", {})
         action_items = call_data.get("action_items", [])
         satisfaction = call_data.get("customer_satisfaction", "neutral")
+
+        # ================================================================
+        # TRANSCRIPT: Read from Redis and prepare for DB persistence
+        # ================================================================
+        transcription_text = ""
+        try:
+            import redis.asyncio as redis_async
+            r = redis_async.from_url(REDIS_URL, decode_responses=True)
+            try:
+                transcript_key = f"call_transcript:{self.call_uuid}"
+                raw_items = await r.lrange(transcript_key, 0, -1)
+                if raw_items:
+                    # Redis LPUSH stores newest first, reverse for chronological order
+                    raw_items.reverse()
+                    lines = []
+                    for item in raw_items:
+                        try:
+                            entry = json.loads(item)
+                            role = entry.get("role", "unknown")
+                            content = entry.get("content", "")
+                            if content.strip():
+                                lines.append(f"[{role}]: {content}")
+                        except json.JSONDecodeError:
+                            pass
+                    transcription_text = "\n".join(lines)
+                    logger.info(f"[{self.call_uuid[:8]}] 📝 Transcript read from Redis: {len(lines)} messages")
+            finally:
+                await r.close()
+        except Exception as t_err:
+            logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Transcript Redis read error: {t_err}")
         
         # Build metadata
         metadata = {
@@ -1824,6 +1854,7 @@ If you detect an answering machine, voicemail, or automated greeting system:
                         output_tokens = $13,
                         cached_tokens = $14,
                         estimated_cost = $15,
+                        transcription = CASE WHEN $17 = '' THEN transcription ELSE $17 END,
                         status = 'COMPLETED',
                         ended_at = NOW()
                     WHERE call_sid = $16""",
@@ -1843,6 +1874,7 @@ If you detect an answering machine, voicemail, or automated greeting system:
                     cached_tokens,
                     estimated_cost,
                     self.call_uuid,
+                    transcription_text,
                 )
                 if "UPDATE 0" in result:
                     logger.info(f"[{self.call_uuid[:8]}] CallLog not found, inserting new record")
@@ -1852,13 +1884,15 @@ If you detect an answering machine, voicemail, or automated greeting system:
                             tags, callback_scheduled, call_metadata, notes,
                             customer_name, sip_code, hangup_cause,
                             to_number, agent_id, started_at, ended_at, created_at,
-                            model_used, input_tokens, output_tokens, cached_tokens, estimated_cost
+                            model_used, input_tokens, output_tokens, cached_tokens, estimated_cost,
+                            transcription
                         ) VALUES (
                             $1, 'COMPLETED', $2, $3, $4,
                             $5, $6, $7, $8,
                             $9, $10, $11,
                             $12, $13, $14, $15, $14,
-                            $16, $17, $18, $19, $20
+                            $16, $17, $18, $19, $20,
+                            $21
                         )""",
                         self.call_uuid,
                         int(duration),
@@ -1880,6 +1914,7 @@ If you detect an answering machine, voicemail, or automated greeting system:
                         output_tokens,
                         cached_tokens,
                         estimated_cost,
+                        transcription_text or None,
                     )
                     logger.info(f"[{self.call_uuid[:8]}] CallLog inserted successfully")
 

@@ -318,6 +318,17 @@ def handle_call_complete(session, db, call_log):
 
         db.commit()
 
+        # Trigger Ultravox post-call data persistence (transcript + recording)
+        if call_log.provider == "ultravox" and call_log.ultravox_call_id:
+            try:
+                persist_ultravox_call_data.apply_async(
+                    args=[call_log.id],
+                    countdown=5,  # Wait 5s for Ultravox to finalize data
+                )
+                logger.info(f"Queued persist_ultravox_call_data for call {call_log.id}")
+            except Exception as pq_err:
+                logger.warning(f"Failed to queue persist_ultravox_call_data: {pq_err}")
+
     except Exception as e:
         logger.error(f"Error in handle_call_complete: {e}\n{traceback.format_exc()}")
         db.rollback()
@@ -1199,6 +1210,105 @@ def manage_campaign_schedule():
     except Exception as e:
         logger.error(f"Error in manage_campaign_schedule: {e}\n{traceback.format_exc()}")
         db.rollback()
+    finally:
+        db.close()
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=30)
+def persist_ultravox_call_data(self, call_log_id: int):
+    """
+    Fetch transcript and recording URL from Ultravox API and persist to DB.
+    Called after an Ultravox call ends (from webhook or handle_call_complete).
+
+    This ensures Ultravox call data is permanently stored in PostgreSQL
+    and won't be lost if Ultravox purges old data.
+    """
+    from app.core.database import SessionLocal
+    from app.models.models import CallLog
+
+    db = SessionLocal()
+    try:
+        call_log = db.query(CallLog).filter(CallLog.id == call_log_id).first()
+        if not call_log:
+            logger.warning(f"persist_ultravox_call_data: CallLog {call_log_id} not found")
+            return
+
+        if call_log.provider != "ultravox" or not call_log.ultravox_call_id:
+            logger.info(f"persist_ultravox_call_data: CallLog {call_log_id} is not an Ultravox call, skipping")
+            return
+
+        ultravox_call_id = call_log.ultravox_call_id
+
+        # Fetch transcript from Ultravox API
+        if not call_log.transcription:
+            try:
+                from app.services.ultravox_service import UltravoxService
+                service = UltravoxService()
+                loop = asyncio.new_event_loop()
+                try:
+                    messages = loop.run_until_complete(service.get_call_messages(ultravox_call_id))
+                finally:
+                    loop.close()
+
+                if messages:
+                    lines = []
+                    for msg in messages:
+                        role = msg.get("role", "unknown")
+                        text_content = msg.get("text", "")
+                        if text_content and text_content.strip():
+                            lines.append(f"[{role}]: {text_content}")
+                    if lines:
+                        call_log.transcription = "\n".join(lines)
+                        logger.info(f"persist_ultravox_call_data: Saved transcript ({len(lines)} messages) for call {call_log_id}")
+            except Exception as t_err:
+                logger.warning(f"persist_ultravox_call_data: Transcript fetch failed for {call_log_id}: {t_err}")
+
+        # Fetch recording URL from Ultravox API and download to MinIO
+        if not call_log.recording_url:
+            try:
+                from app.services.ultravox_service import UltravoxService
+                service = UltravoxService()
+                loop = asyncio.new_event_loop()
+                try:
+                    recording_url = loop.run_until_complete(service.get_call_recording(ultravox_call_id))
+                finally:
+                    loop.close()
+
+                if recording_url:
+                    # Try to download and store in MinIO for permanent storage
+                    try:
+                        import requests as req_lib
+                        from app.services.minio_service import minio_service
+                        resp = req_lib.get(recording_url, timeout=60)
+                        if resp.status_code == 200:
+                            recording_key = f"recordings/{call_log.call_sid}.wav"
+                            minio_service.client.put_object(
+                                minio_service.bucket_recordings,
+                                recording_key,
+                                data=__import__('io').BytesIO(resp.content),
+                                length=len(resp.content),
+                                content_type="audio/wav",
+                            )
+                            call_log.recording_url = recording_key
+                            logger.info(f"persist_ultravox_call_data: Recording saved to MinIO for call {call_log_id}")
+                        else:
+                            # Store the Ultravox URL as fallback
+                            call_log.recording_url = recording_url
+                            logger.info(f"persist_ultravox_call_data: Stored Ultravox recording URL for call {call_log_id}")
+                    except Exception as minio_err:
+                        # Fallback: store the Ultravox URL directly
+                        call_log.recording_url = recording_url
+                        logger.warning(f"persist_ultravox_call_data: MinIO upload failed, stored URL: {minio_err}")
+            except Exception as r_err:
+                logger.warning(f"persist_ultravox_call_data: Recording fetch failed for {call_log_id}: {r_err}")
+
+        db.commit()
+        logger.info(f"persist_ultravox_call_data: Completed for call {call_log_id}")
+
+    except Exception as e:
+        logger.error(f"persist_ultravox_call_data error: {e}\n{traceback.format_exc()}")
+        db.rollback()
+        raise self.retry(exc=e)
     finally:
         db.close()
 

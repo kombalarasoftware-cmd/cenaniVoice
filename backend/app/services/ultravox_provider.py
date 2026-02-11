@@ -246,13 +246,13 @@ class UltravoxProvider(CallProvider):
                     }
                     redis_client.setex(
                         f"ultravox_call:{ultravox_call_id}",
-                        3600,  # 1 hour TTL
+                        7200,  # 2 hour TTL for safety margin
                         json.dumps(mapping),
                     )
                     # Reverse mapping
                     redis_client.setex(
                         f"call_ultravox:{call_uuid}",
-                        3600,
+                        7200,  # 2 hour TTL
                         ultravox_call_id,
                     )
                 except Exception as redis_err:

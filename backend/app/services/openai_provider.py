@@ -156,7 +156,7 @@ class OpenAIProvider(CallProvider):
                 try:
                     redis_client.setex(
                         f"call_setup:{call_uuid}",
-                        300,
+                        900,  # 15 minutes TTL (enough for queue/network delays)
                         json.dumps(call_setup_data),
                     )
                 except Exception as e:

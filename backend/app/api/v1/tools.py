@@ -132,6 +132,13 @@ async def save_customer_data(request: Request, db: Session = Depends(get_db)):
         digits = "".join(c for c in value if c.isdigit())
         if len(digits) < 10 or len(digits) > 15:
             return {"status": "error", "message": f"Phone number has {len(digits)} digits, expected 10-15. Please ask again."}
+        if call_log:
+            meta = call_log.call_metadata or {}
+            customer_data = meta.get("customer_data", {})
+            customer_data["phone"] = digits
+            meta["customer_data"] = customer_data
+            call_log.call_metadata = meta
+            db.commit()
         logger.info(f"[{call_id}] Phone saved: {digits}")
         return {"status": "success", "message": f"Phone saved: {digits}"}
 
@@ -139,10 +146,24 @@ async def save_customer_data(request: Request, db: Session = Depends(get_db)):
         email = value.lower().strip()
         if "@" not in email or "." not in email:
             return {"status": "error", "message": "Invalid email format. Please ask again."}
+        if call_log:
+            meta = call_log.call_metadata or {}
+            customer_data = meta.get("customer_data", {})
+            customer_data["email"] = email
+            meta["customer_data"] = customer_data
+            call_log.call_metadata = meta
+            db.commit()
         logger.info(f"[{call_id}] Email saved: {email}")
         return {"status": "success", "message": f"Email saved: {email}"}
 
     elif data_type == "address":
+        if call_log:
+            meta = call_log.call_metadata or {}
+            customer_data = meta.get("customer_data", {})
+            customer_data["address"] = value
+            meta["customer_data"] = customer_data
+            call_log.call_metadata = meta
+            db.commit()
         logger.info(f"[{call_id}] Address saved: {value}")
         return {"status": "success", "message": "Address saved"}
 
@@ -229,6 +250,13 @@ async def call_summary(request: Request, db: Session = Depends(get_db)):
     call_log = _find_call_log(db, call_id)
     if call_log:
         call_log.summary = summary
+        # Persist action_items and satisfaction in call_metadata
+        meta = call_log.call_metadata or {}
+        if action_items:
+            meta["action_items"] = action_items
+        if satisfaction and satisfaction != "neutral":
+            meta["customer_satisfaction"] = satisfaction
+        call_log.call_metadata = meta
         db.commit()
 
     logger.info(f"[{call_id}] Summary: {summary[:100]}...")
