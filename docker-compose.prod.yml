@@ -114,6 +114,28 @@ services:
           cpus: '0.5'
 
   # ===========================================
+  # Flower - Celery Monitoring Web UI
+  # ===========================================
+  flower:
+    image: mher/flower:2.0
+    environment:
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
+      - FLOWER_BASIC_AUTH=admin:${FLOWER_PASSWORD:-Speakmaxi2026!}
+      - FLOWER_URL_PREFIX=
+      - FLOWER_PORT=5555
+    depends_on:
+      - redis
+      - celery-worker
+    networks:
+      - voiceai-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+
+  # ===========================================
   # Portainer - Docker Web UI
   # ===========================================
   portainer:
