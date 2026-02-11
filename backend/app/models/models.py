@@ -581,6 +581,17 @@ class SystemSettings(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class RolePermission(Base):
+    """Role-based page access permissions"""
+    __tablename__ = "role_permissions"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    role: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
+    permissions: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    description: Mapped[Optional[str]] = mapped_column(String(255))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class KnowledgeBase(Base):
     """Knowledge Base for RAG (Retrieval Augmented Generation)"""
     __tablename__ = "knowledge_bases"

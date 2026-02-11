@@ -679,6 +679,37 @@ class RecordingResponse(BaseModel):
 
 # ============ Settings Schemas ============
 
+class PagePermissions(BaseModel):
+    """Page-level access permissions for a role"""
+    dashboard: bool = True
+    agents: bool = True
+    campaigns: bool = True
+    numbers: bool = True
+    recordings: bool = True
+    call_logs: bool = True
+    appointments: bool = True
+    leads: bool = True
+    surveys: bool = True
+    reports: bool = True
+    settings: bool = True
+
+
+class RolePermissionResponse(BaseModel):
+    id: int
+    role: str
+    permissions: PagePermissions
+    description: Optional[str] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class RolePermissionUpdate(BaseModel):
+    permissions: PagePermissions
+    description: Optional[str] = None
+
+
 class SIPTrunkCreate(BaseModel):
     name: str
     server: str

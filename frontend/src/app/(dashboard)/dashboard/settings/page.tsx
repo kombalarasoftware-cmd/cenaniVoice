@@ -25,9 +25,46 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  UsersRound,
 } from 'lucide-react';
 
-type SettingsTab = 'general' | 'sip' | 'api' | 'webhooks' | 'notifications' | 'security';
+type SettingsTab = 'general' | 'sip' | 'api' | 'webhooks' | 'notifications' | 'security' | 'roles';
+
+interface PagePermissions {
+  dashboard: boolean;
+  agents: boolean;
+  campaigns: boolean;
+  numbers: boolean;
+  recordings: boolean;
+  call_logs: boolean;
+  appointments: boolean;
+  leads: boolean;
+  surveys: boolean;
+  reports: boolean;
+  settings: boolean;
+}
+
+interface RolePermission {
+  id: number;
+  role: string;
+  permissions: PagePermissions;
+  description: string;
+  updated_at: string;
+}
+
+const PAGE_LABELS: Record<keyof PagePermissions, string> = {
+  dashboard: 'Dashboard',
+  agents: 'Agents',
+  campaigns: 'Campaigns',
+  numbers: 'Numbers',
+  recordings: 'Recordings',
+  call_logs: 'Call Logs',
+  appointments: 'Appointments',
+  leads: 'Leads',
+  surveys: 'Surveys',
+  reports: 'Reports',
+  settings: 'Settings',
+};
 
 interface NotificationPref {
   label: string;
@@ -69,6 +106,71 @@ export default function SettingsPage() {
 
   // IP Whitelist
   const [ipWhitelist, setIpWhitelist] = useState('');
+
+  // Role permissions state
+  const [roles, setRoles] = useState<RolePermission[]>([]);
+  const [isLoadingRoles, setIsLoadingRoles] = useState(false);
+  const [isSavingRoles, setIsSavingRoles] = useState<string | null>(null);
+
+  const fetchRoles = async () => {
+    setIsLoadingRoles(true);
+    try {
+      const data = await api.get<RolePermission[]>('/settings/roles');
+      setRoles(data);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load roles');
+    } finally {
+      setIsLoadingRoles(false);
+    }
+  };
+
+  const handleTogglePermission = async (
+    roleName: string,
+    page: keyof PagePermissions,
+    currentValue: boolean
+  ) => {
+    // Prevent disabling settings for ADMIN
+    if (roleName === 'ADMIN' && page === 'settings' && currentValue) {
+      toast.error('Cannot disable Settings access for Admin role');
+      return;
+    }
+
+    const role = roles.find((r) => r.role === roleName);
+    if (!role) return;
+
+    const updatedPermissions = { ...role.permissions, [page]: !currentValue };
+
+    // Optimistic update
+    setRoles((prev) =>
+      prev.map((r) =>
+        r.role === roleName ? { ...r, permissions: updatedPermissions } : r
+      )
+    );
+
+    setIsSavingRoles(roleName);
+    try {
+      await api.put(`/settings/roles/${roleName}`, {
+        permissions: updatedPermissions,
+      });
+      toast.success(`${roleName} permissions updated`);
+    } catch (err) {
+      // Revert on error
+      setRoles((prev) =>
+        prev.map((r) =>
+          r.role === roleName ? { ...r, permissions: role.permissions } : r
+        )
+      );
+      toast.error(err instanceof Error ? err.message : 'Failed to update permissions');
+    } finally {
+      setIsSavingRoles(null);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'roles') {
+      fetchRoles();
+    }
+  }, [activeTab]);
 
   const toggleNotification = (index: number) => {
     setNotifications((prev) =>
@@ -163,6 +265,7 @@ export default function SettingsPage() {
     { id: 'webhooks' as SettingsTab, label: 'Webhooks', icon: Webhook },
     { id: 'notifications' as SettingsTab, label: 'Notifications', icon: Bell },
     { id: 'security' as SettingsTab, label: 'Security', icon: Shield },
+    { id: 'roles' as SettingsTab, label: 'Roles', icon: UsersRound },
   ];
 
   return (
@@ -646,6 +749,104 @@ export default function SettingsPage() {
                       </p>
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Roles */}
+            {activeTab === 'roles' && (
+              <div className="space-y-6">
+                <div className="p-6 rounded-xl bg-card border border-border">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <UsersRound className="h-5 w-5 text-primary-500" />
+                      Role Permissions
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Manage page access for each role
+                    </p>
+                  </div>
+
+                  {isLoadingRoles ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
+                    </div>
+                  ) : roles.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <UsersRound className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No roles configured</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-8">
+                      {roles.map((role) => (
+                        <div key={role.role} className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="font-semibold text-lg">{role.role}</h4>
+                              <p className="text-sm text-muted-foreground">{role.description}</p>
+                            </div>
+                            {isSavingRoles === role.role && (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Saving...
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {(Object.keys(PAGE_LABELS) as (keyof PagePermissions)[]).map((page) => {
+                              const isEnabled = role.permissions[page];
+                              const isAdminSettings = role.role === 'ADMIN' && page === 'settings';
+                              return (
+                                <div
+                                  key={page}
+                                  className={cn(
+                                    'flex items-center justify-between p-3 rounded-lg transition-colors',
+                                    isEnabled ? 'bg-primary-500/5' : 'bg-muted/30',
+                                    isAdminSettings && 'opacity-60'
+                                  )}
+                                >
+                                  <span className="font-medium text-sm">{PAGE_LABELS[page]}</span>
+                                  <button
+                                    onClick={() => handleTogglePermission(role.role, page, isEnabled)}
+                                    disabled={isAdminSettings}
+                                    className={cn(
+                                      'relative w-11 h-6 rounded-full transition-colors',
+                                      isEnabled ? 'bg-primary-500' : 'bg-muted-foreground/30',
+                                      isAdminSettings && 'cursor-not-allowed'
+                                    )}
+                                  >
+                                    <div
+                                      className={cn(
+                                        'absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform',
+                                        isEnabled ? 'translate-x-6' : 'translate-x-1'
+                                      )}
+                                    />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {role.updated_at && (
+                            <p className="text-xs text-muted-foreground">
+                              Last updated: {new Date(role.updated_at).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-4 rounded-xl bg-muted/30">
+                  <h4 className="font-medium mb-2">About Roles</h4>
+                  <ul className="space-y-1 text-sm text-muted-foreground">
+                    <li>• <strong>Admin</strong> — Full access to all pages and system management</li>
+                    <li>• <strong>Operator</strong> — Standard access, configurable per page</li>
+                    <li>• Toggle switches control which pages each role can access</li>
+                    <li>• Admin role always retains Settings access</li>
+                  </ul>
                 </div>
               </div>
             )}

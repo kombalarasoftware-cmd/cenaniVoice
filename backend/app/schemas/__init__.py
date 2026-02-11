@@ -45,6 +45,9 @@ from app.schemas.schemas import (
     RecordingResponse,
     
     # Settings
+    PagePermissions,
+    RolePermissionResponse,
+    RolePermissionUpdate,
     SIPTrunkCreate,
     SIPTrunkResponse,
     WebhookCreate,
@@ -90,6 +93,9 @@ __all__ = [
     "RecordingResponse",
     "SIPTrunkCreate",
     "SIPTrunkResponse",
+    "PagePermissions",
+    "RolePermissionResponse",
+    "RolePermissionUpdate",
     "WebhookCreate",
     "WebhookResponse",
     "DashboardStats",

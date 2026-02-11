@@ -4,8 +4,11 @@ from typing import List, Optional
 
 from app.core.database import get_db
 from app.api.v1.auth import get_current_user
-from app.models import SIPTrunk, SystemSettings, APIKey, User, UserRole
-from app.schemas import SIPTrunkCreate, SIPTrunkResponse
+from app.models import SIPTrunk, SystemSettings, APIKey, User, UserRole, RolePermission
+from app.schemas import (
+    SIPTrunkCreate, SIPTrunkResponse,
+    PagePermissions, RolePermissionResponse, RolePermissionUpdate
+)
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
@@ -288,3 +291,120 @@ async def test_openai_connection(
             "success": False,
             "message": "API key validation failed"
         }
+
+
+# ============ Role Permissions ============
+
+def _ensure_default_roles(db: Session):
+    """Ensure default role permissions exist in database"""
+    default_roles = [
+        {"role": "ADMIN", "description": "Full access to all pages and features"},
+        {"role": "OPERATOR", "description": "Standard operator access"},
+    ]
+    for role_def in default_roles:
+        existing = db.query(RolePermission).filter(
+            RolePermission.role == role_def["role"]
+        ).first()
+        if not existing:
+            all_true = PagePermissions()  # All default to True
+            rp = RolePermission(
+                role=role_def["role"],
+                permissions=all_true.model_dump(),
+                description=role_def["description"]
+            )
+            db.add(rp)
+    db.commit()
+
+
+@router.get("/roles", response_model=List[RolePermissionResponse])
+async def list_role_permissions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """List all role permissions (admin only)"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    _ensure_default_roles(db)
+
+    roles = db.query(RolePermission).all()
+    return roles
+
+
+@router.get("/roles/{role_name}", response_model=RolePermissionResponse)
+async def get_role_permission(
+    role_name: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get permissions for a specific role"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    _ensure_default_roles(db)
+
+    role_perm = db.query(RolePermission).filter(
+        RolePermission.role == role_name.upper()
+    ).first()
+
+    if not role_perm:
+        raise HTTPException(status_code=404, detail="Role not found")
+
+    return role_perm
+
+
+@router.put("/roles/{role_name}", response_model=RolePermissionResponse)
+async def update_role_permission(
+    role_name: str,
+    update_data: RolePermissionUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update permissions for a role (admin only)"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    role_perm = db.query(RolePermission).filter(
+        RolePermission.role == role_name.upper()
+    ).first()
+
+    if not role_perm:
+        raise HTTPException(status_code=404, detail="Role not found")
+
+    # Prevent ADMIN from disabling their own settings access
+    if role_name.upper() == "ADMIN" and update_data.permissions:
+        if not update_data.permissions.settings:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot disable settings access for ADMIN role"
+            )
+
+    if update_data.permissions:
+        role_perm.permissions = update_data.permissions.model_dump()
+
+    if update_data.description is not None:
+        role_perm.description = update_data.description
+
+    db.commit()
+    db.refresh(role_perm)
+
+    return role_perm
+
+
+@router.get("/my-permissions")
+async def get_my_permissions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get current user's page permissions based on their role"""
+    _ensure_default_roles(db)
+
+    role_perm = db.query(RolePermission).filter(
+        RolePermission.role == current_user.role.value
+    ).first()
+
+    if not role_perm:
+        # Fallback: allow all
+        return PagePermissions().model_dump()
+
+    return role_perm.permissions
