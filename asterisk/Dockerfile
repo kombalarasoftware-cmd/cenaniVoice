@@ -108,6 +108,10 @@ COPY http.conf /etc/asterisk/http.conf
 COPY rtp.conf /etc/asterisk/rtp.conf
 COPY amd.conf /etc/asterisk/amd.conf
 
+# Copy entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Set permissions
 RUN chown asterisk:asterisk /etc/asterisk/*.conf
 
@@ -127,12 +131,11 @@ EXPOSE 10000-10100/udp
 EXPOSE 8088/tcp
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8088/ari/api-docs/resources.json \
-    --user voiceai:voiceai_ari_secret || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD asterisk -rx "core show version" || exit 1
 
-# Run as asterisk user
-USER asterisk
+# Entrypoint runs as root to modify configs, then drops to asterisk user
+ENTRYPOINT ["docker-entrypoint.sh"]
 
 # Start Asterisk in foreground
-CMD ["asterisk", "-f", "-vvv"]
+CMD ["asterisk", "-f", "-U", "asterisk", "-G", "asterisk", "-vvv"]
