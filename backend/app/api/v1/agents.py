@@ -226,6 +226,33 @@ async def create_agent(
         agent.prompt_safety = agent_data.prompt.safety
         agent.prompt_language = agent_data.prompt.language  # Legacy field
     
+    # Apply greeting settings
+    if agent_data.greeting_settings:
+        agent.first_speaker = agent_data.greeting_settings.first_speaker
+        agent.greeting_message = agent_data.greeting_settings.greeting_message
+        agent.greeting_uninterruptible = agent_data.greeting_settings.greeting_uninterruptible
+        agent.first_message_delay = agent_data.greeting_settings.first_message_delay
+    
+    # Apply inactivity messages
+    if agent_data.inactivity_messages is not None:
+        agent.inactivity_messages = [msg.model_dump() for msg in agent_data.inactivity_messages]
+    
+    # Apply knowledge base
+    if agent_data.knowledge_base is not None:
+        agent.knowledge_base = agent_data.knowledge_base
+    
+    # Apply web sources
+    if agent_data.web_sources is not None:
+        agent.web_sources = agent_data.web_sources
+    
+    # Apply smart features
+    if agent_data.smart_features is not None:
+        agent.smart_features = agent_data.smart_features.model_dump() if hasattr(agent_data.smart_features, 'model_dump') else agent_data.smart_features
+    
+    # Apply survey config
+    if agent_data.survey_config is not None:
+        agent.survey_config = agent_data.survey_config.model_dump() if hasattr(agent_data.survey_config, 'model_dump') else agent_data.survey_config
+    
     db.add(agent)
     db.commit()
     db.refresh(agent)
@@ -462,6 +489,9 @@ async def duplicate_agent(
         noise_reduction=original.noise_reduction,
         max_output_tokens=original.max_output_tokens,
         transcript_model=original.transcript_model,
+        # Smart features & Survey config
+        smart_features=original.smart_features,
+        survey_config=original.survey_config,
         # NOT copied: is_system (always False for copies)
         is_system=False,
         owner_id=current_user.id

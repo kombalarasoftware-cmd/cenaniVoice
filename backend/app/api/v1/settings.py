@@ -148,6 +148,8 @@ async def list_api_keys(
             "scopes": key.scopes,
             "last_used_at": key.last_used_at,
             "is_active": key.is_active,
+            "total_requests": key.total_requests,
+            "expires_at": key.expires_at,
             "created_at": key.created_at
         }
         for key in keys

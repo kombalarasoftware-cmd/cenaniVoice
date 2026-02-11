@@ -80,7 +80,11 @@ async def get_dashboard_stats(
         success_rate=round(success_rate, 1),
         avg_duration=round(avg_duration, 0),
         active_campaigns=active_campaigns,
-        total_agents=total_agents
+        total_agents=total_agents,
+        active_calls_change=0,
+        today_calls_change=0,
+        success_rate_change=0,
+        avg_duration_change=0
     )
 
 

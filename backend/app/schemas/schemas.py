@@ -396,6 +396,10 @@ class AgentCreate(AgentBase):
     behavior_settings: Optional[BehaviorSettings] = None
     advanced_settings: Optional[AdvancedSettings] = None
     prompt: Optional[PromptSections] = None
+    greeting_settings: Optional[GreetingSettings] = None
+    inactivity_messages: Optional[List[InactivityMessage]] = None
+    knowledge_base: Optional[str] = None
+    web_sources: Optional[List[dict]] = None
     smart_features: Optional[SmartFeatures] = None
     survey_config: Optional[SurveyConfig] = None
     ultravox_settings: Optional[UltravoxVoiceSettings] = None
@@ -520,6 +524,7 @@ class CampaignUpdate(BaseModel):
     call_hours_start: Optional[str] = None
     call_hours_end: Optional[str] = None
     concurrent_calls: Optional[int] = Field(default=None, ge=1, le=50)
+    active_days: Optional[List[int]] = None
 
     @field_validator("call_hours_start", "call_hours_end")
     @classmethod
@@ -540,6 +545,7 @@ class CampaignResponse(CampaignBase):
     failed_calls: int = 0
     active_calls: int
     number_list_id: Optional[int] = None
+    scheduled_start: Optional[datetime] = None
     scheduled_end: Optional[datetime] = None
     call_hours_start: Optional[str] = None
     call_hours_end: Optional[str] = None
@@ -687,6 +693,10 @@ class SIPTrunkResponse(BaseModel):
     concurrent_limit: int
     is_active: bool
     is_connected: bool
+    codec_priority: Optional[str] = None
+    last_connected_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -704,6 +714,8 @@ class WebhookResponse(BaseModel):
     is_active: bool
     total_deliveries: int
     failed_deliveries: int
+    last_error: Optional[str] = None
+    last_delivery_at: Optional[datetime] = None
     created_at: datetime
 
     class Config:
@@ -719,6 +731,10 @@ class DashboardStats(BaseModel):
     avg_duration: float
     active_campaigns: int
     total_agents: int
+    active_calls_change: float = 0
+    today_calls_change: float = 0
+    success_rate_change: float = 0
+    avg_duration_change: float = 0
 
 
 class CallStats(BaseModel):

@@ -41,6 +41,7 @@ ALLOWED_UPDATE_FIELDS = {
     "call_hours_start",
     "call_hours_end",
     "concurrent_calls",
+    "active_days",
 }
 
 

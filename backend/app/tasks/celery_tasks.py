@@ -316,6 +316,27 @@ def handle_call_complete(session, db, call_log):
                 }
             )
 
+        # Update agent statistics (total_calls, successful_calls, avg_duration)
+        if call_log.agent_id:
+            call_duration = call_log.duration or 0
+            db.execute(
+                text("""
+                UPDATE agents
+                SET total_calls = total_calls + 1,
+                    successful_calls = successful_calls + :success_increment,
+                    avg_duration = CASE
+                        WHEN total_calls = 0 THEN :duration
+                        ELSE (avg_duration * total_calls + :duration) / (total_calls + 1)
+                    END
+                WHERE id = :agent_id
+                """),
+                {
+                    "agent_id": call_log.agent_id,
+                    "success_increment": 1 if call_log.outcome == CallOutcome.SUCCESS else 0,
+                    "duration": float(call_duration),
+                }
+            )
+
         db.commit()
 
         # Trigger Ultravox post-call data persistence (transcript + recording)
