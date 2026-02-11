@@ -948,7 +948,7 @@ class DialAttempt(Base):
     # Relationships
     entry = relationship("DialListEntry", back_populates="dial_attempts")
     campaign = relationship("Campaign")
-    call_log = relationship("CallLog")
+    call_log = relationship("CallLog", foreign_keys="[DialAttempt.call_log_id]")
 
     __table_args__ = (
         Index('idx_attempt_campaign', 'campaign_id', 'result'),
