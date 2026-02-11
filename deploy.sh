@@ -8,7 +8,7 @@ set -euo pipefail
 DOMAIN="one.speakmaxi.com"
 APP_DIR="/opt/voiceai"
 REPO_URL="https://github.com/kombalarasoftware-cmd/cenaniVoice.git"
-EMAIL="admin@speakmaxi.com"  # For Let's Encrypt notifications
+EMAIL="cmutlu2006@hotmail.com"  # For Let's Encrypt notifications
 
 echo "============================================="
 echo "  VoiceAI Platform - Production Deploy"
