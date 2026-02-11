@@ -96,6 +96,16 @@ class Settings(BaseSettings):
     # Webhook
     WEBHOOK_SECRET: str = ""
 
+    # SMTP / Email - Admin approval system
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = ""
+    SMTP_USE_TLS: bool = True
+    ADMIN_APPROVAL_EMAIL: str = ""  # Admin email for new user approval notifications
+    APP_BASE_URL: str = "https://one.speakmaxi.com"  # Public URL for approval links
+
     @field_validator("SECRET_KEY")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:

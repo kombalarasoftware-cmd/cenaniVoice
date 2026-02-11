@@ -15,6 +15,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +42,7 @@ export default function RegisterPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ full_name: name, email, password }),
       });
 
       if (!response.ok) {
@@ -49,8 +50,7 @@ export default function RegisterPage() {
         throw new Error(error.detail || 'Registration failed');
       }
 
-      toast.success('Account created! Please sign in.');
-      router.push('/login');
+      setRegistrationSuccess(true);
     } catch (error) {
       console.error('Registration error:', error);
       toast.error(error instanceof Error ? error.message : 'An error occurred during registration');
@@ -72,7 +72,32 @@ export default function RegisterPage() {
           </span>
         </div>
 
-        {/* Register Card */}
+        {registrationSuccess ? (
+          /* Registration Success - Pending Approval */
+          <div className="bg-card border border-border rounded-2xl p-8 shadow-lg text-center">
+            <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100">
+              <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold mb-2">Registration Successful!</h1>
+            <p className="text-muted-foreground mb-4">
+              Your account has been created. Administrator approval is required before you can sign in.
+            </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+              <p className="text-amber-800 text-sm">
+                ⏳ An approval notification has been sent to the administrator. You will be able to sign in with your email once approved.
+              </p>
+            </div>
+            <Link
+              href="/login"
+              className="inline-flex items-center justify-center w-full py-3 bg-gradient-to-r from-primary-500 to-secondary-500 hover:from-primary-600 hover:to-secondary-600 text-white font-medium rounded-xl transition-all"
+            >
+              Back to Sign In
+            </Link>
+          </div>
+        ) : (
+        /* Register Card */
         <div className="bg-card border border-border rounded-2xl p-8 shadow-lg">
           <h1 className="text-2xl font-bold text-center mb-2">Create Account</h1>
           <p className="text-muted-foreground text-center mb-6">
@@ -178,6 +203,7 @@ export default function RegisterPage() {
             </Link>
           </p>
         </div>
+        )}
       </div>
     </div>
   );

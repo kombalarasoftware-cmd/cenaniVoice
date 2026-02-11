@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [approvalPending, setApprovalPending] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,6 +23,7 @@ export default function LoginPage() {
       return;
     }
 
+    setApprovalPending(false);
     setIsLoading(true);
     try {
       const response = await fetch(`${API_V1}/auth/login`, {
@@ -34,6 +36,11 @@ export default function LoginPage() {
 
       if (!response.ok) {
         const error = await response.json();
+        // Check if this is an approval pending error (403)
+        if (response.status === 403) {
+          setApprovalPending(true);
+          return;
+        }
         throw new Error(error.detail || 'Login failed');
       }
 
@@ -71,6 +78,22 @@ export default function LoginPage() {
           <p className="text-muted-foreground text-center mb-6">
             Sign in to your account
           </p>
+
+          {approvalPending && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <p className="text-amber-800 text-sm font-medium">Account Pending Approval</p>
+                  <p className="text-amber-700 text-xs mt-1">
+                    Your account has not been approved by an administrator yet. You will be able to log in once approved.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleLogin} className="space-y-4">
             {/* Email */}

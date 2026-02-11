@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
@@ -12,6 +13,7 @@ from app.core.database import get_db
 from app.core.config import settings
 from app.models import User
 from app.schemas import UserCreate, UserResponse, Token, LoginRequest
+from app.services.email_service import send_approval_email, verify_approval_token
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 logger = logging.getLogger(__name__)
@@ -194,22 +196,31 @@ async def get_current_user_optional(
 
 
 @router.post("/register", response_model=UserResponse)
-async def register(user_data: UserCreate, db: Session = Depends(get_db)):
-    """Register a new user"""
+async def register(user_data: UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Register a new user (requires admin approval before login)"""
     # Check if email exists
     existing_user = db.query(User).filter(User.email == user_data.email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # Create user
+    # Create user with is_approved=False
     user = User(
         email=user_data.email,
         full_name=user_data.full_name,
-        hashed_password=get_password_hash(user_data.password)
+        hashed_password=get_password_hash(user_data.password),
+        is_approved=False,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # Send approval email to admin in background
+    background_tasks.add_task(
+        send_approval_email,
+        user_id=user.id,
+        user_email=user.email,
+        user_name=user.full_name,
+    )
     
     return user
 
@@ -232,6 +243,12 @@ async def login(credentials: LoginRequest, db: Session = Depends(get_db)):
 
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+
+    if not user.is_approved:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account has not been approved by an administrator yet. Please wait for approval.",
+        )
 
     # Clear failed login counter on success
     _clear_failed_logins(credentials.email)
@@ -266,3 +283,93 @@ async def logout(
         ttl = max(int(exp - datetime.now(timezone.utc).timestamp()), 0)
         _blacklist_token(jti, ttl)
     return {"message": "Successfully logged out"}
+
+
+@router.get("/approve", response_class=HTMLResponse)
+async def approve_user(token: str, db: Session = Depends(get_db)):
+    """
+    Admin clicks this link from email to approve a new user registration.
+    Returns an HTML page with the result.
+    """
+    user_id = verify_approval_token(token)
+
+    if user_id is None:
+        return HTMLResponse(content=_approval_result_page(
+            success=False,
+            title="Approval Failed",
+            message="Invalid or expired approval link.",
+        ), status_code=400)
+
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        return HTMLResponse(content=_approval_result_page(
+            success=False,
+            title="User Not Found",
+            message="No user found for this approval link.",
+        ), status_code=404)
+
+    if user.is_approved:
+        return HTMLResponse(content=_approval_result_page(
+            success=True,
+            title="Already Approved",
+            message=f"{user.email} has already been approved.",
+        ))
+
+    user.is_approved = True
+    db.commit()
+
+    logger.info(f"User {user.email} (id={user.id}) approved by admin via email link")
+
+    return HTMLResponse(content=_approval_result_page(
+        success=True,
+        title="User Approved ✅",
+        message=f"{user.email} can now sign in.",
+    ))
+
+
+def _approval_result_page(success: bool, title: str, message: str) -> str:
+    """Generate a simple HTML page to show approval result."""
+    color = "#22c55e" if success else "#ef4444"
+    icon = "✅" if success else "❌"
+    return f"""
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title} - VoiceAI</title>
+    <style>
+        * {{ margin:0; padding:0; box-sizing:border-box; }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f4f4f5;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }}
+        .card {{
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            padding: 48px;
+            max-width: 440px;
+            text-align: center;
+        }}
+        .icon {{ font-size: 48px; margin-bottom: 16px; }}
+        h1 {{ color: {color}; font-size: 24px; margin-bottom: 12px; }}
+        p {{ color: #6b7280; font-size: 16px; line-height: 1.6; }}
+        .footer {{ margin-top: 32px; color: #9ca3af; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon">{icon}</div>
+        <h1>{title}</h1>
+        <p>{message}</p>
+        <p class="footer">VoiceAI Platform</p>
+    </div>
+</body>
+</html>
+"""
