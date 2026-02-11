@@ -85,5 +85,23 @@ services:
       - voiceai-network
     restart: unless-stopped
 
+  # ===========================================
+  # Portainer - Docker Web UI
+  # ===========================================
+  portainer:
+    image: portainer/portainer-ce:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer-data:/data
+    networks:
+      - voiceai-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+
 volumes:
   certbot-webroot:
+  portainer-data:
