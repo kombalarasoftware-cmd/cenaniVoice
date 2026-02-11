@@ -1,9 +1,11 @@
 /**
  * Centralized API client for VoiceAI Platform.
- * Uses NEXT_PUBLIC_API_URL environment variable with fallback to localhost.
+ * Uses NEXT_PUBLIC_API_URL environment variable.
+ * Default: empty string (relative URLs) — works with nginx proxy in production.
+ * For local dev, set NEXT_PUBLIC_API_URL=http://localhost:8000 in .env.local
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 export const API_V1 = `${API_BASE_URL}/api/v1`;
 
 /**
