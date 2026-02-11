@@ -1,0 +1,15 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "VoiceAI PostgreSQL",
+      "Group": "VoiceAI",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "voiceai",
+      "Username": "postgres",
+      "PassFile": "/pgadmin4/pgpassfile",
+      "SSLMode": "prefer",
+      "Comment": "VoiceAI Platform Database - Auto configured"
+    }
+  }
+}
