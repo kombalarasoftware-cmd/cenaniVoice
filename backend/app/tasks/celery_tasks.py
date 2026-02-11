@@ -734,25 +734,23 @@ def transcribe_recording(call_id: int):
             logger.warning(f"Call {call_id} not found or no recording URL")
             return {"success": False, "reason": "no_recording"}
 
-        # Download recording from MinIO
-        s3_client = boto3.client(
-            's3',
-            endpoint_url=f"http://{settings.MINIO_ENDPOINT}",
-            aws_access_key_id=settings.MINIO_ACCESS_KEY,
-            aws_secret_access_key=settings.MINIO_SECRET_KEY
+        # Download recording from MinIO using centralized service
+        from app.services.minio_service import minio_service
+
+        recording_key = call.recording_url
+        recording_data = minio_service.download_bytes(
+            settings.MINIO_BUCKET_RECORDINGS,
+            recording_key,
         )
 
-        # Extract file path from URL
-        recording_key = call.recording_url.split("/")[-1]
+        if not recording_data:
+            logger.warning(f"Recording not found in MinIO: {recording_key}")
+            return {"success": False, "reason": "recording_not_found"}
 
-        # Download to temp file
+        # Write to temp file for Whisper
         import tempfile
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
-            s3_client.download_file(
-                settings.MINIO_BUCKET_RECORDINGS,
-                recording_key,
-                tmp_file.name
-            )
+            tmp_file.write(recording_data)
             tmp_path = tmp_file.name
 
         # Transcribe with Whisper

@@ -734,3 +734,91 @@ async def get_available_tags():
         ]
     }
 
+
+# ===========================================================================
+# Recording Download / Stream
+# ===========================================================================
+
+@router.get("/{call_id}/recording")
+async def get_call_recording(
+    call_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Get a presigned download URL for a call recording.
+    Returns a temporary URL valid for 1 hour.
+    """
+    call = db.query(CallLog).filter(CallLog.id == call_id).first()
+    if not call:
+        raise HTTPException(status_code=404, detail="Call not found")
+    
+    if not call.recording_url:
+        raise HTTPException(status_code=404, detail="No recording available for this call")
+
+    from app.services.minio_service import minio_service
+
+    # recording_url stores the MinIO key like "calls/{uuid}.wav"
+    recording_key = call.recording_url
+    
+    # Check if the recording exists in MinIO
+    if not minio_service.object_exists(settings.MINIO_BUCKET_RECORDINGS, recording_key):
+        raise HTTPException(status_code=404, detail="Recording file not found in storage")
+
+    # Generate presigned URL (1 hour expiry)
+    url = minio_service.get_presigned_url(
+        bucket=settings.MINIO_BUCKET_RECORDINGS,
+        key=recording_key,
+        expires_in=3600,
+    )
+
+    if not url:
+        raise HTTPException(status_code=500, detail="Failed to generate recording URL")
+
+    return {
+        "call_id": call_id,
+        "recording_url": url,
+        "expires_in": 3600,
+        "duration": call.recording_duration,
+    }
+
+
+@router.get("/{call_id}/recording/download")
+async def download_call_recording(
+    call_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Download a call recording file directly.
+    Returns the WAV file as a streaming response.
+    """
+    from fastapi.responses import StreamingResponse
+    from app.services.minio_service import minio_service
+
+    call = db.query(CallLog).filter(CallLog.id == call_id).first()
+    if not call:
+        raise HTTPException(status_code=404, detail="Call not found")
+
+    if not call.recording_url:
+        raise HTTPException(status_code=404, detail="No recording available for this call")
+
+    recording_key = call.recording_url
+
+    # Download from MinIO
+    data = minio_service.download_bytes(settings.MINIO_BUCKET_RECORDINGS, recording_key)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Recording file not found in storage")
+
+    # Determine filename
+    filename = f"call_{call.call_sid or call_id}.wav"
+
+    return StreamingResponse(
+        iter([data]),
+        media_type="audio/wav",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(len(data)),
+        },
+    )
+

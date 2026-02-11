@@ -1934,7 +1934,57 @@ If you detect an answering machine, voicemail, or automated greeting system:
                 await conn.close()
         except Exception as e:
             logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Post-call DB hatası: {e}")
-    
+
+        # ================================================================
+        # RECORDING: Save audio from Redis to MinIO
+        # ================================================================
+        try:
+            from app.services.minio_service import minio_service
+            recording_key = await minio_service.save_recording_from_redis(self.call_uuid)
+            if recording_key:
+                # Update call_log with recording URL
+                try:
+                    conn = await asyncpg.connect(
+                        host=DB_HOST, port=DB_PORT, user=DB_USER,
+                        password=DB_PASSWORD, database=DB_NAME,
+                    )
+                    try:
+                        await conn.execute(
+                            """UPDATE call_logs SET
+                                recording_url = $1
+                            WHERE call_sid = $2""",
+                            recording_key,
+                            self.call_uuid,
+                        )
+                        logger.info(f"[{self.call_uuid[:8]}] 🎙️ Recording URL saved to DB: {recording_key}")
+                    finally:
+                        await conn.close()
+                except Exception as db_err:
+                    logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Recording URL DB update failed: {db_err}")
+
+                # Trigger transcription task if agent has record_calls enabled
+                try:
+                    from app.tasks.celery_tasks import transcribe_recording
+                    if hasattr(self, 'agent_id') and self.agent_id:
+                        conn2 = await asyncpg.connect(
+                            host=DB_HOST, port=DB_PORT, user=DB_USER,
+                            password=DB_PASSWORD, database=DB_NAME,
+                        )
+                        try:
+                            row = await conn2.fetchrow(
+                                "SELECT id FROM call_logs WHERE call_sid = $1",
+                                self.call_uuid,
+                            )
+                            if row:
+                                transcribe_recording.delay(row["id"])
+                                logger.info(f"[{self.call_uuid[:8]}] 📝 Transcription task queued")
+                        finally:
+                            await conn2.close()
+                except Exception as tx_err:
+                    logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Transcription task queue failed: {tx_err}")
+        except Exception as rec_err:
+            logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Recording save failed: {rec_err}")
+
     def _calculate_quality_score(self, call_data: dict, duration: float) -> int:
         """
         Calculate a call quality score (0-100) based on multiple factors.

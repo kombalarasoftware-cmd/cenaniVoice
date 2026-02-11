@@ -135,6 +135,29 @@ async def upload_document(
         file_size=file_size,
         status="pending"
     )
+
+    # Upload original file to MinIO for backup
+    try:
+        from app.services.minio_service import minio_service
+        from app.core.config import settings
+
+        minio_key = f"documents/agent_{agent_id}/{document.filename}"
+        content_types = {
+            "pdf": "application/pdf",
+            "txt": "text/plain",
+            "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        }
+        minio_service.upload_bytes(
+            bucket=settings.MINIO_BUCKET_EXPORTS,
+            key=minio_key,
+            data=file_content,
+            content_type=content_types.get(ext, "application/octet-stream"),
+        )
+        document.file_path = minio_key
+        logger.info(f"Document uploaded to MinIO: {minio_key}")
+    except Exception as minio_err:
+        logger.warning(f"MinIO upload failed (proceeding without backup): {minio_err}")
+
     db.add(document)
     db.commit()
     db.refresh(document)

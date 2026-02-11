@@ -157,6 +157,18 @@ async def lifespan(app: FastAPI):
     # Create database tables (in production, use Alembic migrations)
     Base.metadata.create_all(bind=engine)
 
+    # Ensure MinIO buckets exist
+    try:
+        from app.services.minio_service import minio_service
+        results = minio_service.ensure_buckets()
+        for bucket, created in results.items():
+            if created:
+                logger.info(f"MinIO bucket created: {bucket}")
+            else:
+                logger.debug(f"MinIO bucket already exists: {bucket}")
+    except Exception as e:
+        logger.warning(f"MinIO bucket initialization failed (storage may not work): {e}")
+
     yield
 
     # Shutdown
