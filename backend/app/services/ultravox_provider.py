@@ -563,8 +563,6 @@ class UltravoxProvider(CallProvider):
             )
             # Return only built-in tools that don't need HTTP
             tools = [{"toolName": "hangUp"}]
-            if getattr(agent, "human_transfer", True):
-                tools.append({"toolName": "coldTransfer"})
             return tools
 
         # Normalize: webhook URL should point to tools base

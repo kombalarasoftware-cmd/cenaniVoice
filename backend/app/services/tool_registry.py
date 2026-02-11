@@ -622,6 +622,14 @@ def to_ultravox_tools(agent_config: dict, webhook_base: str) -> list[dict]:
 
     # ── Ultravox built-in tools ──────────────────────────────────────────
     ultravox_tools.append({"toolName": "hangUp"})
-    ultravox_tools.append({"toolName": "coldTransfer"})
+    # coldTransfer requires parameterOverrides with 'target' SIP URI
+    # Only add if agent has a transfer target configured
+    if agent and hasattr(agent, 'transfer_number') and agent.transfer_number:
+        ultravox_tools.append({
+            "toolName": "coldTransfer",
+            "parameterOverrides": {
+                "target": f"sip:{agent.transfer_number}@{settings.SIP_TRUNK_HOST}:{settings.SIP_TRUNK_PORT}"
+            }
+        })
 
     return ultravox_tools
