@@ -173,9 +173,23 @@ const ultravoxVoices = [
   { id: 'Marcin-Polish', name: 'Marcin', description: 'PL, Male', gender: 'male' },
 ];
 
+const pipelineVoices = [
+  // Turkish
+  { id: 'tr_TR-dfki-medium', name: 'DFKI', description: 'TR, Female', gender: 'female' },
+  // English
+  { id: 'en_US-amy-medium', name: 'Amy', description: 'EN, Female', gender: 'female' },
+  { id: 'en_US-danny-low', name: 'Danny', description: 'EN, Male', gender: 'male' },
+  { id: 'en_US-lessac-medium', name: 'Lessac', description: 'EN, Female', gender: 'female' },
+  { id: 'en_US-ryan-medium', name: 'Ryan', description: 'EN, Male', gender: 'male' },
+  // German
+  { id: 'de_DE-thorsten-medium', name: 'Thorsten', description: 'DE, Male', gender: 'male' },
+  { id: 'de_DE-kerstin-low', name: 'Kerstin', description: 'DE, Female', gender: 'female' },
+];
+
 const providers = [
   { id: 'openai', name: 'OpenAI Realtime', description: 'GPT-4o Realtime via Asterisk' },
   { id: 'ultravox', name: 'Ultravox', description: 'Native SIP, $0.05/min' },
+  { id: 'pipeline', name: 'Pipeline (Local)', description: 'Local STT + LLM + TTS, $0/min' },
 ];
 
 export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps) {
@@ -190,7 +204,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
   const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
   const [isLoading, setIsLoading] = useState(false);
 
-  const allVoices = selectedProvider === 'ultravox' ? ultravoxVoices : openaiVoices;
+  const allVoices = selectedProvider === 'ultravox' ? ultravoxVoices : selectedProvider === 'pipeline' ? pipelineVoices : openaiVoices;
   const voices = genderFilter === 'all' ? allVoices : allVoices.filter(v => v.gender === genderFilter);
 
   const handleCreate = async () => {
@@ -409,13 +423,13 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
                 <label className="block text-sm font-medium mb-2">
                   AI Provider
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {providers.map((p) => (
                     <button
                       key={p.id}
                       onClick={() => {
                         setSelectedProvider(p.id);
-                        setSelectedVoice(p.id === 'ultravox' ? 'Mark' : 'alloy');
+                        setSelectedVoice(p.id === 'ultravox' ? 'Mark' : p.id === 'pipeline' ? 'en_US-amy-medium' : 'alloy');
                         setGenderFilter('all');
                       }}
                       className={cn(

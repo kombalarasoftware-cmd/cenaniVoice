@@ -270,6 +270,103 @@ services:
   #   networks:
   #     - voiceai-network
 
+  # ===========================================
+  # Ollama - Local LLM Server
+  # ===========================================
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - voiceai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+          cpus: '4.0'
+
+  # ===========================================
+  # Piper TTS - Local Text-to-Speech
+  # ===========================================
+  piper:
+    image: rhasspy/wyoming-piper:latest
+    restart: unless-stopped
+    command: >
+      --piper /usr/share/piper/piper
+      --voice tr_TR-dfki-medium
+      --length-scale 1.0
+      --noise-scale 0.667
+      --noise-w 0.8
+      --max-piper-procs 2
+      --data-dir /data
+      --download-dir /data
+    volumes:
+      - piper-data:/data
+    networks:
+      - voiceai-network
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; s=socket.socket(); s.settimeout(3); s.connect(('127.0.0.1',10200)); s.close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '2.0'
+
+  # ===========================================
+  # Pipeline AudioSocket Bridge (Local STT+LLM+TTS)
+  # Same architecture as asterisk-bridge but uses local models
+  # ===========================================
+  pipeline-bridge:
+    image: voiceai-backend
+    user: "1000:1000"
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+      - faster-whisper-cache:/home/appuser/.cache
+    environment:
+      - PIPELINE_AUDIOSOCKET_HOST=0.0.0.0
+      - PIPELINE_AUDIOSOCKET_PORT=9093
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
+      - PIPER_HOST=piper
+      - PIPER_PORT=10200
+      - FASTER_WHISPER_MODEL=${FASTER_WHISPER_MODEL:-base}
+      - FASTER_WHISPER_DEVICE=cpu
+      - FASTER_WHISPER_COMPUTE=int8
+      - MAX_CONCURRENT_CALLS=10
+    networks:
+      - voiceai-network
+    command: python -m app.services.pipeline_bridge
+    depends_on:
+      ollama:
+        condition: service_healthy
+      piper:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.settimeout(3); s.connect(('127.0.0.1',9093)); s.close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '4.0'
+
 networks:
   voiceai-network:
     driver: bridge
@@ -279,3 +376,6 @@ volumes:
   redis-data:
   minio-data:
   asterisk-recordings:
+  ollama-data:
+  piper-data:
+  faster-whisper-cache:

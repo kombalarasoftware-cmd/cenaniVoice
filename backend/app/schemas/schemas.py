@@ -383,7 +383,7 @@ class UltravoxVoiceSettings(BaseModel):
 
 class CallCost(BaseModel):
     """Unified cost response for both providers."""
-    provider: str  # "openai" or "ultravox"
+    provider: str  # "openai", "ultravox", or "pipeline"
     duration_seconds: int
     # OpenAI-specific (nullable)
     input_tokens: Optional[int] = None
@@ -396,7 +396,7 @@ class CallCost(BaseModel):
 
 
 class AgentCreate(AgentBase):
-    provider: str = "openai"  # "openai" or "ultravox"
+    provider: str = "openai"  # "openai", "ultravox", or "pipeline"
     voice_settings: Optional[VoiceSettings] = None
     call_settings: Optional[CallSettings] = None
     behavior_settings: Optional[BehaviorSettings] = None
@@ -415,7 +415,7 @@ class AgentUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     status: Optional[AgentStatus] = None
-    provider: Optional[str] = None  # "openai" or "ultravox"
+    provider: Optional[str] = None  # "openai", "ultravox", or "pipeline"
     voice_settings: Optional[VoiceSettings] = None
     call_settings: Optional[CallSettings] = None
     behavior_settings: Optional[BehaviorSettings] = None

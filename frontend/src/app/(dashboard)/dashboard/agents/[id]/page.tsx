@@ -842,7 +842,20 @@ export default function AgentEditorPage() {
     { id: 'Marcin-Polish', name: 'Marcin (PL, Male)', gender: 'male' },
   ];
 
-  const allVoices = selectedProvider === 'ultravox' ? ultravoxVoices : openaiVoices;
+  const pipelineVoices = [
+    // Turkish
+    { id: 'tr_TR-dfki-medium', name: 'DFKI (TR, Female)', gender: 'female' },
+    // English
+    { id: 'en_US-amy-medium', name: 'Amy (EN, Female)', gender: 'female' },
+    { id: 'en_US-danny-low', name: 'Danny (EN, Male)', gender: 'male' },
+    { id: 'en_US-lessac-medium', name: 'Lessac (EN, Female)', gender: 'female' },
+    { id: 'en_US-ryan-medium', name: 'Ryan (EN, Male)', gender: 'male' },
+    // German
+    { id: 'de_DE-thorsten-medium', name: 'Thorsten (DE, Male)', gender: 'male' },
+    { id: 'de_DE-kerstin-low', name: 'Kerstin (DE, Female)', gender: 'female' },
+  ];
+
+  const allVoices = selectedProvider === 'ultravox' ? ultravoxVoices : selectedProvider === 'pipeline' ? pipelineVoices : openaiVoices;
   const voices = voiceGenderFilter === 'all' ? allVoices : allVoices.filter(v => v.gender === voiceGenderFilter);
 
   const addInactivityMessage = () => {
@@ -2440,7 +2453,7 @@ A: Credit card, bank transfer, automatic payment order.
                 {/* Provider Selection */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">AI Provider</label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <button
                       onClick={() => {
                         setSelectedProvider('openai');
@@ -2477,6 +2490,24 @@ A: Credit card, bank transfer, automatic payment order.
                       <p className="font-medium text-sm">Ultravox</p>
                       <p className="text-xs text-muted-foreground">Native SIP, $0.05/min flat rate</p>
                     </button>
+                    <button
+                      onClick={() => {
+                        setSelectedProvider('pipeline');
+                        setSelectedModel('pipeline-qwen-7b');
+                        setSelectedVoice('en_US-amy-medium');
+                        setVoiceGenderFilter('all');
+                        setHasChanges(true);
+                      }}
+                      className={cn(
+                        'p-3 rounded-lg border text-left transition-all',
+                        selectedProvider === 'pipeline'
+                          ? 'border-primary-500 bg-primary-500/5'
+                          : 'border-border hover:border-primary-500/50'
+                      )}
+                    >
+                      <p className="font-medium text-sm">Pipeline (Local)</p>
+                      <p className="text-xs text-muted-foreground">Local STT + LLM + TTS, free</p>
+                    </button>
                   </div>
                 </div>
 
@@ -2495,6 +2526,12 @@ A: Credit card, bank transfer, automatic payment order.
                           <option value="gpt-realtime-mini">gpt-realtime-mini ($10/$20 per 1M audio tokens)</option>
                           <option value="gpt-realtime">gpt-realtime ($32/$64 per 1M audio tokens)</option>
                         </>
+                      ) : selectedProvider === 'pipeline' ? (
+                        <>
+                          <option value="pipeline-qwen-7b">Qwen 2.5 7B (fast, multilingual)</option>
+                          <option value="pipeline-llama-8b">Llama 3.1 8B (balanced)</option>
+                          <option value="pipeline-mistral-7b">Mistral 7B (efficient)</option>
+                        </>
                       ) : (
                         <>
                           <option value="ultravox-v0.7">Ultravox v0.7 (latest, recommended)</option>
@@ -2507,6 +2544,8 @@ A: Credit card, bank transfer, automatic payment order.
                     <p className="text-xs text-muted-foreground">
                       {selectedProvider === 'openai'
                         ? 'Mini model is more cost-effective for most use cases.'
+                        : selectedProvider === 'pipeline'
+                        ? 'Local LLM via Ollama. Free, runs on your server.'
                         : 'Ultravox v0.7 is the latest model with best quality.'}
                     </p>
                   </div>

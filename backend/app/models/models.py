@@ -128,10 +128,11 @@ class AIProvider(str, enum.Enum):
     """AI voice call provider"""
     OPENAI = "openai"
     ULTRAVOX = "ultravox"
+    PIPELINE = "pipeline"
 
 
 class RealtimeModel(str, enum.Enum):
-    """AI Model Options (both OpenAI and Ultravox)"""
+    """AI Model Options (OpenAI, Ultravox, and Pipeline)"""
     # OpenAI models
     GPT_REALTIME = "gpt-realtime"           # Premium: $32/$64 per 1M tokens
     GPT_REALTIME_MINI = "gpt-realtime-mini"  # Economic: $10/$20 per 1M tokens
@@ -140,6 +141,10 @@ class RealtimeModel(str, enum.Enum):
     ULTRAVOX_V0_6 = "ultravox-v0.6"
     ULTRAVOX_V0_6_GEMMA3_27B = "ultravox-v0.6-gemma3-27b"
     ULTRAVOX_V0_6_LLAMA3_3_70B = "ultravox-v0.6-llama3.3-70b"
+    # Pipeline models (local Ollama)
+    PIPELINE_QWEN_7B = "pipeline-qwen-7b"      # Qwen 2.5 7B - best multilingual
+    PIPELINE_LLAMA_8B = "pipeline-llama-8b"     # Llama 3.1 8B
+    PIPELINE_MISTRAL_7B = "pipeline-mistral-7b" # Mistral 7B
 
 
 class TranscriptModel(str, enum.Enum):
