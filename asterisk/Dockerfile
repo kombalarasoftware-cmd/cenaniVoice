@@ -121,8 +121,8 @@ RUN mkdir -p /var/spool/asterisk/recording \
 
 # Expose ports
 # SIP
-EXPOSE 5060/udp
-EXPOSE 5060/tcp
+EXPOSE 5043/udp
+EXPOSE 5043/tcp
 # SIP TLS
 EXPOSE 5061/tcp
 # RTP

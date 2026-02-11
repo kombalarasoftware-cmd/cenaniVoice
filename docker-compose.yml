@@ -167,8 +167,8 @@ services:
       context: ./asterisk
       dockerfile: Dockerfile
     ports:
-      - "5060:5060/udp"
-      - "5060:5060/tcp"
+      - "5043:5043/udp"
+      - "5043:5043/tcp"
       - "5061:5061/tcp"
       - "10000-10100:10000-10100/udp"
       # 8088 (ARI) is internal only - backend connects via Docker network

@@ -70,7 +70,7 @@ class Settings(BaseSettings):
 
     # Asterisk SIP Bridge (for Ultravox → Asterisk → SIP trunk routing)
     ASTERISK_EXTERNAL_HOST: str = ""  # Public IP/hostname for Asterisk SIP
-    ASTERISK_SIP_PORT: int = 5060
+    ASTERISK_SIP_PORT: int = 5043
     ULTRAVOX_SIP_USERNAME: str = "ultravox"  # Must match pjsip.conf [ultravox-auth]
     ULTRAVOX_SIP_PASSWORD: str = ""  # Must be set in .env, must match pjsip.conf
 
