@@ -324,6 +324,7 @@ async def get_cost_summary(
 @router.get("/costs/comparison")
 async def compare_model_costs(
     duration_minutes: int = 5,
+    current_user: User = Depends(get_current_user),
 ):
     """Compare costs between gpt-realtime and gpt-realtime-mini models"""
     from app.services.openai_realtime import compare_model_costs as compare_costs

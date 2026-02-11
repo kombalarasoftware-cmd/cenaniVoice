@@ -447,7 +447,7 @@ async def search_documents_tool(request: Request, db: Session = Depends(get_db))
 
     except Exception as e:
         logger.error(f"Document search error: {e}")
-        return {"status": "error", "message": f"Document search error: {str(e)}", "results": []}
+        return {"status": "error", "message": "Document search failed", "results": []}
 
 
 # --------------------------------------------------------- Confirm Appointment
@@ -514,7 +514,7 @@ async def confirm_appointment(request: Request, db: Session = Depends(get_db)):
         return {"status": "error", "message": f"Invalid date format: {appointment_date}. Use YYYY-MM-DD."}
     except Exception as e:
         logger.error(f"Appointment creation error: {e}")
-        return {"status": "error", "message": f"Appointment error: {str(e)}"}
+        return {"status": "error", "message": "Failed to create appointment"}
 
 
 # --------------------------------------------------------- Capture Lead
@@ -571,7 +571,7 @@ async def capture_lead(request: Request, db: Session = Depends(get_db)):
 
     except Exception as e:
         logger.error(f"Lead capture error: {e}")
-        return {"status": "error", "message": f"Lead capture error: {str(e)}"}
+        return {"status": "error", "message": "Failed to capture lead"}
 
 
 # --------------------------------------------------------- Get Caller Datetime
@@ -767,7 +767,7 @@ async def submit_survey_answer(request: Request, db: Session = Depends(get_db)):
 
     except Exception as e:
         logger.error(f"Survey answer error: {e}")
-        return {"status": "error", "message": f"Survey error: {str(e)}"}
+        return {"status": "error", "message": "Survey operation failed"}
 
 
 # --------------------------------------------------------- Survey Control
@@ -841,7 +841,7 @@ async def survey_control(request: Request, db: Session = Depends(get_db)):
 
     except Exception as e:
         logger.error(f"Survey control error: {e}")
-        return {"status": "error", "message": f"Survey error: {str(e)}"}
+        return {"status": "error", "message": "Survey operation failed"}
 
 
 # --------------------------------------------------------- Web Content Helper

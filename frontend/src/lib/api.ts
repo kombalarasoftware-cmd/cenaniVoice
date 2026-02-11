@@ -17,6 +17,59 @@ function getAuthToken(): string | null {
 }
 
 /**
+ * Get the refresh token from localStorage
+ */
+function getRefreshToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('refresh_token');
+}
+
+// Prevent multiple simultaneous refresh requests
+let refreshPromise: Promise<boolean> | null = null;
+
+/**
+ * Attempt to refresh the access token using the stored refresh token.
+ * Returns true if refresh succeeded, false otherwise.
+ */
+async function tryRefreshToken(): Promise<boolean> {
+  // If already refreshing, wait for the existing request
+  if (refreshPromise) return refreshPromise;
+
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return false;
+
+  refreshPromise = (async () => {
+    try {
+      const response = await fetch(`${API_V1}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+
+      if (!response.ok) {
+        // Refresh token expired or revoked — force logout
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        return false;
+      }
+
+      const data = await response.json();
+      localStorage.setItem('access_token', data.access_token);
+      if (data.refresh_token) {
+        localStorage.setItem('refresh_token', data.refresh_token);
+      }
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+/**
  * Build headers with optional auth token
  */
 function buildHeaders(options?: { contentType?: string; includeAuth?: boolean }): HeadersInit {
@@ -39,13 +92,13 @@ function buildHeaders(options?: { contentType?: string; includeAuth?: boolean })
 }
 
 /**
- * Generic API fetch wrapper with error handling
+ * Generic API fetch wrapper with error handling and automatic token refresh
  */
 export async function apiFetch<T = unknown>(
   path: string,
-  options?: RequestInit & { includeAuth?: boolean }
+  options?: RequestInit & { includeAuth?: boolean; _isRetry?: boolean }
 ): Promise<T> {
-  const { includeAuth, ...fetchOptions } = options || {};
+  const { includeAuth, _isRetry, ...fetchOptions } = options || {};
   const url = path.startsWith('http') ? path : `${API_V1}${path}`;
 
   const response = await fetch(url, {
@@ -55,6 +108,25 @@ export async function apiFetch<T = unknown>(
       ...(fetchOptions.headers as Record<string, string> || {}),
     },
   });
+
+  // On 401, try refreshing the token once (skip for auth endpoints)
+  if (
+    response.status === 401 &&
+    !_isRetry &&
+    !path.includes('/auth/login') &&
+    !path.includes('/auth/refresh')
+  ) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      return apiFetch<T>(path, { ...options, _isRetry: true });
+    }
+    // Refresh failed — redirect to login
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      window.location.href = '/login';
+    }
+  }
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ detail: response.statusText }));

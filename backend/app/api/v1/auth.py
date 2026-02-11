@@ -12,7 +12,7 @@ import redis
 from app.core.database import get_db
 from app.core.config import settings
 from app.models import User
-from app.schemas import UserCreate, UserResponse, Token, LoginRequest
+from app.schemas import UserCreate, UserResponse, Token, LoginRequest, RefreshTokenRequest
 from app.services.email_service import send_approval_email, verify_approval_token
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -114,19 +114,99 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire, "jti": str(uuid.uuid4())})
+    to_encode.update({"exp": expire, "jti": str(uuid.uuid4()), "type": "access"})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
 
+def create_refresh_token(user_id: str) -> str:
+    """Create a long-lived refresh token stored in Redis."""
+    import uuid
+    jti = str(uuid.uuid4())
+    expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode = {
+        "sub": user_id,
+        "exp": expire,
+        "jti": jti,
+        "type": "refresh",
+    }
+    token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+    # Store refresh token JTI in Redis for validation and revocation
+    if _redis_client:
+        try:
+            ttl = int(settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400)
+            _redis_client.setex(f"refresh_token:{jti}", ttl, user_id)
+        except Exception as e:
+            logger.warning(f"Failed to store refresh token in Redis: {e}")
+
+    return token
+
+
+def _validate_refresh_token(token: str) -> dict:
+    """Validate a refresh token and return its payload."""
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+        )
+
+    if payload.get("type") != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token type",
+        )
+
+    jti = payload.get("jti")
+    if not jti:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+        )
+
+    # Check if refresh token exists in Redis (not revoked)
+    if _redis_client:
+        try:
+            stored = _redis_client.get(f"refresh_token:{jti}")
+            if not stored:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Refresh token has been revoked",
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+    return payload
+
+
+def _revoke_refresh_token(jti: str) -> None:
+    """Revoke a refresh token by removing it from Redis."""
+    if _redis_client:
+        try:
+            _redis_client.delete(f"refresh_token:{jti}")
+        except Exception as e:
+            logger.warning(f"Failed to revoke refresh token: {e}")
+
+
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
-    """Verify JWT token and return payload"""
+    """Verify JWT access token and return payload"""
     try:
         payload = jwt.decode(
             credentials.credentials,
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM]
         )
+        # Reject refresh tokens used as access tokens
+        if payload.get("type") == "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         # Check token blacklist
         jti = payload.get("jti")
         if jti and _is_token_blacklisted(jti):
@@ -253,8 +333,9 @@ async def login(credentials: LoginRequest, db: Session = Depends(get_db)):
     # Clear failed login counter on success
     _clear_failed_logins(credentials.email)
     access_token = create_access_token(data={"sub": str(user.id)})
+    refresh_token = create_refresh_token(user_id=str(user.id))
 
-    return Token(access_token=access_token)
+    return Token(access_token=access_token, refresh_token=refresh_token)
 
 
 @router.get("/me", response_model=UserResponse)
@@ -264,10 +345,33 @@ async def get_me(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/refresh", response_model=Token)
-async def refresh_token(current_user: User = Depends(get_current_user)):
-    """Refresh access token"""
-    access_token = create_access_token(data={"sub": str(current_user.id)})
-    return Token(access_token=access_token)
+async def refresh_token(body: RefreshTokenRequest, db: Session = Depends(get_db)):
+    """
+    Exchange a valid refresh token for a new access + refresh token pair.
+    The old refresh token is revoked (rotation).
+    """
+    payload = _validate_refresh_token(body.refresh_token)
+
+    user_id = payload.get("sub")
+    old_jti = payload.get("jti")
+
+    # Verify user still exists and is active
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user or not user.is_active:
+        _revoke_refresh_token(old_jti)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive",
+        )
+
+    # Revoke old refresh token (rotation)
+    _revoke_refresh_token(old_jti)
+
+    # Issue new token pair
+    new_access_token = create_access_token(data={"sub": str(user.id)})
+    new_refresh_token = create_refresh_token(user_id=str(user.id))
+
+    return Token(access_token=new_access_token, refresh_token=new_refresh_token)
 
 
 @router.post("/logout")
@@ -275,13 +379,29 @@ async def logout(
     current_user: User = Depends(get_current_user),
     token: dict = Depends(verify_token),
 ):
-    """Logout and blacklist the current token"""
+    """Logout: blacklist access token and revoke all refresh tokens for user"""
     jti = token.get("jti")
     exp = token.get("exp")
     if jti and exp:
-        # Blacklist until the token would have expired
+        # Blacklist access token until it would have expired
         ttl = max(int(exp - datetime.now(timezone.utc).timestamp()), 0)
         _blacklist_token(jti, ttl)
+
+    # Revoke all refresh tokens for this user (scan Redis keys)
+    if _redis_client:
+        try:
+            cursor = 0
+            while True:
+                cursor, keys = _redis_client.scan(cursor, match="refresh_token:*", count=100)
+                for key in keys:
+                    stored_user_id = _redis_client.get(key)
+                    if stored_user_id == str(current_user.id):
+                        _redis_client.delete(key)
+                if cursor == 0:
+                    break
+        except Exception as e:
+            logger.warning(f"Failed to revoke refresh tokens on logout: {e}")
+
     return {"message": "Successfully logged out"}
 
 

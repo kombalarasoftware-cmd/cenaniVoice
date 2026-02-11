@@ -293,7 +293,7 @@ class UltravoxProvider(CallProvider):
                 return await self.service.delete_call(ultravox_call_id)
             except Exception as e2:
                 logger.error(f"Ultravox DELETE also failed: {e2}")
-                return {"success": False, "message": str(e)}
+                return {"success": False, "message": "Failed to end call"}
 
     async def get_transcript(self, call_id: str) -> list:
         """Get call transcript from Ultravox API."""

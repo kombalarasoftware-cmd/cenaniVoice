@@ -52,8 +52,18 @@ async def list_appointments(
     - date_from/date_to: Date range filter
     - search: Search in customer name/phone
     """
-    query = db.query(Appointment)
-    
+    query = db.query(Appointment).outerjoin(
+        Agent, Appointment.agent_id == Agent.id
+    ).outerjoin(
+        Campaign, Appointment.campaign_id == Campaign.id
+    ).filter(
+        or_(
+            Agent.owner_id == current_user.id,
+            Campaign.owner_id == current_user.id,
+            and_(Appointment.agent_id.is_(None), Appointment.campaign_id.is_(None)),
+        )
+    )
+
     # Apply filters
     if status:
         query = query.filter(Appointment.status == status)

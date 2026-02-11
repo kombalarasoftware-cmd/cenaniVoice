@@ -10,7 +10,7 @@ from datetime import datetime, date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 
 from app.core.database import get_db
 from app.models.models import Lead, LeadStatus, LeadInterestType, Agent, Campaign
@@ -55,8 +55,18 @@ async def list_leads(
     - date_from/date_to: Date range filter
     - search: Search in customer name/phone/email
     """
-    query = db.query(Lead)
-    
+    query = db.query(Lead).outerjoin(
+        Agent, Lead.agent_id == Agent.id
+    ).outerjoin(
+        Campaign, Lead.campaign_id == Campaign.id
+    ).filter(
+        or_(
+            Agent.owner_id == current_user.id,
+            Campaign.owner_id == current_user.id,
+            and_(Lead.agent_id.is_(None), Lead.campaign_id.is_(None)),
+        )
+    )
+
     # Apply filters
     if status:
         query = query.filter(Lead.status == status)

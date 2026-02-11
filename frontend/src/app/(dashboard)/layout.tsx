@@ -22,20 +22,22 @@ export default function DashboardLayout({
       return;
     }
 
-    // Validate token expiry by decoding JWT payload
+    // Validate token structure and expiry
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
+      const parts = token.split('.');
+      if (parts.length !== 3) throw new Error('Invalid JWT');
+      const payload = JSON.parse(atob(parts[1]));
       if (payload.exp && payload.exp * 1000 < Date.now()) {
         localStorage.removeItem('access_token');
         router.replace('/login');
         return;
       }
+      setIsAuthenticated(true);
+      setIsLoading(false);
     } catch {
-      // If token is not a valid JWT, still allow access (dev mode)
+      localStorage.removeItem('access_token');
+      router.replace('/login');
     }
-
-    setIsAuthenticated(true);
-    setIsLoading(false);
   }, [router]);
 
   if (isLoading || !isAuthenticated) {

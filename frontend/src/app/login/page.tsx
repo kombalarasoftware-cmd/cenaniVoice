@@ -46,9 +46,19 @@ export default function LoginPage() {
 
       const data = await response.json();
       
-      // Store token in localStorage
+      // Store token and user info in localStorage
       localStorage.setItem('access_token', data.access_token);
-      
+      if (data.refresh_token) {
+        localStorage.setItem('refresh_token', data.refresh_token);
+      }
+      try {
+        const payload = JSON.parse(atob(data.access_token.split('.')[1]));
+        if (payload.name) localStorage.setItem('user_name', payload.name);
+        if (payload.email) localStorage.setItem('user_email', payload.email);
+      } catch {
+        // JWT decode failed, user info won't be shown in sidebar
+      }
+
       toast.success('Login successful!');
       router.push('/dashboard');
     } catch (error) {

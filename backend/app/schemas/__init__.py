@@ -13,6 +13,7 @@ from app.schemas.schemas import (
     
     # Auth
     Token,
+    RefreshTokenRequest,
     TokenPayload,
     LoginRequest,
     
@@ -65,6 +66,7 @@ __all__ = [
     "UserUpdate",
     "UserResponse",
     "Token",
+    "RefreshTokenRequest",
     "TokenPayload",
     "LoginRequest",
     "PromptSections",

@@ -497,14 +497,14 @@ class AudioBridge:
                         return {
                             "success": False,
                             "results": [],
-                            "message": "Yüklü dokümanlarda bu konuda bilgi bulunamadı"
+                            "message": "No matching information found in uploaded documents"
                         }
                         
             except Exception as e:
                 logger.error(f"Document search error: {e}")
                 return {
                     "success": False,
-                    "message": f"Doküman arama hatası: {str(e)}",
+                    "message": "Document search failed",
                     "results": []
                 }
         
@@ -591,7 +591,7 @@ class AudioBridge:
                 logger.error(f"Appointment creation error: {e}")
                 return {
                     "success": False,
-                    "message": f"Randevu oluşturulamadı: {str(e)}"
+                    "message": "Failed to create appointment"
                 }
         
         elif name == "capture_lead":
@@ -684,7 +684,7 @@ class AudioBridge:
                 logger.error(f"Lead capture error: {e}")
                 return {
                     "success": False,
-                    "message": f"Lead kaydedilemedi: {str(e)}"
+                    "message": "Failed to capture lead"
                 }
         
         elif name == "get_caller_datetime":
@@ -1757,14 +1757,13 @@ class AudioBridge:
                 logger.error(f"verify_contact_info error: {e}", exc_info=True)
                 return {
                     "success": False,
-                    "error": str(e),
                     "info_type": info_type,
                     "original": raw_value,
                     "message": {
-                        "tr": f"Doğrulama sırasında hata oluştu: {str(e)}. Bilgiyi tekrar alın.",
-                        "de": f"Fehler bei der Überprüfung: {str(e)}. Bitte erneut erfassen.",
-                        "en": f"Verification error: {str(e)}. Please capture the info again."
-                    }.get(language, f"Verification error: {str(e)}")
+                        "tr": "Doğrulama sırasında hata oluştu. Bilgiyi tekrar alın.",
+                        "de": "Fehler bei der Überprüfung. Bitte erneut erfassen.",
+                        "en": "Verification failed. Please capture the info again."
+                    }.get(language, "Verification failed. Please capture the info again.")
                 }
         
         elif name == "submit_survey_answer":
@@ -1929,7 +1928,7 @@ class AudioBridge:
                 logger.error(f"Survey answer error: {e}")
                 return {
                     "success": False,
-                    "message": f"Cevap kaydedilemedi: {str(e)}"
+                    "message": "Failed to save survey answer"
                 }
         
         elif name == "survey_control":
@@ -2030,14 +2029,14 @@ class AudioBridge:
                     else:
                         return {
                             "success": False,
-                            "message": f"Geçersiz aksiyon: {action}"
+                            "message": f"Unknown action: {action}"
                         }
                         
             except Exception as e:
                 logger.error(f"Survey control error: {e}")
                 return {
                     "success": False,
-                    "message": f"Anket işlemi başarısız: {str(e)}"
+                    "message": "Survey operation failed"
                 }
         
         return {"error": f"Unknown tool: {name}"}

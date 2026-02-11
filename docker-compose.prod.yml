@@ -138,13 +138,48 @@ services:
           cpus: '0.5'
 
   # ===========================================
-  # Portainer - Docker Web UI
+  # Docker Socket Proxy (security layer for Portainer)
+  # Only exposes read-only Docker API endpoints
+  # ===========================================
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    environment:
+      - CONTAINERS=1
+      - IMAGES=1
+      - NETWORKS=1
+      - VOLUMES=1
+      - SERVICES=1
+      - TASKS=1
+      - INFO=1
+      - EVENTS=1
+      - VERSION=1
+      - SYSTEM=1
+      - DISTRIBUTION=1
+      - BUILD=1
+      - EXEC=1
+      - POST=1
+      - LOG_LEVEL=warning
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - voiceai-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+
+  # ===========================================
+  # Portainer - Docker Web UI (via socket proxy)
   # ===========================================
   portainer:
     image: portainer/portainer-ce:latest
+    command: -H tcp://docker-socket-proxy:2375
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
       - portainer-data:/data
+    depends_on:
+      - docker-socket-proxy
     networks:
       - voiceai-network
     restart: unless-stopped

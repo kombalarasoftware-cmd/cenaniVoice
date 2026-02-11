@@ -1,11 +1,12 @@
 """
 Survey API Endpoints
-Anket yanıtlarını listeleme, görüntüleme ve analiz etme
+
+Handles survey response listing, viewing, and analysis.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, or_, and_
 from typing import Optional, List
 from datetime import datetime, timedelta
 
@@ -31,12 +32,22 @@ async def list_survey_responses(
     current_user: User = Depends(get_current_user)
 ):
     """List all survey responses with filtering and pagination"""
-    query = db.query(SurveyResponse)
-    
+    query = db.query(SurveyResponse).outerjoin(
+        Agent, SurveyResponse.agent_id == Agent.id
+    ).outerjoin(
+        Campaign, SurveyResponse.campaign_id == Campaign.id
+    ).filter(
+        or_(
+            Agent.owner_id == current_user.id,
+            Campaign.owner_id == current_user.id,
+            and_(SurveyResponse.agent_id.is_(None), SurveyResponse.campaign_id.is_(None)),
+        )
+    )
+
     # Filter by agent
     if agent_id:
         query = query.filter(SurveyResponse.agent_id == agent_id)
-    
+
     # Filter by campaign
     if campaign_id:
         query = query.filter(SurveyResponse.campaign_id == campaign_id)
@@ -115,12 +126,23 @@ async def get_survey_stats(
 ):
     """Get survey statistics"""
     start_date = datetime.utcnow() - timedelta(days=days)
-    
-    query = db.query(SurveyResponse).filter(SurveyResponse.created_at >= start_date)
-    
+
+    query = db.query(SurveyResponse).outerjoin(
+        Agent, SurveyResponse.agent_id == Agent.id
+    ).outerjoin(
+        Campaign, SurveyResponse.campaign_id == Campaign.id
+    ).filter(
+        SurveyResponse.created_at >= start_date,
+        or_(
+            Agent.owner_id == current_user.id,
+            Campaign.owner_id == current_user.id,
+            and_(SurveyResponse.agent_id.is_(None), SurveyResponse.campaign_id.is_(None)),
+        )
+    )
+
     if agent_id:
         query = query.filter(SurveyResponse.agent_id == agent_id)
-    
+
     if campaign_id:
         query = query.filter(SurveyResponse.campaign_id == campaign_id)
     
@@ -213,12 +235,20 @@ async def get_survey_response(
 ):
     """Get a single survey response by ID"""
     response = db.query(SurveyResponse).filter(SurveyResponse.id == response_id).first()
-    
+
     if not response:
         raise HTTPException(status_code=404, detail="Survey response not found")
-    
-    agent = db.query(Agent).filter(Agent.id == response.agent_id).first()
+
+    # Verify ownership through agent or campaign
+    agent = db.query(Agent).filter(Agent.id == response.agent_id).first() if response.agent_id else None
     campaign = db.query(Campaign).filter(Campaign.id == response.campaign_id).first() if response.campaign_id else None
+
+    owner_match = (
+        (agent and agent.owner_id == current_user.id) or
+        (campaign and campaign.owner_id == current_user.id)
+    )
+    if not owner_match and (response.agent_id or response.campaign_id):
+        raise HTTPException(status_code=404, detail="Survey response not found")
     
     return {
         "id": response.id,
@@ -251,10 +281,20 @@ async def delete_survey_response(
 ):
     """Delete a survey response"""
     response = db.query(SurveyResponse).filter(SurveyResponse.id == response_id).first()
-    
+
     if not response:
         raise HTTPException(status_code=404, detail="Survey response not found")
-    
+
+    # Verify ownership through agent or campaign
+    if response.agent_id:
+        agent = db.get(Agent, response.agent_id)
+        if not agent or agent.owner_id != current_user.id:
+            raise HTTPException(status_code=404, detail="Survey response not found")
+    elif response.campaign_id:
+        campaign = db.get(Campaign, response.campaign_id)
+        if not campaign or campaign.owner_id != current_user.id:
+            raise HTTPException(status_code=404, detail="Survey response not found")
+
     db.delete(response)
     db.commit()
     
@@ -270,8 +310,10 @@ async def get_agent_survey_summary(
 ):
     """Get survey summary for a specific agent"""
     agent = db.query(Agent).filter(Agent.id == agent_id).first()
-    
+
     if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    if agent.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Agent not found")
     
     start_date = datetime.utcnow() - timedelta(days=days)

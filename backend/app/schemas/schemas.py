@@ -78,7 +78,12 @@ class UserResponse(UserBase):
 
 class Token(BaseModel):
     access_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
 
 
 class TokenPayload(BaseModel):
@@ -1014,7 +1019,7 @@ class CallTagsUpdate(BaseModel):
 
 class CallTagsResponse(BaseModel):
     """Call tags response"""
-    call_id: int
+    call_id: str
     tags: List[str]
 
 

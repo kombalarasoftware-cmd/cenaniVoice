@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from app.core.database import get_db
 from app.api.v1.auth import get_current_user
-from app.models import SIPTrunk, SystemSettings, APIKey, User
+from app.models import SIPTrunk, SystemSettings, APIKey, User, UserRole
 from app.schemas import SIPTrunkCreate, SIPTrunkResponse
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
@@ -235,7 +235,10 @@ async def update_general_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Update general settings"""
+    """Update general settings (admin only)"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
     for key, value in settings.items():
         setting = db.query(SystemSettings).filter(
             SystemSettings.key == key
@@ -262,14 +265,14 @@ async def test_openai_connection(
 ):
     """Test OpenAI API key"""
     import openai
-    
+
     try:
-        client = openai.OpenAI(api_key=api_key)
-        models = client.models.list()
-        
+        client = openai.AsyncOpenAI(api_key=api_key)
+        models = await client.models.list()
+
         # Check if realtime model is available
         has_realtime = any("realtime" in m.id for m in models.data)
-        
+
         return {
             "success": True,
             "message": "API key is valid",
@@ -280,7 +283,7 @@ async def test_openai_connection(
             "success": False,
             "message": "Invalid API key"
         }
-    except Exception as e:
+    except Exception:
         return {
             "success": False,
             "message": "API key validation failed"

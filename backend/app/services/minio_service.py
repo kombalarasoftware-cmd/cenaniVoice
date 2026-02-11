@@ -235,8 +235,7 @@ class MinIOService:
         """
         import redis.asyncio as redis_async
 
-        redis_url = f"redis://:{settings.REDIS_PASSWORD}@redis:6379/0"
-        r = redis_async.from_url(redis_url, decode_responses=False)
+        r = redis_async.from_url(settings.REDIS_URL, decode_responses=False)
 
         try:
             # Fetch input (customer) and output (agent) audio
