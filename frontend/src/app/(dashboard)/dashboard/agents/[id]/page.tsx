@@ -2448,7 +2448,7 @@ A: Credit card, bank transfer, automatic payment order.
                         setSelectedVoice('alloy');
                         setVoiceGenderFilter('all');
                         setHasChanges(true);
-                      }}}
+                      }}
                       className={cn(
                         'p-3 rounded-lg border text-left transition-all',
                         selectedProvider === 'openai'

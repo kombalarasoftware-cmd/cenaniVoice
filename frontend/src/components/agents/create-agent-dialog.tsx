@@ -417,7 +417,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
                         setSelectedProvider(p.id);
                         setSelectedVoice(p.id === 'ultravox' ? 'Mark' : 'alloy');
                         setGenderFilter('all');
-                      }}}
+                      }}
                       className={cn(
                         'p-3 rounded-lg border text-left transition-all',
                         selectedProvider === p.id
