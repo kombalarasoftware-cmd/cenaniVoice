@@ -169,7 +169,7 @@ services:
     ports:
       - "5043:5043/udp"
       - "5043:5043/tcp"
-      - "5061:5061/tcp"
+      # 5061 removed - not needed, security risk
       - "10000-10100:10000-10100/udp"
       # 8088 (ARI) is internal only - backend connects via Docker network
     volumes:

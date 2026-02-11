@@ -95,8 +95,8 @@ services:
       context: ./pgadmin
       dockerfile: Dockerfile
     environment:
-      - PGADMIN_DEFAULT_EMAIL=admin@speakmaxi.com
-      - PGADMIN_DEFAULT_PASSWORD=Speakmaxi2026!
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-admin@speakmaxi.com}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD:?PGADMIN_PASSWORD is required}
       - PGADMIN_CONFIG_PROXY_X_FOR_COUNT=1
       - PGADMIN_CONFIG_PROXY_X_PROTO_COUNT=1
       - PGADMIN_CONFIG_PROXY_X_HOST_COUNT=1
@@ -122,7 +122,7 @@ services:
     image: mher/flower:2.0
     environment:
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
-      - FLOWER_BASIC_AUTH=admin:${FLOWER_PASSWORD:-Speakmaxi2026!}
+      - FLOWER_BASIC_AUTH=admin:${FLOWER_PASSWORD:?FLOWER_PASSWORD is required}
       - FLOWER_URL_PREFIX=
       - FLOWER_PORT=5555
     depends_on:
