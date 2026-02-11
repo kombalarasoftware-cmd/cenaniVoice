@@ -170,8 +170,8 @@ services:
       - "5060:5060/udp"
       - "5060:5060/tcp"
       - "5061:5061/tcp"
-      - "8088:8088"
       - "10000-10100:10000-10100/udp"
+      # 8088 (ARI) is internal only - backend connects via Docker network
     volumes:
       - asterisk-recordings:/var/spool/asterisk/recording
     environment:
@@ -198,8 +198,7 @@ services:
   asterisk-bridge:
     image: voiceai-backend
     user: "1000:1000"
-    ports:
-      - "9092:9092"
+    # Port 9092 is internal only - asterisk connects via Docker network
     env_file:
       - .env
     volumes:
@@ -230,8 +229,7 @@ services:
   # ===========================================
   minio:
     image: minio/minio:RELEASE.2024-06-13T22-53-53Z
-    ports:
-      - "9001:9001"  # Console only; API port internal-only
+    # Console (9001) and API (9000) are internal only - nginx proxies in prod
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}

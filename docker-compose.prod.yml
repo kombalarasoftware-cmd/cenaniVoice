@@ -45,25 +45,10 @@ services:
   # Asterisk Bridge - Production
   # ===========================================
   asterisk-bridge:
-    ports: !reset []  # Internal only - asterisk connects via Docker network
     volumes: !reset []
     restart: unless-stopped
 
-  # ===========================================
-  # Asterisk - Production (close ARI, keep SIP/RTP)
-  # ===========================================
-  asterisk:
-    ports: !reset
-      - "5060:5060/udp"
-      - "5060:5060/tcp"
-      - "5061:5061/tcp"
-      - "10000-10100:10000-10100/udp"
-
-  # ===========================================
-  # MinIO - Production (console via nginx proxy)
-  # ===========================================
-  minio:
-    ports: !reset []  # Internal only - nginx proxies via m.speakmaxi.com
+  # ===========================================\n  # MinIO - Production (ports already internal in base)\n  # ===========================================\n  # minio: no overrides needed - base already has no external ports
 
   # ===========================================
   # Nginx Reverse Proxy with SSL
