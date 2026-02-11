@@ -9,6 +9,9 @@ services:
   # ===========================================
   frontend:
     environment:
+      # NOTE: NEXT_PUBLIC_* vars are baked at build time in Next.js.
+      # api.ts defaults to '' (relative URLs) which works with nginx proxy.
+      # These are kept for documentation/SSR purposes only.
       - NEXT_PUBLIC_API_URL=https://one.speakmaxi.com
       - NEXT_PUBLIC_WS_URL=wss://one.speakmaxi.com
       - NODE_ENV=production
