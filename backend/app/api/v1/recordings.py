@@ -9,7 +9,7 @@ import struct
 import os
 
 from app.core.database import get_db
-from app.api.v1.auth import get_current_user, get_current_user_optional
+from app.api.v1.auth import get_current_user
 from app.models import CallLog, User
 from app.schemas import RecordingResponse
 
@@ -269,7 +269,7 @@ def _mix_stereo(input_pcm: bytes, output_pcm: bytes) -> bytes:
 async def download_call_recording(
     call_uuid: str,
     channel: Optional[str] = Query("stereo", description="Channel: input (customer), output (agent), or stereo (both)"),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: Optional[User] = Depends(get_current_user)
 ):
     """
     Download recording for a call by UUID.

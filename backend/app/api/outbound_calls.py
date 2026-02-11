@@ -21,7 +21,7 @@ from app.core.database import get_db
 from app.core.config import settings
 from app.models.models import Agent, CallLog, CallStatus
 from app.services.provider_factory import get_provider
-from app.api.v1.auth import get_current_user_optional
+from app.api.v1.auth import get_current_user
 
 # Redis client for passing agent settings to asterisk bridge
 try:
@@ -146,7 +146,7 @@ def normalize_phone_number(phone: str) -> str:
 async def initiate_outbound_call(
     request: OutboundCallRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_optional),
+    current_user = Depends(get_current_user),
 ):
     """
     Initiate an outbound call.
@@ -380,7 +380,7 @@ async def hangup_call(
     channel_id: str,
     call_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_optional),
+    current_user = Depends(get_current_user),
 ):
     """
     Hangup an active call by channel ID.

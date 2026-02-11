@@ -13,7 +13,7 @@ from app.core.database import get_db
 from app.models.models import (
     User, Agent, Campaign, SurveyResponse, SurveyStatus
 )
-from app.api.v1.auth import get_current_user_optional
+from app.api.v1.auth import get_current_user
 
 router = APIRouter(prefix="/surveys", tags=["Surveys"])
 
@@ -28,7 +28,7 @@ async def list_survey_responses(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """List all survey responses with filtering and pagination"""
     query = db.query(SurveyResponse)
@@ -111,7 +111,7 @@ async def get_survey_stats(
     campaign_id: Optional[int] = None,
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Get survey statistics"""
     start_date = datetime.utcnow() - timedelta(days=days)
@@ -209,7 +209,7 @@ async def get_survey_stats(
 async def get_survey_response(
     response_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Get a single survey response by ID"""
     response = db.query(SurveyResponse).filter(SurveyResponse.id == response_id).first()
@@ -247,7 +247,7 @@ async def get_survey_response(
 async def delete_survey_response(
     response_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Delete a survey response"""
     response = db.query(SurveyResponse).filter(SurveyResponse.id == response_id).first()
@@ -266,7 +266,7 @@ async def get_agent_survey_summary(
     agent_id: int,
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Get survey summary for a specific agent"""
     agent = db.query(Agent).filter(Agent.id == agent_id).first()

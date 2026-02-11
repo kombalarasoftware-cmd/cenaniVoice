@@ -170,29 +170,27 @@ async def get_current_user_optional(
     db: Session = Depends(get_db),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional)
 ) -> Optional[User]:
-    """Get current user if authenticated, otherwise raise 401."""
-    if credentials:
-        try:
-            payload = jwt.decode(
-                credentials.credentials,
-                settings.SECRET_KEY,
-                algorithms=[settings.ALGORITHM]
-            )
-            # Check token blacklist
-            jti = payload.get("jti")
-            if jti and _is_token_blacklisted(jti):
-                raise HTTPException(status_code=401, detail="Token has been revoked")
-            user_id = payload.get("sub")
-            if user_id:
-                user = db.query(User).filter(User.id == user_id).first()
-                if user and user.is_active:
-                    return user
-        except HTTPException:
-            raise
-        except Exception:
-            pass
-
-    raise HTTPException(status_code=401, detail="Not authenticated")
+    """Get current user if authenticated, otherwise return None (truly optional)."""
+    if not credentials:
+        return None
+    try:
+        payload = jwt.decode(
+            credentials.credentials,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM]
+        )
+        # Check token blacklist
+        jti = payload.get("jti")
+        if jti and _is_token_blacklisted(jti):
+            return None
+        user_id = payload.get("sub")
+        if user_id:
+            user = db.query(User).filter(User.id == user_id).first()
+            if user and user.is_active:
+                return user
+    except Exception:
+        pass
+    return None
 
 
 @router.post("/register", response_model=UserResponse)

@@ -14,7 +14,7 @@ import os
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.api.v1.auth import get_current_user, get_current_user_optional
+from app.api.v1.auth import get_current_user
 from sqlalchemy import or_
 from app.models import CallLog, User, Campaign, Agent
 from app.models.models import CallStatus, CallOutcome, CallTag
@@ -551,7 +551,7 @@ async def broadcast_call_update(call_data: dict):
 @router.get("/{call_id}/transcript")
 async def get_call_transcript(
     call_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: Optional[User] = Depends(get_current_user)
 ):
     """
     Get real-time transcript for an active call.
@@ -649,7 +649,7 @@ async def add_transcript_message(
 async def get_call_tags(
     call_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get tags for a specific call.
@@ -669,7 +669,7 @@ async def update_call_tags(
     call_id: str,
     tag_data: CallTagsUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Update tags for a specific call.

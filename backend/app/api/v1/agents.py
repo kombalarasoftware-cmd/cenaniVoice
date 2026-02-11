@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.api.v1.auth import get_current_user, verify_token, get_current_user_optional
+from app.api.v1.auth import get_current_user, verify_token
 from app.models import Agent, User
 from app.models.models import AgentStatus as ModelAgentStatus
 from app.schemas import (
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/agents", tags=["Agents"])
 @router.get("/voices/list")
 async def list_voices(
     provider: str = Query("openai", description="Provider: 'openai' or 'ultravox'"),
-    current_user: User = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """List available voices for the specified provider."""
     if provider == "openai":
@@ -140,7 +140,7 @@ async def list_agents(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """List all agents for current user (including system agents)"""
     from sqlalchemy import or_
@@ -166,7 +166,7 @@ async def list_agents(
 async def create_agent(
     agent_data: AgentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Create a new agent"""
     agent = Agent(
@@ -237,7 +237,7 @@ async def create_agent(
 async def get_agent(
     agent_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Get agent details"""
     agent = db.query(Agent).filter(
@@ -256,7 +256,7 @@ async def update_agent(
     agent_id: int,
     agent_data: AgentUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Update an agent"""
     agent = db.query(Agent).filter(
@@ -364,7 +364,7 @@ async def update_agent(
 async def delete_agent(
     agent_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Delete an agent"""
     agent = db.query(Agent).filter(
@@ -392,7 +392,7 @@ async def delete_agent(
 async def duplicate_agent(
     agent_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Duplicate an agent with all settings"""
     # System agents can be duplicated by anyone, others only by owner
@@ -478,7 +478,7 @@ async def duplicate_agent(
 async def activate_agent(
     agent_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Activate an agent"""
     agent = db.query(Agent).filter(
@@ -499,7 +499,7 @@ async def activate_agent(
 async def deactivate_agent(
     agent_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Deactivate an agent"""
     agent = db.query(Agent).filter(

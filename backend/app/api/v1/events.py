@@ -16,7 +16,7 @@ import redis.asyncio as aioredis
 import os
 
 from app.core.database import get_db
-from app.api.v1.auth import get_current_user, get_current_user_optional
+from app.api.v1.auth import get_current_user
 from app.models import User
 
 router = APIRouter(prefix="/events", tags=["Events"])
@@ -177,7 +177,7 @@ async def event_generator(call_id: str) -> AsyncGenerator[str, None]:
 @router.get("/stream/{call_id}")
 async def stream_call_events(
     call_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: Optional[User] = Depends(get_current_user)
 ):
     """
     Stream real-time events for a call using Server-Sent Events (SSE).
@@ -204,7 +204,7 @@ async def stream_call_events(
 @router.get("/cost/{call_id}")
 async def get_call_cost(
     call_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: Optional[User] = Depends(get_current_user)
 ):
     """
     Get cost breakdown for a specific call.
