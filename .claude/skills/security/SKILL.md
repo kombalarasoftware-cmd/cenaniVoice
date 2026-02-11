@@ -1,6 +1,5 @@
 ---
 description: Security vulnerability scan on file, module, or project
-allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # /security - Security Audit

@@ -1,6 +1,5 @@
 ---
 description: Interview the user to gather detailed requirements before implementing a feature
-allowed-tools: Read, Grep, Glob
 ---
 
 # Feature Interview

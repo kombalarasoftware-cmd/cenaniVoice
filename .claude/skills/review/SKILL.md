@@ -1,6 +1,5 @@
 ---
 description: Code review with security, performance, and quality checks
-allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # /review - Code Review
