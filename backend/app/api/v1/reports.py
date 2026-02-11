@@ -345,9 +345,9 @@ async def get_ai_features_overview(
     current_user: User = Depends(get_current_user)
 ):
     """
-    AI Features Overview - Tüm yeni özelliklerin özet raporu.
-    Sentiment dağılımı, ortalama quality score, tag istatistikleri,
-    callback sayıları, action items.
+    AI Features Overview - Summary report of all AI features.
+    Sentiment distribution, average quality score, tag statistics,
+    callback counts, action items.
     """
     start_date = datetime.utcnow() - timedelta(days=days)
     
@@ -464,8 +464,8 @@ async def get_sentiment_trend(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Sentiment Trend - Günlere göre sentiment dağılımı.
-    Frontend'de line/bar chart olarak gösterilir.
+    Sentiment Trend - Daily sentiment distribution.
+    Displayed as line/bar chart on frontend.
     """
     start_date = datetime.utcnow() - timedelta(days=days)
     
@@ -503,7 +503,7 @@ async def get_quality_score_trend(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Quality Score Trend - Günlere göre ortalama quality score.
+    Quality Score Trend - Daily average quality score.
     """
     start_date = datetime.utcnow() - timedelta(days=days)
     
@@ -554,7 +554,7 @@ async def get_tags_distribution(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Tags Distribution - En çok kullanılan etiketler ve dağılımı.
+    Tags Distribution - Most used tags and their distribution.
     """
     start_date = datetime.utcnow() - timedelta(days=days)
     
@@ -607,7 +607,7 @@ async def get_callback_report(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Callback Report - Planlanan geri aramaların detaylı raporu.
+    Callback Report - Detailed report of scheduled callbacks.
     """
     start_date = datetime.utcnow() - timedelta(days=days)
     now = datetime.utcnow()
@@ -675,8 +675,8 @@ async def get_call_ai_details(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Single Call AI Details - Tek bir çağrının tüm AI analiz detayları.
-    Quality score, sentiment, tags, summary, action items vs.
+    Single Call AI Details - Full AI analysis details for a single call.
+    Quality score, sentiment, tags, summary, action items, etc.
     """
     call = db.query(CallLog).join(CallLog.campaign).filter(
         CallLog.id == call_id,
@@ -732,8 +732,8 @@ async def get_agent_ai_comparison(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Agent Comparison - Agent'lar arası AI metrik karşılaştırması.
-    Hangi agent daha iyi sentiment, quality score, summary coverage alıyor?
+    Agent Comparison - AI metric comparison across agents.
+    Which agent achieves better sentiment, quality score, summary coverage?
     """
     start_date = datetime.utcnow() - timedelta(days=days)
     

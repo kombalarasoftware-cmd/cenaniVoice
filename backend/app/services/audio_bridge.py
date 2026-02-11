@@ -286,7 +286,7 @@ class AudioBridge:
                 "date": args.get("date"),
                 "notes": args.get("notes")
             }
-            return {"success": True, "message": "Ödeme sözü kaydedildi"}
+            return {"success": True, "message": "Payment promise recorded"}
         
         elif name == "save_customer_data":
             data_type = args.get("data_type", "")
@@ -294,7 +294,7 @@ class AudioBridge:
             confirmed = args.get("confirmed", False)
 
             if not confirmed:
-                return {"success": False, "message": "Müşteri henüz onaylamadı. Veriyi doğrulayın."}
+                return {"success": False, "message": "Customer has not confirmed yet. Please verify the data."}
 
             try:
                 from app.core.database import SessionLocal
@@ -310,7 +310,7 @@ class AudioBridge:
                 logger.error(f"save_customer_data DB error: {e}")
 
             logger.info(f"[{channel_id}] Customer {data_type} saved: {value}")
-            return {"success": True, "message": f"{data_type} kaydedildi: {value}"}
+            return {"success": True, "message": f"{data_type} saved: {value}"}
 
         elif name == "set_call_sentiment":
             sentiment = args.get("sentiment", "neutral")
@@ -331,7 +331,7 @@ class AudioBridge:
                 logger.error(f"set_call_sentiment DB error: {e}")
 
             logger.info(f"[{channel_id}] Sentiment: {sentiment} - {reason}")
-            return {"success": True, "message": f"Duygu durumu kaydedildi: {sentiment}"}
+            return {"success": True, "message": f"Sentiment recorded: {sentiment}"}
 
         elif name == "add_call_tags":
             tags = args.get("tags", [])
@@ -351,7 +351,7 @@ class AudioBridge:
                 logger.error(f"add_call_tags DB error: {e}")
 
             logger.info(f"[{channel_id}] Tags added: {tags}")
-            return {"success": True, "message": f"Etiketler eklendi: {', '.join(tags)}"}
+            return {"success": True, "message": f"Tags added: {', '.join(tags)}"}
 
         elif name == "generate_call_summary":
             summary_text = args.get("summary", "")
@@ -373,20 +373,20 @@ class AudioBridge:
                 logger.error(f"generate_call_summary DB error: {e}")
 
             logger.info(f"[{channel_id}] Summary: {summary_text[:100]}...")
-            return {"success": True, "message": "Görüşme özeti kaydedildi"}
+            return {"success": True, "message": "Call summary saved"}
 
         elif name == "transfer_to_human":
-            reason = args.get("reason", "Müşteri talebi")
+            reason = args.get("reason", "Customer request")
             
             # Transfer the call
             # await self.asterisk.transfer_call(channel_id, "PJSIP/operator")
             
             session.outcome = "transferred"
-            return {"success": True, "message": f"Aktarılıyor: {reason}"}
+            return {"success": True, "message": f"Transferring: {reason}"}
         
         elif name == "schedule_callback":
             session.callback_scheduled = args.get("datetime")
-            return {"success": True, "message": "Geri arama planlandı"}
+            return {"success": True, "message": "Callback scheduled"}
         
         elif name == "end_call":
             session.outcome = args.get("outcome", "completed")
@@ -398,7 +398,7 @@ class AudioBridge:
             # End the call after a short delay (allows AI to say goodbye)
             asyncio.create_task(self._delayed_hangup(channel_id, 2))
             
-            return {"success": True, "message": "Görüşme sonlandırılıyor"}
+            return {"success": True, "message": "Ending call"}
         
         elif name == "search_web_source":
             query = args.get("query", "")
@@ -409,7 +409,7 @@ class AudioBridge:
             if not web_sources:
                 return {
                     "success": False,
-                    "message": "Bu agent için web kaynağı tanımlanmamış. Müşteriye bildiklerinle cevap ver.",
+                    "message": "No web sources configured for this agent. Answer with what you know.",
                     "results": []
                 }
             
@@ -437,13 +437,13 @@ class AudioBridge:
                 return {
                     "success": True,
                     "results": results,
-                    "message": f"{len(results)} kaynaktan bilgi bulundu"
+                    "message": f"Found information from {len(results)} source(s)"
                 }
             else:
                 return {
                     "success": False,
                     "results": [],
-                    "message": "Bu konuda bilgi bulunamadı"
+                    "message": "No information found on this topic"
                 }
         
         elif name == "search_documents":
@@ -452,7 +452,7 @@ class AudioBridge:
             if not query:
                 return {
                     "success": False,
-                    "message": "Arama sorgusu boş olamaz",
+                    "message": "Search query cannot be empty",
                     "results": []
                 }
             
@@ -468,7 +468,7 @@ class AudioBridge:
                     if not agent_id:
                         return {
                             "success": False,
-                            "message": "Agent ID bulunamadı",
+                            "message": "Agent ID not found",
                             "results": []
                         }
                     
@@ -491,7 +491,7 @@ class AudioBridge:
                         return {
                             "success": True,
                             "results": formatted_results,
-                            "message": f"{len(results)} dokümandan bilgi bulundu"
+                            "message": f"Found information from {len(results)} document(s)"
                         }
                     else:
                         return {
@@ -521,7 +521,7 @@ class AudioBridge:
             if not customer_name or not appointment_date or not appointment_time:
                 return {
                     "success": False,
-                    "message": "Randevu için müşteri adı, tarih ve saat gereklidir"
+                    "message": "Customer name, date, and time are required for appointment"
                 }
             
             try:
@@ -535,7 +535,7 @@ class AudioBridge:
                 except ValueError:
                     return {
                         "success": False,
-                        "message": f"Geçersiz tarih formatı: {appointment_date}. YYYY-MM-DD formatında olmalı."
+                        "message": f"Invalid date format: {appointment_date}. Must be YYYY-MM-DD."
                     }
                 
                 # Map appointment type
@@ -578,7 +578,7 @@ class AudioBridge:
                     return {
                         "success": True,
                         "appointment_id": appointment.id,
-                        "message": f"Randevu başarıyla oluşturuldu: {customer_name}, {appointment_date} saat {appointment_time}",
+                        "message": f"Appointment created: {customer_name}, {appointment_date} at {appointment_time}",
                         "details": {
                             "customer_name": customer_name,
                             "date": appointment_date,
@@ -608,7 +608,7 @@ class AudioBridge:
             if not customer_name or not interest_type:
                 return {
                     "success": False,
-                    "message": "Lead için müşteri adı ve ilgi tipi gereklidir"
+                    "message": "Customer name and interest type are required for lead"
                 }
             
             try:
@@ -655,23 +655,23 @@ class AudioBridge:
                     
                     # Translate interest type for response
                     interest_names = {
-                        "callback": "geri arama talebi",
-                        "address_collection": "adres bilgisi",
-                        "purchase_intent": "satın alma niyeti",
-                        "demo_request": "demo talebi",
-                        "quote_request": "teklif talebi",
-                        "subscription": "abonelik/üyelik",
-                        "information": "bilgi talebi",
-                        "other": "diğer ilgi"
+                        "callback": "callback request",
+                        "address_collection": "address collection",
+                        "purchase_intent": "purchase intent",
+                        "demo_request": "demo request",
+                        "quote_request": "quote request",
+                        "subscription": "subscription",
+                        "information": "information request",
+                        "other": "other interest"
                     }
                     interest_name = interest_names.get(interest_type, interest_type)
-                    
+
                     logger.info(f"Lead captured: {customer_name} - {interest_type} (priority: {priority})")
-                    
+
                     return {
                         "success": True,
                         "lead_id": lead.id,
-                        "message": f"Potansiyel müşteri kaydedildi: {customer_name} - {interest_name}",
+                        "message": f"Lead captured: {customer_name} - {interest_name}",
                         "details": {
                             "customer_name": customer_name,
                             "interest_type": interest_type,
@@ -823,7 +823,7 @@ class AudioBridge:
                     "time_of_day": time_of_day,
                     "formatted_date": f"{now.day} {month_name} {now.year}, {day_name}",
                     "formatted_time": now.strftime("%H:%M"),
-                    "message": f"Müşterinin yerel saati: {now.strftime('%H:%M')} ({timezone_str}). Önerilen selamlama: {greeting}"
+                    "message": f"Customer local time: {now.strftime('%H:%M')} ({timezone_str}). Suggested greeting: {greeting}"
                 }
                 
             except Exception as e:
@@ -840,8 +840,8 @@ class AudioBridge:
                         "time": now.strftime("%H:%M"),
                         "timezone": "Europe/Istanbul",
                     },
-                    "greeting": "Merhaba",
-                    "message": f"Varsayılan saat kullanıldı: {now.strftime('%H:%M')} (Türkiye)"
+                    "greeting": "Hello",
+                    "message": f"Default time used: {now.strftime('%H:%M')} (Turkey)"
                 }
         
         elif name == "verify_contact_info":
@@ -1796,7 +1796,7 @@ class AudioBridge:
                 if not current_question:
                     return {
                         "success": False,
-                        "message": f"Soru bulunamadı: {question_id}"
+                        "message": f"Question not found: {question_id}"
                     }
                 
                 with SessionLocal() as db:
@@ -1878,13 +1878,13 @@ class AudioBridge:
                     
                     # Prepare response
                     next_question = question_map.get(next_question_id) if next_question_id else None
-                    completion_message = survey_config.get("completion_message", "Anketimize katıldığınız için teşekkür ederiz!")
+                    completion_message = survey_config.get("completion_message", "Thank you for participating in our survey!")
                     show_progress = survey_config.get("show_progress", True)
                     
                     if survey_complete:
                         return {
                             "success": True,
-                            "message": "Cevap kaydedildi. Anket tamamlandı.",
+                            "message": "Answer recorded. Survey completed.",
                             "survey_complete": True,
                             "completion_message": completion_message,
                             "total_answered": len(answers),
@@ -1893,7 +1893,7 @@ class AudioBridge:
                     else:
                         progress_text = ""
                         if show_progress:
-                            progress_text = f" ({len(answers) + 1}/{len(questions)} soru)"
+                            progress_text = f" ({len(answers) + 1}/{len(questions)} questions)"
                         
                         # Format next question based on type
                         next_q_text = next_question.get("text", "")
@@ -1902,15 +1902,15 @@ class AudioBridge:
                         if next_q_type == "multiple_choice":
                             options = next_question.get("options", [])
                             options_text = ", ".join(options)
-                            next_q_text += f" Seçenekler: {options_text}"
+                            next_q_text += f" Options: {options_text}"
                         elif next_q_type == "rating":
                             min_val = next_question.get("min_value", 1)
                             max_val = next_question.get("max_value", 10)
-                            next_q_text += f" ({min_val}-{max_val} arası puan verin)"
+                            next_q_text += f" (rate {min_val}-{max_val})"
                         
                         return {
                             "success": True,
-                            "message": "Cevap kaydedildi.",
+                            "message": "Answer recorded.",
                             "survey_complete": False,
                             "next_question": {
                                 "id": next_question_id,
@@ -1971,7 +1971,7 @@ class AudioBridge:
                         if not first_question:
                             return {
                                 "success": False,
-                                "message": "Anket soruları bulunamadı"
+                                "message": "Survey questions not found"
                             }
                         
                         # Format first question
@@ -1981,19 +1981,19 @@ class AudioBridge:
                         if q_type == "multiple_choice":
                             options = first_question.get("options", [])
                             options_text = ", ".join(options)
-                            q_text += f" Seçenekler: {options_text}"
+                            q_text += f" Options: {options_text}"
                         elif q_type == "rating":
                             min_val = first_question.get("min_value", 1)
                             max_val = first_question.get("max_value", 10)
-                            q_text += f" ({min_val}-{max_val} arası puan verin)"
+                            q_text += f" (rate {min_val}-{max_val})"
                         
                         show_progress = survey_config.get("show_progress", True)
                         if show_progress:
-                            q_text += f" (1/{len(questions)} soru)"
+                            q_text += f" (1/{len(questions)} questions)"
                         
                         return {
                             "success": True,
-                            "message": "Anket başlatıldı.",
+                            "message": "Survey started.",
                             "first_question": {
                                 "id": start_question_id,
                                 "type": q_type,
