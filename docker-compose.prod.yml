@@ -15,15 +15,15 @@ services:
       - NEXT_PUBLIC_API_URL=https://one.speakmaxi.com
       - NEXT_PUBLIC_WS_URL=wss://one.speakmaxi.com
       - NODE_ENV=production
-    ports: []  # Remove direct host port - nginx will proxy
+    ports: !reset []  # Remove direct host port - nginx will proxy
     restart: unless-stopped
 
   # ===========================================
   # Backend - Production mode (no reload, no volume mount)
   # ===========================================
   backend:
-    ports: []  # Remove direct host port - nginx will proxy
-    volumes: []  # No dev volume mount in production
+    ports: !reset []  # Remove direct host port - nginx will proxy
+    volumes: !reset []  # No dev volume mount in production
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
     restart: unless-stopped
 
@@ -31,29 +31,29 @@ services:
   # Celery Worker - Production
   # ===========================================
   celery-worker:
-    volumes: []
+    volumes: !reset []
     restart: unless-stopped
 
   # ===========================================
   # Celery Beat - Production
   # ===========================================
   celery-beat:
-    volumes: []
+    volumes: !reset []
     restart: unless-stopped
 
   # ===========================================
   # Asterisk Bridge - Production
   # ===========================================
   asterisk-bridge:
-    ports: []  # Internal only - asterisk connects via Docker network
-    volumes: []
+    ports: !reset []  # Internal only - asterisk connects via Docker network
+    volumes: !reset []
     restart: unless-stopped
 
   # ===========================================
   # Asterisk - Production (close ARI, keep SIP/RTP)
   # ===========================================
   asterisk:
-    ports:
+    ports: !reset
       - "5060:5060/udp"   # SIP signaling (required for trunk)
       - "5060:5060/tcp"
       - "5061:5061/tcp"   # SIP TLS
@@ -64,7 +64,7 @@ services:
   # MinIO - Production (console via nginx proxy)
   # ===========================================
   minio:
-    ports: []  # Internal only - nginx proxies via m.speakmaxi.com
+    ports: !reset []  # Internal only - nginx proxies via m.speakmaxi.com
 
   # ===========================================
   # Nginx Reverse Proxy with SSL
