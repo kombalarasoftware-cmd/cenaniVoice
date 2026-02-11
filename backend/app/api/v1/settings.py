@@ -283,5 +283,5 @@ async def test_openai_connection(
     except Exception as e:
         return {
             "success": False,
-            "message": str(e)
+            "message": "API key validation failed"
         }

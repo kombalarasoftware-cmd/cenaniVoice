@@ -20,6 +20,7 @@ from datetime import datetime
 from app.core.database import get_db
 from app.core.config import settings
 from app.models.models import Agent, CallLog, CallStatus
+from app.models import User
 from app.services.provider_factory import get_provider
 from app.api.v1.auth import get_current_user
 
@@ -217,7 +218,7 @@ async def initiate_outbound_call(
             )
         except Exception as e:
             logger.error(f"Ultravox call error: {e}")
-            return OutboundCallResponse(success=False, message=f"Ultravox error: {str(e)}")
+            return OutboundCallResponse(success=False, message="Ultravox call failed. Please try again.")
 
     # -----------------------------------------------------------------
     # OPENAI PROVIDER PATH (existing Asterisk ARI flow)
@@ -372,7 +373,7 @@ async def initiate_outbound_call(
         return OutboundCallResponse(success=False, message="Connection error: Unable to reach Asterisk ARI. Is Asterisk running?")
     except Exception as e:
         logger.error(f"Error initiating call: {e}")
-        return OutboundCallResponse(success=False, message=f"Error: {str(e)}")
+        return OutboundCallResponse(success=False, message="Failed to initiate call. Please try again.")
 
 
 @router.delete("/hangup/{channel_id}")
@@ -462,7 +463,9 @@ async def hangup_call(
 
 
 @router.get("/active")
-async def list_active_calls():
+async def list_active_calls(
+    current_user: User = Depends(get_current_user),
+):
     """
     List all active calls/channels
     """
@@ -481,11 +484,14 @@ async def list_active_calls():
     
     except Exception as e:
         logger.error(f"Error listing channels: {e}")
-        return {"error": str(e), "channels": []}
+        return {"error": "Failed to list channels", "channels": []}
 
 
 @router.get("/status/{channel_id}")
-async def get_call_status(channel_id: str):
+async def get_call_status(
+    channel_id: str,
+    current_user: User = Depends(get_current_user),
+):
     """
     Get status of a specific call
     """
@@ -512,7 +518,7 @@ async def get_call_status(channel_id: str):
     
     except Exception as e:
         logger.error(f"Error getting call status: {e}")
-        return {"error": str(e)}
+        return {"error": "Failed to get call status"}
 
 
 

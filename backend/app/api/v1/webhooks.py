@@ -241,7 +241,7 @@ async def test_webhook(
     except Exception as e:
         return {
             "success": False,
-            "error": str(e)
+            "error": "Webhook test failed"
         }
 
 

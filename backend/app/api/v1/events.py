@@ -165,7 +165,7 @@ async def event_generator(call_id: str) -> AsyncGenerator[str, None]:
         logger.info(f"SSE connection cancelled for {call_id}")
     except Exception as e:
         logger.error(f"SSE error for {call_id}: {e}")
-        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        yield f"data: {json.dumps({'type': 'error', 'message': 'Stream error occurred'})}\n\n"
     finally:
         if 'pubsub' in locals():
             await pubsub.unsubscribe(channel)
@@ -272,7 +272,7 @@ async def get_call_cost(
         
     except Exception as e:
         logger.error(f"Error getting call cost: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to calculate call cost")
 
 
 @router.get("/usage/summary")

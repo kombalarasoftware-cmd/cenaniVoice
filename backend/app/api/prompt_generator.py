@@ -234,7 +234,7 @@ async def generate_prompt(request: PromptGenerateRequest):
         raise HTTPException(status_code=504, detail="OpenAI API timeout")
     except Exception as e:
         logger.error(f"Prompt generation error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to generate prompt")
 
 
 @router.post("/improve", response_model=PromptGenerateResponse)

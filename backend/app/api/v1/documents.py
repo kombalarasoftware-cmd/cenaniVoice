@@ -100,10 +100,12 @@ async def upload_document(
     3. Generate embeddings
     4. Store for semantic search
     """
-    # Validate agent exists
+    # Validate agent exists and ownership
     agent = db.get(Agent, agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
+    if agent.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     # Validate file extension
     ext = get_file_extension(file.filename or "")
@@ -128,9 +130,10 @@ async def upload_document(
         raise HTTPException(status_code=400, detail="File is empty")
 
     # Create document record
+    safe_filename = os.path.basename(file.filename or "document").replace("..", "_")
     document = AgentDocument(
         agent_id=agent_id,
-        filename=file.filename or "document",
+        filename=safe_filename,
         file_type=ext,
         file_size=file_size,
         status="pending"
@@ -181,10 +184,12 @@ async def list_documents(
     current_user: User = Depends(get_current_user),
 ):
     """List all documents for an agent"""
-    # Validate agent exists
+    # Validate agent exists and ownership
     agent = db.get(Agent, agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
+    if agent.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     documents = (
         db.query(AgentDocument)
@@ -203,6 +208,11 @@ async def get_document(
     current_user: User = Depends(get_current_user),
 ):
     """Get a specific document"""
+    # Validate agent ownership
+    agent = db.get(Agent, agent_id)
+    if not agent or agent.owner_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
     document = db.get(AgentDocument, document_id)
     if not document or document.agent_id != agent_id:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -217,6 +227,11 @@ async def delete_document(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a document and its chunks"""
+    # Validate agent ownership
+    agent = db.get(Agent, agent_id)
+    if not agent or agent.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
     document = db.get(AgentDocument, document_id)
     if not document or document.agent_id != agent_id:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -240,10 +255,12 @@ async def search_documents(
 
     Uses OpenAI embeddings and pgvector for similarity search.
     """
-    # Validate agent exists
+    # Validate agent exists and ownership
     agent = db.get(Agent, agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
+    if agent.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     # Use async session for vector search operations
     async with AsyncSessionLocal() as async_db:

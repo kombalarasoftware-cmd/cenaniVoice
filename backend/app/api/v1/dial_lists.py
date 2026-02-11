@@ -390,7 +390,7 @@ async def upload_file(
         rows = _parse_excel_rows(contents, filename, column_mapping)
     except Exception as e:
         logger.error(f"Error parsing uploaded file: {e}")
-        raise HTTPException(status_code=400, detail=f"Failed to parse file: {e}")
+        raise HTTPException(status_code=400, detail="Failed to parse file. Check the file format.")
 
     if not rows:
         raise HTTPException(status_code=400, detail="No valid rows found in file")
@@ -861,7 +861,7 @@ async def import_dnc_file(
     try:
         rows = _parse_excel_rows(contents, filename, column_mapping)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to parse file: {e}")
+        raise HTTPException(status_code=400, detail="Failed to parse file. Check the file format.")
 
     existing_dnc = set(row[0] for row in db.query(DNCList.phone_number).all())
 

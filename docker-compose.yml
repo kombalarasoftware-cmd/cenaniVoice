@@ -185,7 +185,8 @@ services:
       - voiceai-network
     cap_add:
       - NET_ADMIN
-      - SYS_PTRACE
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
     deploy:
       resources:

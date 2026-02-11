@@ -4,6 +4,8 @@ Knowledge Base API Endpoints
 Knowledge Base management for RAG (Retrieval Augmented Generation)
 """
 
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -84,8 +86,9 @@ async def list_knowledge_bases(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List all knowledge bases"""
+    """List all knowledge bases owned by the current user"""
     return db.query(KnowledgeBase)\
+        .filter(KnowledgeBase.owner_id == current_user.id)\
         .order_by(KnowledgeBase.created_at.desc())\
         .offset(skip)\
         .limit(limit)\
@@ -105,7 +108,8 @@ async def create_knowledge_base(
         embedding_model=data.embedding_model,
         chunk_size=data.chunk_size,
         chunk_overlap=data.chunk_overlap,
-        status="ready"  # No documents yet
+        status="ready",  # No documents yet
+        owner_id=current_user.id,
     )
 
     db.add(kb)
@@ -122,7 +126,10 @@ async def get_knowledge_base(
     current_user: User = Depends(get_current_user),
 ):
     """Get a specific knowledge base"""
-    kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+    kb = db.query(KnowledgeBase).filter(
+        KnowledgeBase.id == kb_id,
+        KnowledgeBase.owner_id == current_user.id,
+    ).first()
 
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge base not found")
@@ -138,7 +145,10 @@ async def update_knowledge_base(
     current_user: User = Depends(get_current_user),
 ):
     """Update a knowledge base"""
-    kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+    kb = db.query(KnowledgeBase).filter(
+        KnowledgeBase.id == kb_id,
+        KnowledgeBase.owner_id == current_user.id,
+    ).first()
 
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge base not found")
@@ -161,7 +171,10 @@ async def delete_knowledge_base(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a knowledge base and all its documents"""
-    kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+    kb = db.query(KnowledgeBase).filter(
+        KnowledgeBase.id == kb_id,
+        KnowledgeBase.owner_id == current_user.id,
+    ).first()
 
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge base not found")
@@ -181,6 +194,14 @@ async def list_documents(
     current_user: User = Depends(get_current_user),
 ):
     """List all documents in a knowledge base"""
+    # Verify ownership
+    kb = db.query(KnowledgeBase).filter(
+        KnowledgeBase.id == kb_id,
+        KnowledgeBase.owner_id == current_user.id,
+    ).first()
+    if not kb:
+        raise HTTPException(status_code=404, detail="Knowledge base not found")
+
     return db.query(KnowledgeDocument)\
         .filter(KnowledgeDocument.knowledge_base_id == kb_id)\
         .order_by(KnowledgeDocument.created_at.desc())\
@@ -195,8 +216,11 @@ async def upload_document(
     current_user: User = Depends(get_current_user),
 ):
     """Upload a document to a knowledge base"""
-    # Verify KB exists
-    kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+    # Verify KB exists and ownership
+    kb = db.query(KnowledgeBase).filter(
+        KnowledgeBase.id == kb_id,
+        KnowledgeBase.owner_id == current_user.id,
+    ).first()
 
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge base not found")
@@ -216,8 +240,9 @@ async def upload_document(
     file_size = len(content)
 
     # Create document record
+    safe_filename = os.path.basename(file.filename or "document").replace("..", "_")
     doc = KnowledgeDocument(
-        name=file.filename,
+        name=safe_filename,
         file_type=file_ext.lstrip("."),
         file_size=file_size,
         status="pending",  # Will be processed by background task
@@ -245,6 +270,14 @@ async def delete_document(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a document from a knowledge base"""
+    # Verify ownership
+    kb = db.query(KnowledgeBase).filter(
+        KnowledgeBase.id == kb_id,
+        KnowledgeBase.owner_id == current_user.id,
+    ).first()
+    if not kb:
+        raise HTTPException(status_code=404, detail="Knowledge base not found")
+
     doc = db.query(KnowledgeDocument)\
         .filter(KnowledgeDocument.id == doc_id)\
         .filter(KnowledgeDocument.knowledge_base_id == kb_id)\
@@ -290,8 +323,11 @@ async def query_knowledge_base(
     Query a knowledge base using semantic search
     Returns relevant chunks that can be used as context for LLM
     """
-    # Verify KB exists
-    kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+    # Verify KB exists and ownership
+    kb = db.query(KnowledgeBase).filter(
+        KnowledgeBase.id == kb_id,
+        KnowledgeBase.owner_id == current_user.id,
+    ).first()
 
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge base not found")

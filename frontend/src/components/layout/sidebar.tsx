@@ -105,8 +105,22 @@ export function Sidebar() {
     }
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('access_token');
+  const handleLogout = async () => {
+    // Attempt server-side token invalidation
+    try {
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        await fetch('/api/v1/auth/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+    } catch {
+      // Continue with client-side cleanup even if server logout fails
+    }
+
+    // Clear all stored data
+    localStorage.clear();
     router.push('/login');
   };
 

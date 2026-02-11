@@ -605,7 +605,7 @@ async def get_call_transcript(
         
     except Exception as e:
         logger.error(f"Error fetching transcript for {call_id}: {e}")
-        return {"transcript": [], "status": "error", "message": str(e)}
+        return {"transcript": [], "status": "error", "message": "Failed to retrieve transcript"}
 
 
 @router.post("/{call_id}/transcript")
@@ -644,7 +644,7 @@ async def add_transcript_message(
         
     except Exception as e:
         logger.error(f"Error adding transcript for {call_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to add transcript message")
 
 
 # ============================================================================
@@ -660,7 +660,14 @@ async def get_call_tags(
     """
     Get tags for a specific call.
     """
-    call = db.query(CallLog).filter(CallLog.call_sid == call_id).first()
+    call = db.query(CallLog).outerjoin(CallLog.campaign).outerjoin(CallLog.agent).filter(
+        CallLog.call_sid == call_id,
+        or_(
+            Campaign.owner_id == current_user.id,
+            Agent.owner_id == current_user.id,
+            (CallLog.campaign_id.is_(None) & CallLog.agent_id.is_(None)),
+        )
+    ).first()
     if not call:
         raise HTTPException(status_code=404, detail="Call not found")
     
@@ -685,7 +692,14 @@ async def update_call_tags(
     - remove: Remove specific tags
     - replace: Replace all tags with new ones
     """
-    call = db.query(CallLog).filter(CallLog.call_sid == call_id).first()
+    call = db.query(CallLog).outerjoin(CallLog.campaign).outerjoin(CallLog.agent).filter(
+        CallLog.call_sid == call_id,
+        or_(
+            Campaign.owner_id == current_user.id,
+            Agent.owner_id == current_user.id,
+            (CallLog.campaign_id.is_(None) & CallLog.agent_id.is_(None)),
+        )
+    ).first()
     if not call:
         raise HTTPException(status_code=404, detail="Call not found")
     
@@ -755,7 +769,14 @@ async def get_call_recording(
     Get a presigned download URL for a call recording.
     Returns a temporary URL valid for 1 hour.
     """
-    call = db.query(CallLog).filter(CallLog.id == call_id).first()
+    call = db.query(CallLog).outerjoin(CallLog.campaign).outerjoin(CallLog.agent).filter(
+        CallLog.id == call_id,
+        or_(
+            Campaign.owner_id == current_user.id,
+            Agent.owner_id == current_user.id,
+            (CallLog.campaign_id.is_(None) & CallLog.agent_id.is_(None)),
+        )
+    ).first()
     if not call:
         raise HTTPException(status_code=404, detail="Call not found")
     
@@ -802,7 +823,14 @@ async def download_call_recording(
     from fastapi.responses import StreamingResponse
     from app.services.minio_service import minio_service
 
-    call = db.query(CallLog).filter(CallLog.id == call_id).first()
+    call = db.query(CallLog).outerjoin(CallLog.campaign).outerjoin(CallLog.agent).filter(
+        CallLog.id == call_id,
+        or_(
+            Campaign.owner_id == current_user.id,
+            Agent.owner_id == current_user.id,
+            (CallLog.campaign_id.is_(None) & CallLog.agent_id.is_(None)),
+        )
+    ).first()
     if not call:
         raise HTTPException(status_code=404, detail="Call not found")
 

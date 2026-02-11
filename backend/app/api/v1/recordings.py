@@ -339,4 +339,4 @@ async def download_call_recording(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to export recordings")

@@ -268,7 +268,7 @@ async def upload_numbers(
         raise HTTPException(status_code=400, detail="File is empty or has no valid data")
     except Exception as e:
         logger.error(f"Error processing file upload: {e}")
-        raise HTTPException(status_code=400, detail=f"Error processing file: {str(e)}")
+        raise HTTPException(status_code=400, detail="Error processing file. Check the file format and try again.")
 
 
 @router.get("/lists/{list_id}", response_model=NumberListResponse)
