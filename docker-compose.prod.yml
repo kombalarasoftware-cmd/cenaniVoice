@@ -45,8 +45,26 @@ services:
   # Asterisk Bridge - Production
   # ===========================================
   asterisk-bridge:
+    ports: []  # Internal only - asterisk connects via Docker network
     volumes: []
     restart: unless-stopped
+
+  # ===========================================
+  # Asterisk - Production (close ARI, keep SIP/RTP)
+  # ===========================================
+  asterisk:
+    ports:
+      - "5060:5060/udp"   # SIP signaling (required for trunk)
+      - "5060:5060/tcp"
+      - "5061:5061/tcp"   # SIP TLS
+      - "10000-10100:10000-10100/udp"  # RTP media
+      # 8088 (ARI) removed - backend connects via Docker network
+
+  # ===========================================
+  # MinIO - Production (console via nginx proxy)
+  # ===========================================
+  minio:
+    ports: []  # Internal only - nginx proxies via m.speakmaxi.com
 
   # ===========================================
   # Nginx Reverse Proxy with SSL
