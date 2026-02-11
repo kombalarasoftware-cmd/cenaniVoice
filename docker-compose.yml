@@ -100,7 +100,7 @@ services:
       - celery-worker
     networks:
       - voiceai-network
-    command: celery -A app.tasks.celery_tasks:celery_app beat --loglevel=info
+    command: celery -A app.tasks.celery_tasks:celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
     deploy:
       resources:
         limits:

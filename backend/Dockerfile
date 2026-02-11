@@ -29,8 +29,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy installed Python packages from builder
 COPY --from=builder /install /usr/local
 
-# Create non-root user
-RUN groupadd -r appuser && useradd -r -g appuser -s /bin/false appuser
+# Create non-root user with UID/GID 1000 (matches docker-compose user override)
+RUN groupadd -g 1000 appuser && useradd -u 1000 -g appuser -s /bin/false appuser
 
 # Copy application code
 COPY . .
