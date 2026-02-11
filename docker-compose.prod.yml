@@ -89,7 +89,9 @@ services:
   # pgAdmin - PostgreSQL Web UI
   # ===========================================
   pgadmin:
-    image: dpage/pgadmin4:latest
+    build:
+      context: ./pgadmin
+      dockerfile: Dockerfile
     environment:
       - PGADMIN_DEFAULT_EMAIL=admin@speakmaxi.com
       - PGADMIN_DEFAULT_PASSWORD=Speakmaxi2026!
@@ -100,15 +102,6 @@ services:
     volumes:
       - pgadmin-data:/var/lib/pgadmin
       - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
-      - ./pgadmin/pgpassfile:/pgpassfile:ro
-    entrypoint: >
-      /bin/sh -c '
-      cp /pgpassfile /tmp/pgpassfile;
-      chmod 600 /tmp/pgpassfile;
-      chown pgadmin:pgadmin /tmp/pgpassfile;
-      export PGPASSFILE=/tmp/pgpassfile;
-      exec /entrypoint.sh
-      '
     depends_on:
       - postgres
     networks:
