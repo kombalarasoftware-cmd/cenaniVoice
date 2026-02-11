@@ -107,6 +107,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const [callStatus, setCallStatus] = useState<CallStatus>('idle');
   const [callId, setCallId] = useState<string | null>(null);
   const [channelId, setChannelId] = useState<string | null>(null);
+  const [dbCallId, setDbCallId] = useState<number | null>(null);
   const [agentId, setAgentId] = useState<string | null>(null);
 
   // Call info
@@ -368,6 +369,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         const newChannelId = result.channel_id;
         setCallId(newCallId || `call-${Date.now()}`);
         setChannelId(newChannelId || null);
+        setDbCallId(result.db_call_id || null);
         setCallStatus('connected');
         toast.success('Call started');
       } else {
@@ -393,22 +395,42 @@ export function CallProvider({ children }: { children: ReactNode }) {
       transcriptIntervalRef.current = null;
     }
 
-    // Hangup via ARI + Redis signal
+    // Hangup via backend API
+    const hangupDbId = dbCallId;
     const hangupChannelId = channelId;
     const hangupCallId = callId;
 
-    if (hangupChannelId || hangupCallId) {
+    if (hangupDbId || hangupChannelId || hangupCallId) {
       try {
         const token = localStorage.getItem('access_token');
-        const params = new URLSearchParams();
-        if (hangupCallId) params.set('call_id', hangupCallId);
-        const url = hangupChannelId
-          ? `${API_V1}/calls/hangup/${hangupChannelId}?${params}`
-          : `${API_V1}/calls/hangup/_none?${params}`;
-        await fetch(url, {
-          method: 'DELETE',
-          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-        });
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        };
+
+        if (hangupDbId) {
+          // Use v1/calls POST endpoint (works for both Ultravox & OpenAI)
+          await fetch(`${API_V1}/calls/${hangupDbId}/hangup`, {
+            method: 'POST',
+            headers,
+          });
+        } else if (hangupChannelId) {
+          // Fallback: ARI channel hangup
+          const params = new URLSearchParams();
+          if (hangupCallId) params.set('call_id', hangupCallId);
+          await fetch(`${API_V1}/calls/hangup/${hangupChannelId}?${params}`, {
+            method: 'DELETE',
+            headers,
+          });
+        } else if (hangupCallId) {
+          // Fallback: Redis signal via UUID
+          const params = new URLSearchParams();
+          params.set('call_id', hangupCallId);
+          await fetch(`${API_V1}/calls/hangup/_none?${params}`, {
+            method: 'DELETE',
+            headers,
+          });
+        }
       } catch (error) {
         console.error('Hangup error:', error);
       }
@@ -417,10 +439,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setCallStatus('ended');
     setCallId(null);
     setChannelId(null);
+    setDbCallId(null);
     setIsUserSpeaking(false);
     setIsAgentSpeaking(false);
     toast.info('Call ended');
-  }, [callId, channelId]);
+  }, [callId, channelId, dbCallId]);
 
   const resetCall = useCallback(() => {
     setCallStatus('idle');
@@ -429,6 +452,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setCost(null);
     setCustomerTitle('');
     setAgentId(null);
+    setDbCallId(null);
     lastMessageCountRef.current = 0;
   }, []);
 

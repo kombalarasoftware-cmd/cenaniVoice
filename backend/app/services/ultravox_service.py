@@ -163,28 +163,42 @@ class UltravoxService:
             return response.json()
 
     async def end_call(self, call_id: str, message: str = "") -> dict:
-        """End an active call by sending a hang_up data message."""
+        """End an active call by sending a hang_up data message.
+
+        Uses POST /calls/{call_id}/send_data_message with a hang_up payload.
+        Ref: https://docs.ultravox.ai/api-reference/calls/calls-send-data-message-post
+        """
         async with self._client() as client:
             payload: dict[str, Any] = {"type": "hang_up"}
             if message:
                 payload["message"] = message
-            # Ultravox API expects call_id as query param, not path param
             response = await client.post(
-                "/calls/send-data-message",
-                params={"call_id": call_id},
+                f"/calls/{call_id}/send_data_message",
                 json=payload,
             )
             if response.status_code in (200, 204):
+                logger.info(f"Ultravox hang_up sent successfully for call {call_id[:8]}")
                 return {"success": True, "message": "Call ended"}
+            if response.status_code == 422:
+                # Call is not active (not joined yet or already ended)
+                logger.info(f"Ultravox call {call_id[:8]} is not active (422)")
+                return {"success": True, "message": "Call already ended"}
             response.raise_for_status()
             return {"success": True, "message": "Call ended"}
 
     async def delete_call(self, call_id: str) -> dict:
-        """Force-terminate a call via DELETE (fallback)."""
+        """Delete a call record (for cleanup after call ends).
+
+        NOTE: This does NOT terminate an active call — use end_call() for that.
+        The DELETE endpoint returns 425 (Too Early) if the call is still active.
+        """
         async with self._client() as client:
             response = await client.delete(f"/calls/{call_id}")
             if response.status_code in (200, 204, 404):
                 return {"success": True, "message": "Call deleted"}
+            if response.status_code == 425:
+                logger.warning(f"Ultravox call {call_id[:8]} still active, cannot delete yet")
+                return {"success": False, "message": "Call still active"}
             response.raise_for_status()
             return {"success": True, "message": "Call deleted"}
 
