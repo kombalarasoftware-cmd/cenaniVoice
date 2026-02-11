@@ -709,7 +709,9 @@ export default function AgentEditorPage() {
         
         // Load documents list
         try {
-          const docsResponse = await fetch(`${API_V1}/agents/${agentId}/documents/`);
+          const docsResponse = await fetch(`${API_V1}/agents/${agentId}/documents/`, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+          });
           if (docsResponse.ok) {
             const docsData = await docsResponse.json();
             setDocuments(docsData || []);
@@ -1395,8 +1397,10 @@ A: Credit card, bank transfer, automatic payment order.
                                 const formData = new FormData();
                                 formData.append('file', file);
                                 
+                                const token = localStorage.getItem('access_token');
                                 const response = await fetch(`${API_V1}/agents/${agentId}/documents/upload`, {
                                   method: 'POST',
+                                  headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                                   body: formData,
                                 });
                                 

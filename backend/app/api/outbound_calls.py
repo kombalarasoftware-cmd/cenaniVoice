@@ -397,8 +397,45 @@ async def hangup_call(
         except Exception as e:
             logger.warning(f"Redis hangup signal error: {e}")
 
-    # Skip ARI if channel_id is a placeholder
+    # Skip ARI if channel_id is a placeholder (e.g. Ultravox calls have no Asterisk channel)
     if channel_id == "_none":
+        # Check if this is an Ultravox call and terminate via Ultravox API
+        if call_id and redis_client:
+            try:
+                ultravox_call_id = redis_client.get(f"call_ultravox:{call_id}")
+                if ultravox_call_id:
+                    from app.services.ultravox_service import UltravoxService
+                    svc = UltravoxService()
+                    try:
+                        await svc.end_call(ultravox_call_id)
+                        results.append(f"Ultravox call {ultravox_call_id[:8]} terminated")
+                        logger.info(f"Ultravox hangup successful: {ultravox_call_id}")
+                    except Exception as uv_err:
+                        logger.warning(f"Ultravox end_call failed, trying delete: {uv_err}")
+                        try:
+                            await svc.delete_call(ultravox_call_id)
+                            results.append(f"Ultravox call {ultravox_call_id[:8]} force-deleted")
+                            logger.info(f"Ultravox force-delete successful: {ultravox_call_id}")
+                        except Exception as del_err:
+                            logger.error(f"Ultravox delete also failed: {del_err}")
+                            results.append(f"Ultravox hangup failed: {del_err}")
+                else:
+                    logger.info(f"No Ultravox mapping found for call_id={call_id[:8]}")
+            except Exception as e:
+                logger.warning(f"Ultravox hangup lookup error: {e}")
+
+        # Also update call status in DB
+        if call_id:
+            try:
+                from app.models.models import CallLog
+                call_log = db.query(CallLog).filter(CallLog.call_sid == call_id).first()
+                if call_log and call_log.status not in ("completed", "failed", "no-answer"):
+                    call_log.status = "completed"
+                    db.commit()
+                    results.append("Call status updated to completed")
+            except Exception as db_err:
+                logger.warning(f"DB status update error: {db_err}")
+
         return {"success": True, "message": "; ".join(results) if results else "Hangup signal sent via Redis"}
 
     # 1. Try ARI channel hangup

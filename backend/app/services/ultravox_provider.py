@@ -233,27 +233,30 @@ class UltravoxProvider(CallProvider):
 
             ultravox_call_id = result.get("callId", "")
 
-            # Store mapping in Redis for webhook correlation
+            # Store mapping in Redis for webhook correlation (non-fatal)
             if redis_client and ultravox_call_id:
-                mapping = {
-                    "call_uuid": call_uuid,
-                    "ultravox_call_id": ultravox_call_id,
-                    "agent_id": str(getattr(agent, "id", "")),
-                    "phone_number": phone_number,
-                    "customer_name": customer_name,
-                    "campaign_id": str(campaign_id) if campaign_id else "",
-                }
-                redis_client.setex(
-                    f"ultravox_call:{ultravox_call_id}",
-                    3600,  # 1 hour TTL
-                    json.dumps(mapping),
-                )
-                # Reverse mapping
-                redis_client.setex(
-                    f"call_ultravox:{call_uuid}",
-                    3600,
-                    ultravox_call_id,
-                )
+                try:
+                    mapping = {
+                        "call_uuid": call_uuid,
+                        "ultravox_call_id": ultravox_call_id,
+                        "agent_id": str(getattr(agent, "id", "")),
+                        "phone_number": phone_number,
+                        "customer_name": customer_name,
+                        "campaign_id": str(campaign_id) if campaign_id else "",
+                    }
+                    redis_client.setex(
+                        f"ultravox_call:{ultravox_call_id}",
+                        3600,  # 1 hour TTL
+                        json.dumps(mapping),
+                    )
+                    # Reverse mapping
+                    redis_client.setex(
+                        f"call_ultravox:{call_uuid}",
+                        3600,
+                        ultravox_call_id,
+                    )
+                except Exception as redis_err:
+                    logger.warning(f"Redis mapping store failed (non-fatal): {redis_err}")
 
             logger.info(
                 f"Ultravox call created: uuid={call_uuid[:8]}, "

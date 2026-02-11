@@ -168,11 +168,13 @@ class UltravoxService:
             payload: dict[str, Any] = {"type": "hang_up"}
             if message:
                 payload["message"] = message
+            # Ultravox API expects call_id as query param, not path param
             response = await client.post(
-                f"/calls/{call_id}/send-data-message",
+                "/calls/send-data-message",
+                params={"call_id": call_id},
                 json=payload,
             )
-            if response.status_code == 204:
+            if response.status_code in (200, 204):
                 return {"success": True, "message": "Call ended"}
             response.raise_for_status()
             return {"success": True, "message": "Call ended"}
