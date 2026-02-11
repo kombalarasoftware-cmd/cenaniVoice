@@ -54,11 +54,10 @@ services:
   # ===========================================
   asterisk:
     ports: !reset
-      - "5060:5060/udp"   # SIP signaling (required for trunk)
+      - "5060:5060/udp"
       - "5060:5060/tcp"
-      - "5061:5061/tcp"   # SIP TLS
-      - "10000-10100:10000-10100/udp"  # RTP media
-      # 8088 (ARI) removed - backend connects via Docker network
+      - "5061:5061/tcp"
+      - "10000-10100:10000-10100/udp"
 
   # ===========================================
   # MinIO - Production (console via nginx proxy)
