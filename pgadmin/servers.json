@@ -7,7 +7,7 @@
       "Port": 5432,
       "MaintenanceDB": "voiceai",
       "Username": "postgres",
-      "PassFile": "/pgadmin4/pgpassfile",
+      "PassFile": "/tmp/pgpassfile",
       "SSLMode": "prefer",
       "Comment": "VoiceAI Platform Database - Auto configured"
     }
