@@ -589,7 +589,7 @@ class RolePermission(Base):
     role: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
     permissions: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     description: Mapped[Optional[str]] = mapped_column(String(255))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
 
 
 class KnowledgeBase(Base):
