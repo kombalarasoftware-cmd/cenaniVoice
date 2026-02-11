@@ -46,10 +46,12 @@ export default function LoginPage() {
 
       const data = await response.json();
       
-      // Store token and user info in localStorage
+      // Store token in localStorage + cookie (middleware reads cookies)
       localStorage.setItem('access_token', data.access_token);
+      document.cookie = `access_token=${data.access_token}; path=/; max-age=${30 * 60}; SameSite=Lax; Secure`;
       if (data.refresh_token) {
         localStorage.setItem('refresh_token', data.refresh_token);
+        document.cookie = `refresh_token=${data.refresh_token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax; Secure`;
       }
       try {
         const payload = JSON.parse(atob(data.access_token.split('.')[1]));

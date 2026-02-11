@@ -119,8 +119,10 @@ export function Sidebar() {
       // Continue with client-side cleanup even if server logout fails
     }
 
-    // Clear all stored data
+    // Clear all stored data + cookies
     localStorage.clear();
+    document.cookie = 'access_token=; path=/; max-age=0';
+    document.cookie = 'refresh_token=; path=/; max-age=0';
     router.push('/login');
   };
 

@@ -50,13 +50,17 @@ async function tryRefreshToken(): Promise<boolean> {
         // Refresh token expired or revoked — force logout
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
+        document.cookie = 'access_token=; path=/; max-age=0';
+        document.cookie = 'refresh_token=; path=/; max-age=0';
         return false;
       }
 
       const data = await response.json();
       localStorage.setItem('access_token', data.access_token);
+      document.cookie = `access_token=${data.access_token}; path=/; max-age=${30 * 60}; SameSite=Lax; Secure`;
       if (data.refresh_token) {
         localStorage.setItem('refresh_token', data.refresh_token);
+        document.cookie = `refresh_token=${data.refresh_token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax; Secure`;
       }
       return true;
     } catch {
@@ -124,6 +128,8 @@ export async function apiFetch<T = unknown>(
     if (typeof window !== 'undefined') {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
+      document.cookie = 'access_token=; path=/; max-age=0';
+      document.cookie = 'refresh_token=; path=/; max-age=0';
       window.location.href = '/login';
     }
   }
