@@ -25,15 +25,14 @@
     ]
   },
   "hooks": {
-    "PostToolUse": [
+    "SessionStart": [
       {
-        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/python-check.py",
-            "timeout": 15,
-            "statusMessage": "Checking Python syntax..."
+            "command": "python .claude/hooks/session-start.py",
+            "timeout": 10,
+            "statusMessage": "Checking project environment..."
           }
         ]
       }
@@ -50,6 +49,72 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/python-check.py",
+            "timeout": 15,
+            "statusMessage": "Checking Python syntax...",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/notification.py",
+            "timeout": 10,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/stop-check.py",
+            "timeout": 15,
+            "statusMessage": "Final verification..."
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/pre-compact.py",
+            "timeout": 10,
+            "statusMessage": "Preserving critical context..."
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/session-end.py",
+            "timeout": 10,
+            "async": true
+          }
+        ]
+      }
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "python .claude/statusline.py"
   }
 }

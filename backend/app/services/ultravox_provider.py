@@ -28,23 +28,8 @@ except Exception:
 # Ultravox pricing: $0.05 per minute
 ULTRAVOX_RATE_PER_MINUTE = 0.05
 
-# Voice mapping: OpenAI voice names → Ultravox voice names
-# Maps OpenAI voices to best-matching Ultravox built-in voices
-VOICE_MAP = {
-    "alloy": "Alex",
-    "ash": "Mark",
-    "ballad": "Sarah",
-    "coral": "Olivia",
-    "echo": "Edward",
-    "sage": "Jessica",
-    "shimmer": "Luna",
-    "verse": "Carter",
-    "marin": "Dennis",
-    "cedar": "Theodore",
-    "fable": "Julia",
-    "onyx": "Shaun",
-    "nova": "Ashley",
-}
+# Voice mapping: OpenAI voice names → Ultravox voice names (from centralized config)
+from app.core.voice_config import OPENAI_TO_ULTRAVOX_VOICE_MAP as VOICE_MAP
 
 # Ultravox model mapping: internal model names → Ultravox API model values
 ULTRAVOX_MODEL_MAP = {

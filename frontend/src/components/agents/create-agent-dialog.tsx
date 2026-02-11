@@ -84,91 +84,93 @@ const languages = [
 ];
 
 const openaiVoices = [
-  { id: 'alloy', name: 'Alloy', description: 'Neutral, balanced' },
-  { id: 'ash', name: 'Ash', description: 'Male' },
-  { id: 'ballad', name: 'Ballad', description: 'Female' },
-  { id: 'coral', name: 'Coral', description: 'Female' },
-  { id: 'echo', name: 'Echo', description: 'Deep male' },
-  { id: 'sage', name: 'Sage', description: 'Female' },
-  { id: 'shimmer', name: 'Shimmer', description: 'Soft female' },
-  { id: 'verse', name: 'Verse', description: 'Male' },
+  { id: 'alloy', name: 'Alloy', description: 'Neutral, balanced', gender: 'female' },
+  { id: 'ash', name: 'Ash', description: 'Confident, clear', gender: 'male' },
+  { id: 'ballad', name: 'Ballad', description: 'Warm, deep', gender: 'male' },
+  { id: 'coral', name: 'Coral', description: 'Friendly, warm', gender: 'female' },
+  { id: 'echo', name: 'Echo', description: 'Deep, resonant', gender: 'male' },
+  { id: 'sage', name: 'Sage', description: 'Calm, wise', gender: 'female' },
+  { id: 'shimmer', name: 'Shimmer', description: 'Soft, gentle', gender: 'female' },
+  { id: 'verse', name: 'Verse', description: 'Dynamic, expressive', gender: 'male' },
+  { id: 'marin', name: 'Marin ⭐', description: 'Natural, recommended', gender: 'female' },
+  { id: 'cedar', name: 'Cedar ⭐', description: 'Natural, recommended', gender: 'male' },
 ];
 
 const ultravoxVoices = [
   // Turkish
-  { id: 'Cicek-Turkish', name: 'Cicek', description: 'TR, Female' },
-  { id: 'Doga-Turkish', name: 'Doga', description: 'TR, Male' },
+  { id: 'Cicek-Turkish', name: 'Cicek', description: 'TR, Female', gender: 'female' },
+  { id: 'Doga-Turkish', name: 'Doga', description: 'TR, Male', gender: 'male' },
   // English
-  { id: 'Mark', name: 'Mark', description: 'EN, Male' },
-  { id: 'Jessica', name: 'Jessica', description: 'EN, Female' },
-  { id: 'Sarah', name: 'Sarah', description: 'EN, Female' },
-  { id: 'Alex', name: 'Alex', description: 'EN, Male' },
-  { id: 'Carter', name: 'Carter', description: 'EN, Male (Cartesia)' },
-  { id: 'Olivia', name: 'Olivia', description: 'EN, Female' },
-  { id: 'Edward', name: 'Edward', description: 'EN, Male' },
-  { id: 'Luna', name: 'Luna', description: 'EN, Female' },
-  { id: 'Ashley', name: 'Ashley', description: 'EN, Female' },
-  { id: 'Dennis', name: 'Dennis', description: 'EN, Male' },
-  { id: 'Theodore', name: 'Theodore', description: 'EN, Male' },
-  { id: 'Julia', name: 'Julia', description: 'EN, Female' },
-  { id: 'Shaun', name: 'Shaun', description: 'EN, Male' },
-  { id: 'Hana', name: 'Hana', description: 'EN, Female' },
-  { id: 'Blake', name: 'Blake', description: 'EN, Male' },
-  { id: 'Timothy', name: 'Timothy', description: 'EN, Male' },
-  { id: 'Chelsea', name: 'Chelsea', description: 'EN, Female' },
-  { id: 'Emily-English', name: 'Emily', description: 'EN, Female' },
-  { id: 'Aaron-English', name: 'Aaron', description: 'EN, Male' },
+  { id: 'Mark', name: 'Mark', description: 'EN, Male', gender: 'male' },
+  { id: 'Jessica', name: 'Jessica', description: 'EN, Female', gender: 'female' },
+  { id: 'Sarah', name: 'Sarah', description: 'EN, Female', gender: 'female' },
+  { id: 'Alex', name: 'Alex', description: 'EN, Male', gender: 'male' },
+  { id: 'Carter', name: 'Carter', description: 'EN, Male (Cartesia)', gender: 'male' },
+  { id: 'Olivia', name: 'Olivia', description: 'EN, Female', gender: 'female' },
+  { id: 'Edward', name: 'Edward', description: 'EN, Male', gender: 'male' },
+  { id: 'Luna', name: 'Luna', description: 'EN, Female', gender: 'female' },
+  { id: 'Ashley', name: 'Ashley', description: 'EN, Female', gender: 'female' },
+  { id: 'Dennis', name: 'Dennis', description: 'EN, Male', gender: 'male' },
+  { id: 'Theodore', name: 'Theodore', description: 'EN, Male', gender: 'male' },
+  { id: 'Julia', name: 'Julia', description: 'EN, Female', gender: 'female' },
+  { id: 'Shaun', name: 'Shaun', description: 'EN, Male', gender: 'male' },
+  { id: 'Hana', name: 'Hana', description: 'EN, Female', gender: 'female' },
+  { id: 'Blake', name: 'Blake', description: 'EN, Male', gender: 'male' },
+  { id: 'Timothy', name: 'Timothy', description: 'EN, Male', gender: 'male' },
+  { id: 'Chelsea', name: 'Chelsea', description: 'EN, Female', gender: 'female' },
+  { id: 'Emily-English', name: 'Emily', description: 'EN, Female', gender: 'female' },
+  { id: 'Aaron-English', name: 'Aaron', description: 'EN, Male', gender: 'male' },
   // German
-  { id: 'Josef', name: 'Josef', description: 'DE, Male' },
-  { id: 'Johanna', name: 'Johanna', description: 'DE, Female' },
-  { id: 'Ben-German', name: 'Ben', description: 'DE, Male' },
-  { id: 'Susi-German', name: 'Susi', description: 'DE, Female' },
+  { id: 'Josef', name: 'Josef', description: 'DE, Male', gender: 'male' },
+  { id: 'Johanna', name: 'Johanna', description: 'DE, Female', gender: 'female' },
+  { id: 'Ben-German', name: 'Ben', description: 'DE, Male', gender: 'male' },
+  { id: 'Susi-German', name: 'Susi', description: 'DE, Female', gender: 'female' },
   // French
-  { id: 'Hugo-French', name: 'Hugo', description: 'FR, Male' },
-  { id: 'Coco-French', name: 'Coco', description: 'FR, Female' },
-  { id: 'Alize-French', name: 'Alize', description: 'FR, Female' },
-  { id: 'Nicolas-French', name: 'Nicolas', description: 'FR, Male' },
+  { id: 'Hugo-French', name: 'Hugo', description: 'FR, Male', gender: 'male' },
+  { id: 'Coco-French', name: 'Coco', description: 'FR, Female', gender: 'female' },
+  { id: 'Alize-French', name: 'Alize', description: 'FR, Female', gender: 'female' },
+  { id: 'Nicolas-French', name: 'Nicolas', description: 'FR, Male', gender: 'male' },
   // Spanish
-  { id: 'Alex-Spanish', name: 'Alex', description: 'ES, Male' },
-  { id: 'Andrea-Spanish', name: 'Andrea', description: 'ES, Female' },
-  { id: 'Tatiana-Spanish', name: 'Tatiana', description: 'ES, Female' },
-  { id: 'Mauricio-Spanish', name: 'Mauricio', description: 'ES, Male' },
+  { id: 'Alex-Spanish', name: 'Alex', description: 'ES, Male', gender: 'male' },
+  { id: 'Andrea-Spanish', name: 'Andrea', description: 'ES, Female', gender: 'female' },
+  { id: 'Tatiana-Spanish', name: 'Tatiana', description: 'ES, Female', gender: 'female' },
+  { id: 'Mauricio-Spanish', name: 'Mauricio', description: 'ES, Male', gender: 'male' },
   // Italian
-  { id: 'Linda-Italian', name: 'Linda', description: 'IT, Female' },
-  { id: 'Giovanni-Italian', name: 'Giovanni', description: 'IT, Male' },
+  { id: 'Linda-Italian', name: 'Linda', description: 'IT, Female', gender: 'female' },
+  { id: 'Giovanni-Italian', name: 'Giovanni', description: 'IT, Male', gender: 'male' },
   // Portuguese
-  { id: 'Rosa-Portuguese', name: 'Rosa', description: 'PT-BR, Female' },
-  { id: 'Tiago-Portuguese', name: 'Tiago', description: 'PT-BR, Male' },
+  { id: 'Rosa-Portuguese', name: 'Rosa', description: 'PT-BR, Female', gender: 'female' },
+  { id: 'Tiago-Portuguese', name: 'Tiago', description: 'PT-BR, Male', gender: 'male' },
   // Arabic
-  { id: 'Salma-Arabic', name: 'Salma', description: 'AR, Female' },
-  { id: 'Raed-Arabic', name: 'Raed', description: 'AR-SA, Male' },
+  { id: 'Salma-Arabic', name: 'Salma', description: 'AR, Female', gender: 'female' },
+  { id: 'Raed-Arabic', name: 'Raed', description: 'AR-SA, Male', gender: 'male' },
   // Japanese
-  { id: 'Morioki-Japanese', name: 'Morioki', description: 'JA, Male' },
-  { id: 'Asahi-Japanese', name: 'Asahi', description: 'JA, Female' },
+  { id: 'Morioki-Japanese', name: 'Morioki', description: 'JA, Male', gender: 'male' },
+  { id: 'Asahi-Japanese', name: 'Asahi', description: 'JA, Female', gender: 'female' },
   // Korean
-  { id: 'Yoona', name: 'Yoona', description: 'KO, Female' },
-  { id: 'Seojun', name: 'Seojun', description: 'KO, Male' },
+  { id: 'Yoona', name: 'Yoona', description: 'KO, Female', gender: 'female' },
+  { id: 'Seojun', name: 'Seojun', description: 'KO, Male', gender: 'male' },
   // Chinese
-  { id: 'Maya-Chinese', name: 'Maya', description: 'ZH, Female' },
-  { id: 'Martin-Chinese', name: 'Martin', description: 'ZH, Male' },
+  { id: 'Maya-Chinese', name: 'Maya', description: 'ZH, Female', gender: 'female' },
+  { id: 'Martin-Chinese', name: 'Martin', description: 'ZH, Male', gender: 'male' },
   // Hindi
-  { id: 'Riya-Hindi-Urdu', name: 'Riya', description: 'HI, Female' },
-  { id: 'Aakash-Hindi', name: 'Aakash', description: 'HI, Male' },
+  { id: 'Riya-Hindi-Urdu', name: 'Riya', description: 'HI, Female', gender: 'female' },
+  { id: 'Aakash-Hindi', name: 'Aakash', description: 'HI, Male', gender: 'male' },
   // Russian
-  { id: 'Nadia-Russian', name: 'Nadia', description: 'RU, Female' },
-  { id: 'Felix-Russian', name: 'Felix', description: 'RU, Male' },
+  { id: 'Nadia-Russian', name: 'Nadia', description: 'RU, Female', gender: 'female' },
+  { id: 'Felix-Russian', name: 'Felix', description: 'RU, Male', gender: 'male' },
   // Dutch
-  { id: 'Ruth-Dutch', name: 'Ruth', description: 'NL, Female' },
-  { id: 'Daniel-Dutch', name: 'Daniel', description: 'NL, Male' },
+  { id: 'Ruth-Dutch', name: 'Ruth', description: 'NL, Female', gender: 'female' },
+  { id: 'Daniel-Dutch', name: 'Daniel', description: 'NL, Male', gender: 'male' },
   // Ukrainian
-  { id: 'Vira-Ukrainian', name: 'Vira', description: 'UK, Female' },
-  { id: 'Dmytro-Ukrainian', name: 'Dmytro', description: 'UK, Male' },
+  { id: 'Vira-Ukrainian', name: 'Vira', description: 'UK, Female', gender: 'female' },
+  { id: 'Dmytro-Ukrainian', name: 'Dmytro', description: 'UK, Male', gender: 'male' },
   // Swedish
-  { id: 'Sanna-Swedish', name: 'Sanna', description: 'SV, Female' },
-  { id: 'Adam-Swedish', name: 'Adam', description: 'SV, Male' },
+  { id: 'Sanna-Swedish', name: 'Sanna', description: 'SV, Female', gender: 'female' },
+  { id: 'Adam-Swedish', name: 'Adam', description: 'SV, Male', gender: 'male' },
   // Polish
-  { id: 'Hanna-Polish', name: 'Hanna', description: 'PL, Female' },
-  { id: 'Marcin-Polish', name: 'Marcin', description: 'PL, Male' },
+  { id: 'Hanna-Polish', name: 'Hanna', description: 'PL, Female', gender: 'female' },
+  { id: 'Marcin-Polish', name: 'Marcin', description: 'PL, Male', gender: 'male' },
 ];
 
 const providers = [
@@ -185,9 +187,11 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
   const [selectedProvider, setSelectedProvider] = useState('openai');
   const [selectedLanguage, setSelectedLanguage] = useState('en');
   const [selectedVoice, setSelectedVoice] = useState('alloy');
+  const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
   const [isLoading, setIsLoading] = useState(false);
 
-  const voices = selectedProvider === 'ultravox' ? ultravoxVoices : openaiVoices;
+  const allVoices = selectedProvider === 'ultravox' ? ultravoxVoices : openaiVoices;
+  const voices = genderFilter === 'all' ? allVoices : allVoices.filter(v => v.gender === genderFilter);
 
   const handleCreate = async () => {
     if (!agentName.trim()) {
@@ -280,6 +284,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
     setSelectedProvider('openai');
     setSelectedLanguage('en');
     setSelectedVoice('alloy');
+    setGenderFilter('all');
   };
 
   if (!open) return null;
@@ -411,7 +416,8 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
                       onClick={() => {
                         setSelectedProvider(p.id);
                         setSelectedVoice(p.id === 'ultravox' ? 'Mark' : 'alloy');
-                      }}
+                        setGenderFilter('all');
+                      }}}
                       className={cn(
                         'p-3 rounded-lg border text-left transition-all',
                         selectedProvider === p.id
@@ -449,9 +455,29 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
 
               {/* Voice */}
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  Voice
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium">Voice</label>
+                  <div className="flex gap-1 bg-muted/30 rounded-lg p-0.5">
+                    {[
+                      { key: 'all' as const, label: 'All' },
+                      { key: 'female' as const, label: '♀ Female' },
+                      { key: 'male' as const, label: '♂ Male' },
+                    ].map((f) => (
+                      <button
+                        key={f.key}
+                        onClick={() => setGenderFilter(f.key)}
+                        className={cn(
+                          'px-2.5 py-1 text-xs rounded-md transition-all',
+                          genderFilter === f.key
+                            ? 'bg-primary-500 text-white shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="grid grid-cols-4 gap-2 max-h-48 overflow-auto custom-scrollbar">
                   {voices.map((voice) => (
                     <button
@@ -466,7 +492,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
                     >
                       <p className="font-medium text-sm capitalize">{voice.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {voice.description}
+                        {voice.gender === 'male' ? '♂' : '♀'} {voice.description}
                       </p>
                     </button>
                   ))}

@@ -1,0 +1,36 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude-review:
+    name: Claude Code Review
+    if: >
+      (github.event_name == 'pull_request') ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       contains(github.event.comment.body, '@claude'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: "claude-sonnet-4-5-20250929"
+          direct_prompt: |
+            Review this PR for:
+            1. Security vulnerabilities (OWASP Top 10, hardcoded secrets, injection)
+            2. Code quality (error handling, typing, naming conventions)
+            3. Performance issues (N+1 queries, unnecessary allocations)
+            4. Architecture consistency with existing patterns
+
+            This is a VoiceAI platform with FastAPI backend and Next.js frontend.
+            Focus on actionable feedback. Skip style-only comments.

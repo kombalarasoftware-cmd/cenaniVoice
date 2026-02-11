@@ -133,6 +133,13 @@ class RealtimeConfig:
     turn_detection_silence_duration_ms: int = 500
     input_audio_format: str = "pcm16"
     output_audio_format: str = "pcm16"
+
+    def __post_init__(self):
+        """Validate voice against supported OpenAI Realtime voices."""
+        from app.core.voice_config import OPENAI_VALID_VOICES
+        if self.voice not in OPENAI_VALID_VOICES:
+            logger.warning(f"Invalid voice '{self.voice}', falling back to 'ash'")
+            self.voice = "ash"
     
     @property
     def model_name(self) -> str:

@@ -52,7 +52,7 @@ COST_PER_TOKEN = {
     },
 }
 
-VALID_VOICES = {"alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"}
+from app.core.voice_config import OPENAI_VALID_VOICES as VALID_VOICES
 
 
 class OpenAIProvider(CallProvider):

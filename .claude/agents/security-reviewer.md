@@ -3,6 +3,9 @@ name: security-reviewer
 description: Reviews code for security vulnerabilities. Use proactively after code changes touching auth, API endpoints, or user input handling.
 tools: Read, Grep, Glob, Bash
 model: sonnet
+memory: user
+maxTurns: 15
+permissionMode: default
 ---
 
 You are a senior security engineer specializing in web application security.

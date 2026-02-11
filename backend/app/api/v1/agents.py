@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from app.core.database import get_db
 from app.core.config import settings
+from app.core.voice_config import get_voices_by_provider, get_voices_by_gender
 from app.api.v1.auth import get_current_user, verify_token
 from app.models import Agent, User
 from app.models.models import AgentStatus as ModelAgentStatus, UserRole
@@ -18,118 +19,19 @@ router = APIRouter(prefix="/agents", tags=["Agents"])
 @router.get("/voices/list")
 async def list_voices(
     provider: str = Query("openai", description="Provider: 'openai' or 'ultravox'"),
+    gender: Optional[str] = Query(None, description="Filter by gender: 'male' or 'female'"),
     current_user: User = Depends(get_current_user)
 ):
-    """List available voices for the specified provider."""
-    if provider == "openai":
-        return {
-            "provider": "openai",
-            "voices": [
-                {"id": "alloy", "name": "Alloy", "gender": "neutral"},
-                {"id": "ash", "name": "Ash", "gender": "male"},
-                {"id": "ballad", "name": "Ballad", "gender": "female"},
-                {"id": "coral", "name": "Coral", "gender": "female"},
-                {"id": "echo", "name": "Echo", "gender": "male"},
-                {"id": "sage", "name": "Sage", "gender": "female"},
-                {"id": "shimmer", "name": "Shimmer", "gender": "female"},
-                {"id": "verse", "name": "Verse", "gender": "male"},
-            ]
-        }
-    elif provider == "ultravox":
-        # Try to fetch from Ultravox API, fall back to known voices
-        try:
-            from app.services.ultravox_service import UltravoxService
-            service = UltravoxService()
-            voices = await service.list_voices()
-            return {"provider": "ultravox", "voices": voices}
-        except Exception:
-            return {
-                "provider": "ultravox",
-                "voices": [
-                    # Turkish
-                    {"id": "Cicek-Turkish", "name": "Cicek", "gender": "female", "language": "tr"},
-                    {"id": "Doga-Turkish", "name": "Doga", "gender": "male", "language": "tr"},
-                    # English
-                    {"id": "Mark", "name": "Mark", "gender": "male", "language": "en"},
-                    {"id": "Jessica", "name": "Jessica", "gender": "female", "language": "en"},
-                    {"id": "Sarah", "name": "Sarah", "gender": "female", "language": "en"},
-                    {"id": "Alex", "name": "Alex", "gender": "male", "language": "en"},
-                    {"id": "Carter", "name": "Carter", "gender": "male", "language": "en"},
-                    {"id": "Olivia", "name": "Olivia", "gender": "female", "language": "en"},
-                    {"id": "Edward", "name": "Edward", "gender": "male", "language": "en"},
-                    {"id": "Luna", "name": "Luna", "gender": "female", "language": "en"},
-                    {"id": "Ashley", "name": "Ashley", "gender": "female", "language": "en"},
-                    {"id": "Dennis", "name": "Dennis", "gender": "male", "language": "en"},
-                    {"id": "Theodore", "name": "Theodore", "gender": "male", "language": "en"},
-                    {"id": "Julia", "name": "Julia", "gender": "female", "language": "en"},
-                    {"id": "Shaun", "name": "Shaun", "gender": "male", "language": "en"},
-                    {"id": "Hana", "name": "Hana", "gender": "female", "language": "en"},
-                    {"id": "Blake", "name": "Blake", "gender": "male", "language": "en"},
-                    {"id": "Timothy", "name": "Timothy", "gender": "male", "language": "en"},
-                    {"id": "Priya", "name": "Priya", "gender": "female", "language": "en"},
-                    {"id": "Chelsea", "name": "Chelsea", "gender": "female", "language": "en"},
-                    {"id": "Emily-English", "name": "Emily", "gender": "female", "language": "en"},
-                    {"id": "Aaron-English", "name": "Aaron", "gender": "male", "language": "en"},
-                    # German
-                    {"id": "Josef", "name": "Josef", "gender": "male", "language": "de"},
-                    {"id": "Johanna", "name": "Johanna", "gender": "female", "language": "de"},
-                    {"id": "Ben-German", "name": "Ben", "gender": "male", "language": "de"},
-                    {"id": "Frida - German", "name": "Frida", "gender": "female", "language": "de"},
-                    {"id": "Susi-German", "name": "Susi", "gender": "female", "language": "de"},
-                    # French
-                    {"id": "Hugo-French", "name": "Hugo", "gender": "male", "language": "fr"},
-                    {"id": "Coco-French", "name": "Coco", "gender": "female", "language": "fr"},
-                    {"id": "Gabriel-French", "name": "Gabriel", "gender": "male", "language": "fr"},
-                    {"id": "Alize-French", "name": "Alize", "gender": "female", "language": "fr"},
-                    {"id": "Nicolas-French", "name": "Nicolas", "gender": "male", "language": "fr"},
-                    # Spanish
-                    {"id": "Alex-Spanish", "name": "Alex", "gender": "male", "language": "es"},
-                    {"id": "Andrea-Spanish", "name": "Andrea", "gender": "female", "language": "es"},
-                    {"id": "Damian-Spanish", "name": "Damian", "gender": "male", "language": "es"},
-                    {"id": "Tatiana-Spanish", "name": "Tatiana", "gender": "female", "language": "es"},
-                    {"id": "Mauricio-Spanish", "name": "Mauricio", "gender": "male", "language": "es"},
-                    # Italian
-                    {"id": "Linda-Italian", "name": "Linda", "gender": "female", "language": "it"},
-                    {"id": "Giovanni-Italian", "name": "Giovanni", "gender": "male", "language": "it"},
-                    # Portuguese
-                    {"id": "Rosa-Portuguese", "name": "Rosa", "gender": "female", "language": "pt-BR"},
-                    {"id": "Tiago-Portuguese", "name": "Tiago", "gender": "male", "language": "pt-BR"},
-                    {"id": "Samuel-Portuguese", "name": "Samuel", "gender": "male", "language": "pt-PT"},
-                    # Arabic
-                    {"id": "Salma-Arabic", "name": "Salma", "gender": "female", "language": "ar"},
-                    {"id": "Raed-Arabic", "name": "Raed", "gender": "male", "language": "ar-SA"},
-                    {"id": "Anas-Arabic", "name": "Anas", "gender": "male", "language": "ar"},
-                    # Japanese
-                    {"id": "Morioki-Japanese", "name": "Morioki", "gender": "male", "language": "ja"},
-                    {"id": "Asahi-Japanese", "name": "Asahi", "gender": "female", "language": "ja"},
-                    # Korean
-                    {"id": "Yoona", "name": "Yoona", "gender": "female", "language": "ko"},
-                    {"id": "Seojun", "name": "Seojun", "gender": "male", "language": "ko"},
-                    # Chinese
-                    {"id": "Maya-Chinese", "name": "Maya", "gender": "female", "language": "zh"},
-                    {"id": "Martin-Chinese", "name": "Martin", "gender": "male", "language": "zh"},
-                    # Hindi
-                    {"id": "Riya-Hindi-Urdu", "name": "Riya", "gender": "female", "language": "hi"},
-                    {"id": "Aakash-Hindi", "name": "Aakash", "gender": "male", "language": "hi"},
-                    # Russian
-                    {"id": "Nadia-Russian", "name": "Nadia", "gender": "female", "language": "ru"},
-                    {"id": "Felix-Russian", "name": "Felix", "gender": "male", "language": "ru"},
-                    # Dutch
-                    {"id": "Ruth-Dutch", "name": "Ruth", "gender": "female", "language": "nl"},
-                    {"id": "Daniel-Dutch", "name": "Daniel", "gender": "male", "language": "nl"},
-                    # Polish
-                    {"id": "Hanna-Polish", "name": "Hanna", "gender": "female", "language": "pl"},
-                    {"id": "Pawel - Polish", "name": "Pawel", "gender": "male", "language": "pl"},
-                    # Ukrainian
-                    {"id": "Vira-Ukrainian", "name": "Vira", "gender": "female", "language": "uk"},
-                    {"id": "Dmytro-Ukrainian", "name": "Dmytro", "gender": "male", "language": "uk"},
-                    # Swedish
-                    {"id": "Sanna-Swedish", "name": "Sanna", "gender": "female", "language": "sv"},
-                    {"id": "Adam-Swedish", "name": "Adam", "gender": "male", "language": "sv"},
-                ]
-            }
-    else:
+    """List available voices for the specified provider, optionally filtered by gender."""
+    if provider not in ("openai", "ultravox"):
         raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
+
+    if gender:
+        voices = get_voices_by_gender(provider, gender)
+    else:
+        voices = get_voices_by_provider(provider)
+
+    return {"provider": provider, "voices": voices}
 
 
 @router.get("", response_model=List[AgentResponse])

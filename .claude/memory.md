@@ -112,7 +112,23 @@
 - Asterisk: fail2ban jail for SIP port 5043
 - SIP credentials still in plaintext in pjsip.conf (consider env var substitution)
 
+## Claude Code Configuration
+- **Agents** (4): security-reviewer, code-reviewer, debugger, frontend-developer — all with `memory: user`, `maxTurns`, `permissionMode`
+- **Skills** (7): review, security, test, deploy, refactor, changelog, fix-issue — all with `allowed-tools` restrictions
+- **Hooks** (5 events): SessionStart (env check), PreToolUse (dangerous command block), PostToolUse (Python syntax, async), Notification (Windows toast), Stop (final verification)
+- **Rules** (4): backend-python, frontend-react, security, docker-infra — path-scoped with glob patterns
+- **MCP**: context7 (library docs)
+- **Plugins**: GitHub, Playwright, Context7, Pyright LSP, TypeScript LSP
+- **Status line**: Custom script showing model, branch, context%, cost, lines changed
+- **File suggestion**: Custom @ autocomplete with priority extensions and skip dirs
+- **Output styles**: `engineering.md` — structured technical responses
+- **Keybindings**: Custom shortcuts (Ctrl+E editor, Ctrl+P model picker, Ctrl+Shift+T thinking, Ctrl+S stash)
+- **CI/CD**: GitHub Actions CI (tests, lint, build) + Claude Code PR Review action
+- **$CLAUDE_PROJECT_DIR bug**: Does NOT expand on Windows cmd.exe — use relative paths in hook commands
+
 ## Recent Changes
+- [2026-02-11] Full Claude Code feature implementation: status line, file suggestion, output styles, keybindings, LSP plugins, GitHub Actions review
+- [2026-02-11] Claude Code 23-item gap analysis applied: agent memory, skill allowed-tools, hook system (5 events), model config
 - [2026-02-11] Comprehensive security audit + 18 code fixes applied
 - [2026-02-11] Full Turkish → English translation in tool responses and docstrings
 - [2026-02-11] Ownership-based authorization added to surveys, appointments, leads

@@ -1,5 +1,6 @@
 ---
 description: Generate user-facing changelog from git history
+allowed-tools: Bash, Read
 ---
 
 # /changelog - Changelog Generation

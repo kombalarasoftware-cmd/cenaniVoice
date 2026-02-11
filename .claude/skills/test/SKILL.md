@@ -1,5 +1,6 @@
 ---
 description: Generate comprehensive tests for a file or module
+allowed-tools: Read, Write, Bash, Glob, Grep
 ---
 
 # /test - Test Generation

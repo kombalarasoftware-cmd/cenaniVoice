@@ -1,5 +1,6 @@
 ---
 description: Pre-deployment readiness check for the VoiceAI platform
+allowed-tools: Read, Bash, Glob, Grep
 ---
 
 # /deploy - Pre-Deployment Check

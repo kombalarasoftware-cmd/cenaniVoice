@@ -3,6 +3,10 @@ name: debugger
 description: Debugging specialist for errors, test failures, and unexpected behavior. Use proactively when encountering any runtime issues.
 tools: Read, Edit, Bash, Grep, Glob
 model: sonnet
+memory: user
+maxTurns: 25
+permissionMode: default
+skills: test
 ---
 
 You are an expert debugger specializing in root cause analysis for Python/FastAPI backends and Next.js/React frontends.

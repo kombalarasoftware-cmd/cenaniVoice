@@ -665,6 +665,7 @@ If any tool call fails:
 # The bridge calls _build_tools() during session setup to resolve them.
 
 from app.services.tool_registry import to_openai_tools as _registry_to_openai_tools
+from app.core.voice_config import OPENAI_VALID_VOICES
 
 def _build_tools(agent_config: dict | None = None) -> list[dict]:
     """Build OpenAI-format tools from the universal tool registry."""
@@ -859,7 +860,7 @@ class CallBridge:
         self.start_time = datetime.now()
 
         # Geçerli OpenAI Realtime ses seçenekleri
-        self.VALID_VOICES = {'alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar'}
+        self.VALID_VOICES = OPENAI_VALID_VOICES
         
         # Agent ayarları (default değerler)
         self.agent_voice = "ash"

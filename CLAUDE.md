@@ -58,6 +58,59 @@ nginx/            # Reverse proxy + SSL
 - Circuit breaker per provider (5 failures → 30s cooldown)
 - Middleware order: RequestID → SecurityHeaders → BodySizeLimit → RateLimit → CORS
 
+## Model Configuration
+- Default: Sonnet (fast, cost-efficient)
+- Planning: `--model opusplan` (Opus for plans, Sonnet for execution)
+- Complex tasks: `--effort high`
+- Quick lookups: `--effort low`
+
+## Available Agents
+- `security-reviewer` — OWASP-focused security audit (persistent memory)
+- `code-reviewer` — Quality, performance, architecture review (persistent memory)
+- `debugger` — Root cause analysis with project-specific patterns (persistent memory)
+- `frontend-developer` — Next.js/React specialist (persistent memory)
+
+## Available Skills
+- `/review` — Code review with security + performance checks
+- `/security` — OWASP-focused security vulnerability scan
+- `/test` — Generate comprehensive tests
+- `/deploy` — Pre-deployment readiness check
+- `/refactor` — Analyze and restructure code (runs in fork context)
+- `/changelog` — Generate changelog from git history
+- `/fix-issue` — Fix a GitHub issue by number (runs in fork context)
+- `/interview` — Interview user to gather requirements before implementing
+
+## Plugins & Integrations
+- **GitHub** — PR/issue management via MCP
+- **Playwright** — Browser automation and visual testing
+- **Context7** — Up-to-date library documentation
+- **Sentry** — Error monitoring integration
+- **Slack** — Task delegation from Slack
+- **Figma** — Design-to-code integration
+- **Pyright LSP** — Python type checking and code intelligence
+- **TypeScript LSP** — TypeScript type checking and code intelligence
+
+## Hook Events (8 active)
+- **SessionStart** — Environment check on startup
+- **PreToolUse** — Command validation before execution
+- **PostToolUse** — Python syntax check after file edits (async)
+- **Notification** — Windows toast notifications (async)
+- **Stop** — Final verification before response ends
+- **PreCompact** — Preserve critical context before compaction
+- **SessionEnd** — Warn about uncommitted changes on exit (async)
+
+## Agent SDK Scripts
+Automation scripts in `.claude/scripts/`:
+- `batch-migrate.sh` — Parallel file migration with `claude -p`
+- `review-pr.sh` — Automated security + quality PR review
+- `extract-api.sh` — Structured API endpoint extraction (JSON schema)
+
+## Output Styles
+Custom output style at `.claude/output-styles/engineering.md` — use `--output-style engineering`
+
+## DevContainer
+`.devcontainer/devcontainer.json` configured with Python 3.11, Node 18, PostgreSQL, Redis, gh CLI.
+
 ## References
 @.claude/memory.md
 

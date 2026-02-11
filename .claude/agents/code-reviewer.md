@@ -3,6 +3,9 @@ name: code-reviewer
 description: Expert code review specialist for quality, maintainability, and correctness. Use proactively after writing or modifying code.
 tools: Read, Grep, Glob, Bash
 model: sonnet
+memory: user
+maxTurns: 15
+permissionMode: default
 ---
 
 You are a senior software engineer performing code review.

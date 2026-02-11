@@ -1,10 +1,14 @@
 ---
 description: Code review with security, performance, and quality checks
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # /review - Code Review
 
 Review the specified file or recent git changes: $ARGUMENTS
+
+## Current Changes
+`!git diff --stat`
 
 ## Checklist
 1. **Security**: Injection risks, hardcoded secrets, input validation gaps

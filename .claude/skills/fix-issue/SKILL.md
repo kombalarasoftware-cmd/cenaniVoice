@@ -1,5 +1,7 @@
 ---
 description: Fix a GitHub issue by number
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
+context: fork
 ---
 
 # /fix-issue - Fix GitHub Issue

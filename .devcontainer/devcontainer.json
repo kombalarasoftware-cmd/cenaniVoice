@@ -1,0 +1,46 @@
+{
+  "name": "VoiceAI Platform",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "backend",
+  "workspaceFolder": "/app",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "18"
+    },
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        "esbenp.prettier-vscode",
+        "ms-azuretools.vscode-docker"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.linting.enabled": true,
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.python"
+        }
+      }
+    }
+  },
+  "forwardPorts": [3000, 8000, 5432, 6379, 9000],
+  "postCreateCommand": "pip install -r backend/requirements.txt && cd frontend && npm ci",
+  "remoteUser": "vscode",
+  "containerEnv": {
+    "DATABASE_URL": "postgresql+asyncpg://voiceai:voiceai@postgres:5432/voiceai",
+    "REDIS_URL": "redis://redis:6379/0",
+    "SECRET_KEY": "dev-secret-key-change-in-production"
+  }
+}

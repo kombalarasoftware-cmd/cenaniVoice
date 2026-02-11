@@ -1,5 +1,7 @@
 ---
 description: Analyze and restructure code for better maintainability
+allowed-tools: Read, Write, Edit, Grep, Glob
+context: fork
 ---
 
 # /refactor - Code Refactoring
