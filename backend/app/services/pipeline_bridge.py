@@ -269,6 +269,7 @@ async def synthesize_speech(text: str, voice: str = "tr_TR-dfki-medium") -> byte
     Synthesize speech using Piper TTS via Wyoming protocol.
 
     Returns raw PCM16 audio at Piper's native sample rate (usually 22050Hz).
+    Wyoming protocol uses newline-delimited JSON events.
     """
     try:
         reader, writer = await asyncio.wait_for(
@@ -276,8 +277,8 @@ async def synthesize_speech(text: str, voice: str = "tr_TR-dfki-medium") -> byte
             timeout=5.0,
         )
 
-        # Wyoming protocol: send JSON event + text
-        # synthesize event
+        # Wyoming protocol: newline-delimited JSON events
+        # Send synthesize event
         event = {
             "type": "synthesize",
             "data": {
@@ -285,50 +286,68 @@ async def synthesize_speech(text: str, voice: str = "tr_TR-dfki-medium") -> byte
                 "voice": {"name": voice},
             },
         }
-        event_str = json.dumps(event)
-        event_bytes = event_str.encode("utf-8")
-
-        # Wyoming framing: event length (4 bytes big-endian) + event JSON
-        writer.write(struct.pack(">I", len(event_bytes)))
-        writer.write(event_bytes)
+        event_line = json.dumps(event, ensure_ascii=False) + "\n"
+        writer.write(event_line.encode("utf-8"))
         await writer.drain()
 
-        # Read audio response
+        # Read audio response events (newline-delimited JSON)
         audio_chunks = []
         try:
             while True:
-                # Read event header
-                header = await asyncio.wait_for(reader.read(4), timeout=30.0)
-                if len(header) < 4:
+                # Read one JSON event line
+                line = await asyncio.wait_for(reader.readline(), timeout=30.0)
+                if not line:
                     break
-                event_len = struct.unpack(">I", header)[0]
-                if event_len == 0:
-                    break
-                event_data = await asyncio.wait_for(reader.read(event_len), timeout=10.0)
-                resp_event = json.loads(event_data.decode("utf-8"))
+                line_str = line.decode("utf-8").strip()
+                if not line_str:
+                    continue
 
-                if resp_event.get("type") == "audio-chunk":
-                    # Read audio payload
-                    payload_len = resp_event.get("data", {}).get("payload_length", 0)
+                resp_event = json.loads(line_str)
+                event_type = resp_event.get("type", "")
+
+                if event_type == "audio-chunk":
+                    # Read audio payload bytes after the JSON line
+                    payload_len = resp_event.get("payload_length", 0)
                     if payload_len > 0:
-                        audio = await asyncio.wait_for(reader.read(payload_len), timeout=10.0)
+                        audio = await asyncio.wait_for(
+                            _read_exactly(reader, payload_len), timeout=10.0
+                        )
                         audio_chunks.append(audio)
-                elif resp_event.get("type") == "audio-stop":
+                elif event_type == "audio-stop":
+                    break
+                elif event_type == "error":
+                    err_msg = resp_event.get("data", {}).get("text", "Unknown error")
+                    logger.error(f"Piper TTS error event: {err_msg}")
                     break
         except asyncio.TimeoutError:
-            pass
+            logger.warning("Piper TTS response timeout")
 
         writer.close()
         await writer.wait_closed()
 
         if audio_chunks:
-            return b"".join(audio_chunks)
+            result = b"".join(audio_chunks)
+            logger.debug(f"Piper TTS: {len(result)} bytes for '{text[:50]}'")
+            return result
+
+        logger.warning(f"Piper TTS returned no audio for: '{text[:80]}'")
         return b""
 
     except Exception as e:
         logger.error(f"Piper TTS error: {e}")
         # Fallback: try HTTP-based Piper if Wyoming fails
         return await _synthesize_speech_http(text, voice)
+
+
+async def _read_exactly(reader: asyncio.StreamReader, n: int) -> bytes:
+    """Read exactly n bytes from a StreamReader."""
+    data = b""
+    while len(data) < n:
+        chunk = await reader.read(n - len(data))
+        if not chunk:
+            break
+        data += chunk
+    return data
 
 
 async def _synthesize_speech_http(text: str, voice: str) -> bytes:
