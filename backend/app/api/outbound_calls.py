@@ -237,31 +237,17 @@ async def initiate_outbound_call(
             # Use .value to get the actual model string (e.g., "gpt-realtime-mini", "grok-2-realtime", "gemini-live-2.5-flash-native-audio")
             model_str = agent.model_type.value if agent.model_type else "gpt-realtime-mini"
 
-            # Build full prompt from all prompt sections
-            prompt_parts = []
-            if agent.prompt_role:
-                prompt_parts.append(f"# Personality\n{agent.prompt_role}")
-            if agent.prompt_personality:
-                prompt_parts.append(f"# Environment\n{agent.prompt_personality}")
-            if agent.prompt_context:
-                prompt_parts.append(f"# Tone\n{agent.prompt_context}")
-            if agent.prompt_pronunciations:
-                prompt_parts.append(f"# Goal\n{agent.prompt_pronunciations}")
-            if agent.prompt_sample_phrases:
-                prompt_parts.append(f"# Guardrails\n{agent.prompt_sample_phrases}")
-            if agent.prompt_tools:
-                prompt_parts.append(f"# Tools\n{agent.prompt_tools}")
-            if agent.prompt_rules:
-                prompt_parts.append(f"# Character normalization\n{agent.prompt_rules}")
-            if agent.prompt_flow:
-                prompt_parts.append(f"# Error handling\n{agent.prompt_flow}")
-            if agent.prompt_safety:
-                prompt_parts.append(f"# Guardrails\n{agent.prompt_safety}")
-            if agent.prompt_language:
-                prompt_parts.append(f"# Language\n{agent.prompt_language}")
-            if agent.knowledge_base:
-                prompt_parts.append(f"# Knowledge Base\n{agent.knowledge_base}")
-            full_prompt = "\n\n".join(prompt_parts) if prompt_parts else ""
+            # Build complete prompt using universal PromptBuilder
+            from app.services.prompt_builder import PromptBuilder, PromptContext
+
+            conversation_history = build_conversation_history(db, phone_number, agent.id)
+            ctx = PromptContext.from_agent(
+                agent,
+                customer_name=request.customer_name or "",
+                customer_title=request.customer_title or "",
+                conversation_history=conversation_history,
+            )
+            full_prompt = PromptBuilder.build(ctx)
 
             # Voice validation per provider
             if provider_type == "xai":
@@ -325,7 +311,7 @@ async def initiate_outbound_call(
                 "prompt_language": agent.prompt_language or "",
                 "knowledge_base": agent.knowledge_base or "",
                 "human_transfer": agent.human_transfer if agent.human_transfer is not None else True,
-                "conversation_history": build_conversation_history(db, phone_number, agent.id),
+                "conversation_history": conversation_history,
             }
 
             if redis_client:

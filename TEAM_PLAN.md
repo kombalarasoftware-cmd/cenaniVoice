@@ -88,7 +88,7 @@
 | S3-02 | Replace `datetime.utcnow()` with `datetime.now(timezone.utc)` across all models | Backend Dev | 2h | ⬜ TODO |
 | S3-03 | Fix N+1 queries in appointments, leads, surveys — use `joinedload` | Backend Dev | 2h | ⬜ TODO |
 | S3-04 | Add missing model/enum exports to `models/__init__.py` (20 items) | Backend Dev | 1h | ⬜ TODO |
-| S3-05 | Consolidate duplicate prompt builders (openai_realtime + ultravox_provider) | Backend Dev | 3h | ⬜ TODO |
+| S3-05 | Consolidate duplicate prompt builders (openai_realtime + ultravox_provider) | Backend Dev | 3h | ✅ DONE |
 | S3-06 | Add `httpx.AsyncClient` connection pooling (document_service, ultravox_service) | Backend Dev | 2h | ⬜ TODO |
 | S3-07 | Add duplicate agent — copy missing fields (timezone, smart_features, survey_config) | Backend Dev | 30m | ⬜ TODO |
 

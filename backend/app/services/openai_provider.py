@@ -8,7 +8,6 @@ the existing asterisk_bridge.py without any changes to it.
 
 import json
 import logging
-import os
 import uuid as uuid_lib
 from typing import Any, Optional
 
@@ -89,29 +88,16 @@ class OpenAIProvider(CallProvider):
             # Use .value to get the actual model string (e.g., "gpt-realtime-mini", "grok-2-realtime", "gemini-live-2.5-flash-native-audio")
             model_str = agent.model_type.value if agent.model_type else "gpt-realtime-mini"
 
-            # Build prompt from sections
-            prompt_parts = []
-            section_map = [
-                ("Personality", "prompt_role"),
-                ("Environment", "prompt_personality"),
-                ("Tone", "prompt_context"),
-                ("Goal", "prompt_pronunciations"),
-                ("Guardrails", "prompt_sample_phrases"),
-                ("Tools", "prompt_tools"),
-                ("Character normalization", "prompt_rules"),
-                ("Error handling", "prompt_flow"),
-                ("Guardrails", "prompt_safety"),
-                ("Language", "prompt_language"),
-            ]
-            for heading, attr in section_map:
-                content = getattr(agent, attr, None)
-                if content:
-                    prompt_parts.append(f"# {heading}\n{content}")
+            # Build complete prompt using universal PromptBuilder
+            from app.services.prompt_builder import PromptBuilder, PromptContext
 
-            if agent.knowledge_base:
-                prompt_parts.append(f"# Knowledge Base\n{agent.knowledge_base}")
-
-            full_prompt = "\n\n".join(prompt_parts) if prompt_parts else ""
+            ctx = PromptContext.from_agent(
+                agent,
+                customer_name=customer_name,
+                customer_title=customer_title,
+                conversation_history=conversation_history,
+            )
+            full_prompt = PromptBuilder.build(ctx)
 
             # Detect provider from agent and validate voice
             provider_type = getattr(agent, "provider", "openai") or "openai"

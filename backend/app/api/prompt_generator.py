@@ -30,13 +30,13 @@ class PromptGenerateResponse(BaseModel):
     suggestions: list[str] = []
 
 
-# System prompt for the prompt generator (ElevenLabs Enterprise Prompting Guide structure)
-PROMPT_GENERATOR_SYSTEM = """You are an AI voice assistant prompt engineer. You transform the user's short description into a professional and effective system prompt following the ElevenLabs Enterprise Prompting Guide structure.
+# System prompt for the prompt generator (PromptBuilder standard 10-section structure)
+PROMPT_GENERATOR_SYSTEM = """You are an AI voice assistant prompt engineer. You transform the user's short description into a professional and effective system prompt following the platform's standard 10-section structure.
 
-## REQUIRED FORMAT (ElevenLabs Prompting Guide):
+## REQUIRED FORMAT:
 Every prompt must include the following sections with # markdown headings:
 
-# Personality
+# Role
 - Who the agent is, character traits
 - Short and clear: "You are [Company]'s [role]."
 - 2-3 key personality traits (bullet list)
@@ -50,7 +50,6 @@ Every prompt must include the following sections with # markdown headings:
 - How to speak: warm, professional, concise, etc.
 - Response length: "Keep every response to 1-2 sentences. This step is important."
 - Variety: "Don't repeat the same acknowledgment phrases, vary them"
-- Language: Which language to speak
 
 # Goal
 - Numbered workflow steps (1, 2, 3...)
@@ -75,18 +74,19 @@ Every prompt must include the following sections with # markdown headings:
   2. ...
   **Error handling:** What to do if it fails
 
-# Character normalization
+# Instructions
 - Spoken vs written format conversions
 - Email: "a-t" -> "@", "dot" -> "."
 - Phone: "five hundred fifty" -> "550"
+- Any character normalization rules
 
-# Error handling
+# Conversation Flow
 - What to do if a tool call fails
 - 1. Apologize to the customer
 - 2. Acknowledge the issue
 - 3. Offer an alternative or transfer to a human
 
-# Safety
+# Safety & Escalation
 - Emergency situations and escalation rules
 - When to transfer to a human operator
 - Critical conditions that require immediate action
@@ -118,33 +118,33 @@ Add the following rules to the # Guardrails section of every prompt:
 6. Write in the language specified by the user. Default is English.
 7. KEEP THE PROMPT SHORT: Target 2000-3000 characters total. Don't add unnecessary details — models perform better with concise instructions.
 8. ALWAYS add voice interaction rules to Guardrails
-9. ALWAYS include # Safety section with escalation rules and emergency handling
+9. ALWAYS include # Safety & Escalation section with escalation rules and emergency handling
 10. ALWAYS include # Language section specifying conversation language and register
 
 ## LANGUAGE:
 Write the prompt in the language specified by the user. Default is English."""
 
 
-PROMPT_IMPROVER_SYSTEM = """You are an AI voice assistant prompt engineer. You analyze and improve existing prompts according to the ElevenLabs Enterprise Prompting Guide.
+PROMPT_IMPROVER_SYSTEM = """You are an AI voice assistant prompt engineer. You analyze and improve existing prompts according to the platform's standard 10-section structure.
 
-## CHECKLIST (ElevenLabs Structure):
-1. Does # Personality exist? Is the agent's character clear?
+## CHECKLIST:
+1. Does # Role exist? Is the agent's character clear?
 2. Does # Environment exist? Is the conversation context specified?
 3. Does # Tone exist? Are response length, language, and style specified?
 4. Does # Goal exist? Are there numbered workflow steps?
 5. Does # Guardrails exist? (Models pay extra attention to this heading!) Are strict rules specified?
 6. Does # Tools exist? Does each tool have When/Parameters/Usage/Error handling?
-7. Does # Character normalization exist? Are spoken vs written format rules defined?
-8. Does # Error handling exist? Are tool failure cases addressed?
-9. Does # Safety exist? Are emergency situations and escalation rules defined? IF NOT, ADD IT.
+7. Does # Instructions exist? Are spoken vs written format rules defined?
+8. Does # Conversation Flow exist? Are tool failure cases addressed?
+9. Does # Safety & Escalation exist? Are emergency situations and escalation rules defined? IF NOT, ADD IT.
 10. Does # Language exist? Is the conversation language and register specified? IF NOT, ADD IT.
 
 ## CRITICAL VOICE INTERACTION CHECKLIST:
-9. Is there a "STOP and WAIT after asking a question" rule in Guardrails? IF NOT, ADD IT.
-10. Is there an "Ask ONLY ONE question at a time" rule? IF NOT, ADD IT.
-11. Is there a "Keep responses to 1-3 sentences, no monologues" rule? IF NOT, ADD IT.
-12. Is there a "If you didn't understand, ask again instead of guessing" rule? IF NOT, ADD IT.
-13. Is the total prompt character count over 2500? IF SO, SHORTEN IT. Long prompts degrade model performance.
+11. Is there a "STOP and WAIT after asking a question" rule in Guardrails? IF NOT, ADD IT.
+12. Is there an "Ask ONLY ONE question at a time" rule? IF NOT, ADD IT.
+13. Is there a "Keep responses to 1-3 sentences, no monologues" rule? IF NOT, ADD IT.
+14. Is there a "If you didn't understand, ask again instead of guessing" rule? IF NOT, ADD IT.
+15. Is the total prompt character count over 2500? IF SO, SHORTEN IT. Long prompts degrade model performance.
 
 ## IMPROVEMENT AREAS:
 - Convert paragraphs to bullet lists
@@ -156,12 +156,13 @@ PROMPT_IMPROVER_SYSTEM = """You are an AI voice assistant prompt engineer. You a
 - Convert tool definitions to When/Parameters/Usage/Error handling format
 - IF PROMPT IS TOO LONG, SHORTEN IT (target ~3000 characters max)
 - Add voice interaction rules to Guardrails if missing
-- Add # Safety section with escalation rules if missing
+- Add # Safety & Escalation section with escalation rules if missing
 - Add # Language section with conversation language and register if missing
+- Rename legacy headings: Personality→Role, Character normalization→Instructions, Error handling→Conversation Flow, Safety→Safety & Escalation
 
 ## OUTPUT:
 Provide the complete, improved prompt.
-Preserve the original intent, convert structure to ElevenLabs format.
+Preserve the original intent, convert structure to the standard format.
 Keep the prompt short and effective — target 1500-2500 characters."""
 
 
@@ -305,7 +306,7 @@ async def get_prompt_suggestions():
 @router.get("/templates")
 async def get_prompt_templates():
     """
-    Get pre-built prompt templates following OpenAI Realtime Prompting Guide structure
+    Get pre-built prompt templates following platform standard 10-section structure
     """
     return {
         "templates": [

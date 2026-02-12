@@ -20,6 +20,7 @@
 - [2026-02-08] Structured JSON logging with request ID tracing (structlog)
 - [2026-02-11] Ownership-based authorization: all data filtered by Agent/Campaign.owner_id
 - [2026-02-11] Admin role check for system settings (UserRole.ADMIN)
+- [2026-02-12] Universal PromptBuilder: centralized 4-layer prompt system replacing 5 duplicate builders
 
 ## Known Gotchas
 - Ultravox SIP password must match `pjsip.conf [ultravox-auth]` exactly
@@ -57,6 +58,8 @@
 - `backend/app/services/ultravox_provider.py` — Ultravox call implementation
 - `backend/app/services/openai_provider.py` — OpenAI Realtime implementation
 - `backend/app/services/asterisk_ari.py` — Asterisk ARI integration
+- `backend/app/services/prompt_builder.py` — Universal 4-layer prompt builder (PromptContext + PromptBuilder)
+- `backend/app/services/prompt_constants.py` — Shared prompt constants (titles, AMD, voice rules)
 - `backend/app/services/minio_service.py` — MinIO file storage (uses settings.REDIS_URL)
 - `backend/app/tasks/celery_tasks.py` — Background jobs
 - `frontend/src/lib/api.ts` — API client
@@ -132,6 +135,7 @@
 - **$CLAUDE_PROJECT_DIR bug**: Does NOT expand on Windows cmd.exe — use relative paths in hook commands
 
 ## Recent Changes
+- [2026-02-12] Universal PromptBuilder: centralized prompt_builder.py + prompt_constants.py replacing 5 duplicate builders (openai_provider, openai_realtime, ultravox_provider, asterisk_bridge, outbound_calls). 10-section standard: Role, Environment, Tone, Goal, Guardrails, Tools, Instructions, Conversation Flow, Safety & Escalation, Language. Prompt Maker aligned, ElevenLabs references removed.
 - [2026-02-12] Visual design system: visual-dev skill (Playwright feedback loop), design-inspiration skill, frontend-design.md rule, framer-motion installed, tailwind enhanced (float, gradient-shift, blur-in, glassmorphism), CLAUDE.md design philosophy added
 - [2026-02-11] Copilot features adapted to Claude Code: cascade-edit, create-pr, todo-scan, space skills; ruff-check, cascade-detect, todo-check hooks; 4 granular path-scoped rules
 - [2026-02-11] GitHub Copilot integration: copilot-instructions.md, path-specific instructions, copilot-setup-steps.yml, 4 custom agents, Copilot CLI installed

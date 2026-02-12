@@ -216,7 +216,7 @@ class Agent(Base):
     knowledge_base: Mapped[Optional[str]] = mapped_column(Text)  # Static knowledge base content (embedded in prompt)
     web_sources: Mapped[Optional[str]] = mapped_column(JSON, default=list)  # Web URLs for dynamic info retrieval
     
-    # Prompt sections (ElevenLabs Enterprise Prompting Guide structure)
+    # Prompt sections (10-section standard structure)
     # 1. Personality - who the agent is, character traits
     prompt_role: Mapped[Optional[str]] = mapped_column(Text)  # DB column kept as prompt_role for compat
     # 2. Environment - context of the conversation
@@ -316,17 +316,17 @@ class PromptTemplate(Base):
     description: Mapped[Optional[str]] = mapped_column(Text)
     category: Mapped[Optional[str]] = mapped_column(String(100))
     
-    # Template content (OpenAI Realtime Prompting Guide structure)
-    role: Mapped[Optional[str]] = mapped_column(Text)  # Role & Objective
-    personality: Mapped[Optional[str]] = mapped_column(Text)  # Personality & Tone
-    context: Mapped[Optional[str]] = mapped_column(Text)  # Context (NEW)
-    pronunciations: Mapped[Optional[str]] = mapped_column(Text)  # Reference Pronunciations (NEW)
-    sample_phrases: Mapped[Optional[str]] = mapped_column(Text)  # Sample Phrases (NEW)
+    # Template content (10-section standard structure)
+    role: Mapped[Optional[str]] = mapped_column(Text)  # Role
+    personality: Mapped[Optional[str]] = mapped_column(Text)  # Environment
+    context: Mapped[Optional[str]] = mapped_column(Text)  # Tone
+    pronunciations: Mapped[Optional[str]] = mapped_column(Text)  # Goal
+    sample_phrases: Mapped[Optional[str]] = mapped_column(Text)  # Guardrails
     tools: Mapped[Optional[str]] = mapped_column(Text)  # Tools
-    rules: Mapped[Optional[str]] = mapped_column(Text)  # Instructions/Rules
+    rules: Mapped[Optional[str]] = mapped_column(Text)  # Instructions
     flow: Mapped[Optional[str]] = mapped_column(Text)  # Conversation Flow
     safety: Mapped[Optional[str]] = mapped_column(Text)  # Safety & Escalation
-    language: Mapped[Optional[str]] = mapped_column(Text)  # Legacy (merged into personality)
+    language: Mapped[Optional[str]] = mapped_column(Text)  # Language
     
     # Metadata
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)

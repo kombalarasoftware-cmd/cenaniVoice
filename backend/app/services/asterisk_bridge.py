@@ -277,27 +277,8 @@ def hangup_cause_to_sip_code(cause: str) -> int:
         return 200
     return HANGUP_CAUSE_TO_SIP.get(cause, 500)
 
-# ============================================================================
-# TITLE TRANSLATIONS - Language-aware Mr/Mrs
-# ============================================================================
-TITLE_TRANSLATIONS = {
-    "tr": {"Mr": "Bey", "Mrs": "Hanım"},
-    "en": {"Mr": "Mr", "Mrs": "Mrs"},
-    "de": {"Mr": "Herr", "Mrs": "Frau"},
-    "fr": {"Mr": "Monsieur", "Mrs": "Madame"},
-    "es": {"Mr": "Señor", "Mrs": "Señora"},
-    "it": {"Mr": "Signore", "Mrs": "Signora"},
-    "pt": {"Mr": "Senhor", "Mrs": "Senhora"},
-    "nl": {"Mr": "Meneer", "Mrs": "Mevrouw"},
-    "ar": {"Mr": "السيد", "Mrs": "السيدة"},
-    "zh": {"Mr": "先生", "Mrs": "女士"},
-    "ja": {"Mr": "様", "Mrs": "様"},
-    "ko": {"Mr": "님", "Mrs": "님"},
-}
-
-# Languages where title comes AFTER the name (e.g. "Cenani Bey")
-# All others: title BEFORE the name (e.g. "Mr Cenani")
-TITLE_AFTER_NAME = {"tr", "ja", "ko", "zh"}
+# Title translations (centralized in prompt_constants)
+from app.services.prompt_constants import TITLE_AFTER_NAME, TITLE_TRANSLATIONS
 
 # ============================================================================
 # AUDIO FORMAT CONSTANTS - Native 24kHz Passthrough
@@ -499,47 +480,41 @@ async def get_agent_from_db(agent_id: int) -> Optional[Dict[str, Any]]:
         
         try:
             row = await conn.fetchrow(
-                """SELECT id, name, voice, model_type, language, 
-                          prompt_role, prompt_personality, prompt_flow, 
-                          prompt_rules, prompt_safety, prompt_language,
-                          prompt_tools, knowledge_base,
+                """SELECT id, name, voice, model_type, language, provider, timezone,
+                          prompt_role, prompt_personality, prompt_context,
+                          prompt_pronunciations, prompt_sample_phrases,
+                          prompt_flow, prompt_rules, prompt_safety,
+                          prompt_language, prompt_tools, knowledge_base,
                           greeting_message, first_speaker,
-                          transcript_model, temperature, vad_threshold, 
+                          transcript_model, temperature, vad_threshold,
                           silence_duration_ms, prefix_padding_ms,
                           turn_detection, vad_eagerness, max_output_tokens,
                           noise_reduction, interrupt_response, create_response
                    FROM agents WHERE id = $1""",
                 agent_id
             )
-            
+
             if row:
-                # Build full prompt from all sections
-                prompt_parts = []
-                if row["prompt_role"]:
-                    prompt_parts.append(f"# Personality\n{row['prompt_role']}")
-                if row.get("prompt_personality"):
-                    prompt_parts.append(f"# Environment\n{row['prompt_personality']}")
-                if row.get("prompt_flow"):
-                    prompt_parts.append(f"# Goal\n{row['prompt_flow']}")
-                if row.get("prompt_rules"):
-                    prompt_parts.append(f"# Guardrails\n{row['prompt_rules']}")
-                if row.get("prompt_safety"):
-                    prompt_parts.append(f"# Safety\n{row['prompt_safety']}")
-                if row.get("prompt_language"):
-                    prompt_parts.append(f"# Language\n{row['prompt_language']}")
-                if row.get("prompt_tools"):
-                    prompt_parts.append(f"# Tools\n{row['prompt_tools']}")
-                if row.get("knowledge_base"):
-                    prompt_parts.append(f"# Knowledge Base\n{row['knowledge_base']}")
-                full_prompt = "\n\n".join(prompt_parts) if prompt_parts else ""
-                
                 return {
                     "id": row["id"],
                     "name": row["name"],
                     "voice": row["voice"] or "ash",
                     "model_type": row["model_type"] or "gpt-realtime-mini",
                     "language": row["language"] or "tr",
-                    "prompt_role": full_prompt or "",
+                    "provider": row.get("provider") or "openai",
+                    "timezone": row.get("timezone") or "Europe/Istanbul",
+                    # Individual prompt fields for PromptBuilder
+                    "prompt_role": row.get("prompt_role") or "",
+                    "prompt_personality": row.get("prompt_personality") or "",
+                    "prompt_context": row.get("prompt_context") or "",
+                    "prompt_pronunciations": row.get("prompt_pronunciations") or "",
+                    "prompt_sample_phrases": row.get("prompt_sample_phrases") or "",
+                    "prompt_flow": row.get("prompt_flow") or "",
+                    "prompt_rules": row.get("prompt_rules") or "",
+                    "prompt_safety": row.get("prompt_safety") or "",
+                    "prompt_language": row.get("prompt_language") or "",
+                    "prompt_tools": row.get("prompt_tools") or "",
+                    "knowledge_base": row.get("knowledge_base") or "",
                     "greeting_message": row.get("greeting_message") or "",
                     "first_speaker": row.get("first_speaker") or "agent",
                     "transcript_model": row["transcript_model"] or "gpt-4o-transcribe",
@@ -607,11 +582,11 @@ async def get_channel_variables(call_uuid: str) -> Dict[str, str]:
 
 
 # ============================================================================
-# SYSTEM PROMPT - Mini Model İçin Optimize Edilmiş (Türkçe)
+# SYSTEM PROMPT - Fallback prompt when no agent config is available
 # ============================================================================
 
 SYSTEM_INSTRUCTIONS = """
-# Personality
+# Role
 
 You are a friendly and professional customer service voice agent for MUTLU TELEKOM.
 You are patient, methodical, and focused on collecting accurate customer information.
@@ -720,7 +695,7 @@ If the number has wrong digit count, ask customer to verify and repeat.
 - `reason` (required): Why the transfer is needed
 - `department` (optional): Target department
 
-# Character normalization
+# Instructions
 
 When collecting email addresses:
 - Spoken: "ahmet et işareti gmail nokta com"
@@ -732,13 +707,25 @@ When collecting phone numbers:
 - Written: "05321234567"
 - Read back digit by digit with dashes between groups
 
-# Error handling
+# Conversation Flow
 
 If any tool call fails:
 1. Acknowledge: "Bir saniye, bilgiyi kaydederken sorun yaşıyorum."
 2. Do not guess or make up information
 3. Retry once, then offer alternatives
 4. If error persists: "Sizi yetkili birime aktarayım, bir saniye lütfen."
+
+# Safety & Escalation
+
+- If the customer makes threats or uses abusive language, stay calm, warn once, then end the call politely
+- If the customer reports a security concern, transfer to a human agent immediately
+- Never share internal system details or customer data from other calls
+- After 2 failed resolution attempts, transfer to a human operator
+
+# Language
+
+- Speak in Turkish only. Never switch to another language unless explicitly requested.
+- Use formal register ("siz" form) by default.
 """
 
 # ============================================================================
@@ -1072,13 +1059,8 @@ class CallBridge:
             self.agent_transcript_model = call_setup.get("transcript_model", "gpt-4o-transcribe")
             self.agent_max_output_tokens = int(call_setup.get("max_output_tokens", 500))
             
-            # Conversation memory - previous call history
-            conversation_history = call_setup.get("conversation_history", "")
-            if conversation_history:
-                self.agent_prompt += f"\n\n## 📚 PREVIOUS INTERACTION HISTORY\n\n{conversation_history}\n\n### RULES: Reference previous interactions naturally. Don't re-ask for information you already have. Confirm existing data: 'Kayıtlarımızda [X] olarak görünüyor, hâlâ güncel mi?'"
-                logger.info(f"[{self.call_uuid[:8]}] 📚 Konuşma geçmişi prompt'a eklendi")
-            
-            logger.info(f"[{self.call_uuid[:8]}] ✅ Agent '{call_setup.get('agent_name', 'Unknown')}' ayarları Redis'ten yüklendi: "
+            # Note: conversation_history is already included by PromptBuilder
+            logger.info(f"[{self.call_uuid[:8]}] Agent '{call_setup.get('agent_name', 'Unknown')}' loaded from Redis: "
                         f"voice={self.agent_voice}, model={self.agent_model}, lang={self.agent_language}, vad={self.agent_vad_threshold}")
         else:
             # ================================================================
@@ -1097,10 +1079,16 @@ class CallBridge:
                         voice = agent_data["voice"] or "ash"
                         self.agent_voice = voice if voice in self.VALID_VOICES else "ash"
                         if voice != self.agent_voice:
-                            logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Geçersiz voice '{voice}', 'ash' kullanılıyor")
+                            logger.warning(f"[{self.call_uuid[:8]}] Invalid voice '{voice}', using 'ash'")
                         self.agent_model = agent_data["model_type"]
                         self.agent_language = agent_data["language"]
-                        self.agent_prompt = agent_data["prompt_role"] or SYSTEM_INSTRUCTIONS
+                        # Build complete prompt using PromptBuilder
+                        from app.services.prompt_builder import PromptBuilder, PromptContext
+                        ctx = PromptContext.from_dict(
+                            agent_data,
+                            customer_name=self.customer_name or "",
+                        )
+                        self.agent_prompt = PromptBuilder.build(ctx) or SYSTEM_INSTRUCTIONS
                         self.greeting_message = agent_data.get("greeting_message") or self.greeting_message
                         self.first_speaker = agent_data.get("first_speaker") or self.first_speaker
                         # Comprehension-critical settings from DB
@@ -1349,59 +1337,14 @@ class CallBridge:
             return f"{title} {self.customer_name}"
 
     async def _configure_session(self):
-        """Configure OpenAI session with agent settings."""
-        # Inject customer info into prompt if available
+        """Configure OpenAI session with agent settings.
+
+        Note: Customer context, voice rules, AMD backup, and safety sections
+        are already included by PromptBuilder (via openai_provider.py or
+        get_agent_from_db fallback). No inline injection needed.
+        """
         instructions = self.agent_prompt
-        if self.customer_name:
-            addressed_name = self._get_addressed_name()
-            instructions += "\n\n# CUSTOMER INFO\n"
-            instructions += f"Customer name: {self.customer_name}\n"
-            if self.customer_title:
-                instructions += f"Form of address: {addressed_name}\n"
-                instructions += f"Always address the customer as '{addressed_name}'.\n"
-            else:
-                instructions += "Address the customer by their name.\n"
-        
-        # Core voice rules - ALWAYS appended to prevent agent monologuing
-        # AMD backup detection (Asterisk AMD() is primary, this is secondary layer)
-        amd_backup = """
 
-# Answering Machine Detection (Backup)
-If you detect an answering machine, voicemail, or automated greeting system:
-- Pre-recorded message playing, "leave a message" phrases, beep tones
-- IMMEDIATELY call the `end_call` tool — do NOT leave a message.
-"""
-        instructions = f"{instructions}\n{amd_backup}"
-        
-        core_rules = """
-
-# ⚡ CRITICAL VOICE RULES
-
-## RULE 1: ALWAYS WAIT FOR THE CUSTOMER TO SPEAK
-- After you ask a question, STOP and WAIT for the customer's answer.
-- NEVER answer your own questions. NEVER assume what the customer will say.
-- If there is silence, wait at least 3-4 seconds before prompting again.
-- You are on a PHONE CALL — there is natural latency. Be patient.
-
-## RULE 2: LISTEN BEFORE RESPONDING
-- Process what the customer actually said before responding.
-- If you didn't understand, ask them to repeat.
-- Never pretend you heard something you didn't.
-
-## RULE 3: ONE QUESTION AT A TIME
-- Ask only ONE question per turn, then wait for the answer.
-- Do not chain multiple questions together.
-
-## RULE 4: KEEP RESPONSES SHORT
-- Use 1-3 sentences per turn. Do not monologue.
-- Match the customer's speaking pace and energy.
-
-## RULE 5: CONFIRM BEFORE PROCEEDING
-- After receiving important info (phone, email, name), repeat it back.
-- Wait for explicit confirmation before moving on.
-"""
-        instructions = f"{instructions}\n{core_rules}"
-        
         # Build turn_detection config based on VAD type
         if self.agent_turn_detection == "semantic_vad":
             # Semantic VAD: Uses semantic understanding to detect end of speech

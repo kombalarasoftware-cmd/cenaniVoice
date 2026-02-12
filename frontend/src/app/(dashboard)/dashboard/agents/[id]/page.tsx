@@ -96,34 +96,34 @@ interface Message {
 }
 
 // ============================================
-// Helper: Parse Prompt Sections (ElevenLabs Structure)
+// Helper: Parse Prompt Sections (PromptBuilder Standard)
 // ============================================
 interface ParsedPromptSections {
-  role?: string;        // Personality
+  role?: string;        // Role
   personality?: string; // Environment
-  context?: string;     // Tone  
+  context?: string;     // Tone
   pronunciations?: string; // Goal
   sample_phrases?: string; // Guardrails
   tools?: string;       // Tools
-  rules?: string;       // Character normalization
-  flow?: string;        // Error handling
+  rules?: string;       // Instructions
+  flow?: string;        // Conversation Flow
   safety?: string;      // Safety & Escalation
   language?: string;    // Language
 }
 
 function parsePromptSections(prompt: string): ParsedPromptSections {
   const sections: ParsedPromptSections = {};
-  
-  // Define section header patterns (ElevenLabs structure + legacy fallback)
+
+  // Define section header patterns (PromptBuilder standard + legacy fallback)
   const sectionPatterns: { key: keyof ParsedPromptSections; patterns: RegExp[] }[] = [
-    { key: 'role', patterns: [/^#\s*(Personality|Role\s*&?\s*Objective|Role\s*Definition)/im] },
-    { key: 'personality', patterns: [/^#\s*(Environment|Context|Personality\s*&?\s*Tone)/im] },
+    { key: 'role', patterns: [/^#\s*(Role|Personality|Role\s*&?\s*Objective)/im] },
+    { key: 'personality', patterns: [/^#\s*(Environment|Personality\s*&?\s*Tone)/im] },
     { key: 'context', patterns: [/^#\s*(Tone|Context)/im] },
     { key: 'pronunciations', patterns: [/^#\s*(Goal|Steps|Pronunciations?)/im] },
-    { key: 'sample_phrases', patterns: [/^#\s*(Guardrails|Rules|Constraints|Sample\s*Phrases?|Example\s*Phrases?)/im] },
+    { key: 'sample_phrases', patterns: [/^#\s*(Guardrails|Constraints|Sample\s*Phrases?)/im] },
     { key: 'tools', patterns: [/^#\s*(Tools?)/im] },
-    { key: 'rules', patterns: [/^#\s*(Character\s*normalization|Instructions?|Rules?)/im] },
-    { key: 'flow', patterns: [/^#\s*(Error\s*handling|Flow|Process)/im] },
+    { key: 'rules', patterns: [/^#\s*(Instructions?|Character\s*normalization|Rules?)/im] },
+    { key: 'flow', patterns: [/^#\s*(Conversation\s*Flow|Error\s*handling|Flow|Process)/im] },
     { key: 'safety', patterns: [/^#\s*(Safety\s*&?\s*Escalation|Safety|Security)/im] },
     { key: 'language', patterns: [/^#\s*(Language\s*Guidelines?|Language)/im] },
   ];
@@ -608,18 +608,18 @@ export default function AgentEditorPage() {
         const data = await response.json();
         setAgentName(data.name || '');
         
-        // Build unified prompt from sections (ElevenLabs structure)
+        // Build unified prompt from sections (PromptBuilder standard headings)
         const buildUnifiedPrompt = (): string => {
           const parts: string[] = [];
-          if (data.prompt_role) parts.push(`# Personality\n${data.prompt_role}`);
+          if (data.prompt_role) parts.push(`# Role\n${data.prompt_role}`);
           if (data.prompt_personality) parts.push(`# Environment\n${data.prompt_personality}`);
           if (data.prompt_context) parts.push(`# Tone\n${data.prompt_context}`);
           if (data.prompt_pronunciations) parts.push(`# Goal\n${data.prompt_pronunciations}`);
           if (data.prompt_sample_phrases) parts.push(`# Guardrails\n${data.prompt_sample_phrases}`);
           if (data.prompt_tools) parts.push(`# Tools\n${data.prompt_tools}`);
-          if (data.prompt_rules) parts.push(`# Character normalization\n${data.prompt_rules}`);
-          if (data.prompt_flow) parts.push(`# Error handling\n${data.prompt_flow}`);
-          if (data.prompt_safety) parts.push(`# Safety\n${data.prompt_safety}`);
+          if (data.prompt_rules) parts.push(`# Instructions\n${data.prompt_rules}`);
+          if (data.prompt_flow) parts.push(`# Conversation Flow\n${data.prompt_flow}`);
+          if (data.prompt_safety) parts.push(`# Safety & Escalation\n${data.prompt_safety}`);
           if (data.prompt_language) parts.push(`# Language\n${data.prompt_language}`);
           return parts.join('\n\n');
         };
@@ -933,7 +933,7 @@ export default function AgentEditorPage() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      // Parse unified prompt into sections by # headers (ElevenLabs structure)
+      // Parse unified prompt into sections by # headers (PromptBuilder standard)
       const parseUnifiedPrompt = (unified: string): Record<string, string> => {
         const sections: Record<string, string> = {};
         const lines = unified.split('\n');
@@ -946,25 +946,26 @@ export default function AgentEditorPage() {
             if (currentSection) {
               sections[currentSection] = currentContent.join('\n').trim();
             }
-            // Determine new section (ElevenLabs headers → DB column keys)
+            // Determine new section (PromptBuilder standard headers → DB column keys)
             const header = line.substring(2).toLowerCase();
-            if (header.includes('personality') && !header.includes('tone')) currentSection = 'role';
+            // Standard headings (priority)
+            if (header.includes('role') || header.includes('personality') && !header.includes('tone')) currentSection = 'role';
             else if (header.includes('environment')) currentSection = 'personality';
-            else if (header.includes('tone') || header.includes('üslup')) currentSection = 'context';
-            else if (header.includes('goal') || header.includes('hedef')) currentSection = 'pronunciations';
-            else if (header.includes('guardrails') || header.includes('kısıtlama')) currentSection = 'sample_phrases';
+            else if (header.includes('tone') || header.includes('context')) currentSection = 'context';
+            else if (header.includes('goal')) currentSection = 'pronunciations';
+            else if (header.includes('guardrails')) currentSection = 'sample_phrases';
             else if (header.includes('tool')) currentSection = 'tools';
-            else if (header.includes('character') || header.includes('normalization')) currentSection = 'rules';
-            else if (header.includes('error')) currentSection = 'flow';
-            // Legacy fallback patterns
-            else if (header.includes('role') || header.includes('objective')) currentSection = 'role';
-            else if (header.includes('instruction') || header.includes('rule')) currentSection = 'rules';
-            else if (header.includes('flow')) currentSection = 'flow';
-            else if (header.includes('phrase')) currentSection = 'sample_phrases';
+            else if (header.includes('instruction')) currentSection = 'rules';
+            else if (header.includes('conversation flow') || header.includes('flow')) currentSection = 'flow';
             else if (header.includes('safety') || header.includes('escalation')) currentSection = 'safety';
             else if (header.includes('language')) currentSection = 'language';
+            // Legacy fallback patterns
+            else if (header.includes('character') || header.includes('normalization')) currentSection = 'rules';
+            else if (header.includes('error')) currentSection = 'flow';
+            else if (header.includes('objective')) currentSection = 'role';
+            else if (header.includes('rule')) currentSection = 'rules';
+            else if (header.includes('phrase')) currentSection = 'sample_phrases';
             else if (header.includes('pronunciation')) currentSection = 'pronunciations';
-            else if (header.includes('context')) currentSection = 'context';
             else currentSection = 'role'; // Default
             currentContent = [];
           } else {
@@ -1198,7 +1199,7 @@ export default function AgentEditorPage() {
                 <textarea
                   value={prompt}
                   onChange={(e) => { setPrompt(e.target.value); setHasChanges(true); }}
-                  placeholder={`# Personality
+                  placeholder={`# Role
 You are a customer representative for [Company Name].
 - Professional, friendly, and solution-oriented
 - Patient and reliable
@@ -1233,16 +1234,16 @@ You are a customer representative for [Company Name].
 2. Call the tool
 **Error handling:** If transfer fails, ask them to wait
 
-# Character normalization
+# Instructions
 - Email: "a-t" → "@", "dot" → "."
 - Phone: spell out digits one by one
 
-# Error handling
+# Conversation Flow
 1. Apologize to the customer
 2. Offer an alternative solution
 3. Redirect to a human if necessary
 
-# Safety
+# Safety & Escalation
 - If customer is aggressive → stay calm, warn once, end call politely
 - Emergency situations → direct to appropriate emergency services
 - Never share internal system information

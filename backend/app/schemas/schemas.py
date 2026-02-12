@@ -455,17 +455,17 @@ class AgentDetailResponse(AgentResponse):
     first_message_delay: float = 0.0
     inactivity_messages: Optional[List[Dict[str, Any]]] = None
     
-    # Prompt sections (ElevenLabs Enterprise Prompting Guide structure)
-    prompt_role: Optional[str] = None  # Personality (who the agent is)
+    # Prompt sections (10-section standard structure)
+    prompt_role: Optional[str] = None  # Role (who the agent is)
     prompt_personality: Optional[str] = None  # Environment (conversation context)
     prompt_context: Optional[str] = None  # Tone (how to speak)
     prompt_pronunciations: Optional[str] = None  # Goal (workflow steps)
     prompt_sample_phrases: Optional[str] = None  # Guardrails (non-negotiable rules)
     prompt_tools: Optional[str] = None  # Tools (when/how/error)
-    prompt_rules: Optional[str] = None  # Character normalization
-    prompt_flow: Optional[str] = None  # Error handling
-    prompt_safety: Optional[str] = None  # Safety & Escalation rules
-    prompt_language: Optional[str] = None  # Language and register guidelines
+    prompt_rules: Optional[str] = None  # Instructions (format rules)
+    prompt_flow: Optional[str] = None  # Conversation Flow (error recovery)
+    prompt_safety: Optional[str] = None  # Safety & Escalation (emergency rules)
+    prompt_language: Optional[str] = None  # Language (register guidelines)
     knowledge_base: Optional[str] = None  # Static knowledge base content
     web_sources: Optional[List[Dict[str, Any]]] = None  # Web URLs for dynamic info
     smart_features: Optional[Dict[str, Any]] = None  # Smart features
