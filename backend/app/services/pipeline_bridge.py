@@ -127,6 +127,19 @@ PIPER_VOICES = {
     "it": "it_IT-riccardo-x_low",
 }
 
+# Filler phrases per language (played while AI is thinking)
+FILLER_PHRASES = {
+    "tr": ["Bir saniye...", "Hmm, bakıyorum...", "Anladım..."],
+    "de": ["Einen Moment...", "Hmm, mal sehen...", "Verstehe..."],
+    "en": ["One moment...", "Let me think...", "I see..."],
+    "fr": ["Un instant...", "Voyons voir...", "Je comprends..."],
+    "es": ["Un momento...", "Déjame pensar...", "Entiendo..."],
+    "it": ["Un momento...", "Vediamo...", "Capisco..."],
+}
+
+# Pre-cached filler audio (populated at startup)
+_filler_cache: Dict[str, List[bytes]] = {}  # {lang: [audio_24k, ...]}
+
 # ============================================================================
 # WHISPER STT - Lazy loaded singleton
 # ============================================================================
@@ -809,9 +822,51 @@ class PipelineCallHandler:
                 logger.info(f"[{self.session.call_uuid[:8]}] Connection lost")
                 break
 
+    async def _play_filler(self):
+        """Play a short filler audio while AI is thinking."""
+        import random
+        lang = self.session.language
+        cached = _filler_cache.get(lang, [])
+        if not cached:
+            # Generate filler on-the-fly as fallback
+            phrases = FILLER_PHRASES.get(lang, FILLER_PHRASES["tr"])
+            phrase = random.choice(phrases)
+            try:
+                tts_audio = await synthesize_speech(phrase, self.session.voice)
+                if tts_audio:
+                    audio_24k = resample_pcm16(tts_audio, PIPER_SAMPLE_RATE, ASTERISK_SAMPLE_RATE)
+                    await self._send_audio_frames(audio_24k)
+            except Exception as e:
+                logger.debug(f"Filler TTS error: {e}")
+            return
+
+        # Use pre-cached audio
+        audio_24k = random.choice(cached)
+        await self._send_audio_frames(audio_24k)
+
+    async def _send_audio_frames(self, audio_24k: bytes):
+        """Send PCM audio as AudioSocket frames."""
+        chunk_size = ASTERISK_SAMPLE_RATE * CHUNK_DURATION_MS // 1000 * 2  # 960 bytes
+        offset = 0
+        while offset < len(audio_24k) and self._running:
+            chunk = audio_24k[offset:offset + chunk_size]
+            if len(chunk) < chunk_size:
+                chunk += b"\x00" * (chunk_size - len(chunk))
+            frame = struct.pack(">BH", MSG_AUDIO_24K, len(chunk)) + chunk
+            try:
+                self.writer.write(frame)
+                await self.writer.drain()
+            except (ConnectionError, BrokenPipeError):
+                self._running = False
+                return
+            offset += chunk_size
+            await asyncio.sleep(CHUNK_DURATION_MS / 1000.0 * 0.8)
+
     async def _process_utterance_wrapper(self, audio_data: bytes):
         """Wrapper that ensures _processing flag is reset after processing."""
         try:
+            # Play filler audio immediately so user knows AI is thinking
+            await self._play_filler()
             await self._process_utterance(audio_data)
         except Exception as e:
             logger.error(f"[{self.session.call_uuid[:8]}] Utterance wrapper error: {e}", exc_info=True)
@@ -1022,6 +1077,33 @@ active_calls: Dict[str, PipelineCallHandler] = {}
 call_semaphore = asyncio.Semaphore(MAX_CONCURRENT_CALLS)
 
 
+async def _precache_filler_audio():
+    """Pre-generate filler audio for all languages at startup."""
+    global _filler_cache
+    logger.info("Pre-caching filler audio for all languages...")
+
+    for lang, phrases in FILLER_PHRASES.items():
+        voice = PIPER_VOICES.get(lang, PIPER_VOICES["tr"])
+        cached_list = []
+        for phrase in phrases:
+            try:
+                tts_audio = await synthesize_speech(phrase, voice)
+                if tts_audio and len(tts_audio) > 100:
+                    audio_24k = resample_pcm16(tts_audio, PIPER_SAMPLE_RATE, ASTERISK_SAMPLE_RATE)
+                    cached_list.append(audio_24k)
+                    logger.debug(f"Cached filler [{lang}]: '{phrase}' ({len(audio_24k)} bytes)")
+            except Exception as e:
+                logger.warning(f"Failed to cache filler [{lang}] '{phrase}': {e}")
+
+        if cached_list:
+            _filler_cache[lang] = cached_list
+            logger.info(f"Cached {len(cached_list)} filler phrases for [{lang}]")
+        else:
+            logger.warning(f"No filler audio cached for [{lang}]")
+
+    logger.info(f"Filler cache complete: {sum(len(v) for v in _filler_cache.values())} phrases across {len(_filler_cache)} languages")
+
+
 async def handle_connection(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     """Handle incoming AudioSocket connection."""
     if not call_semaphore._value:
@@ -1050,6 +1132,9 @@ async def main():
     except Exception as e:
         logger.error(f"Failed to load Whisper model: {e}")
         logger.info("Whisper will be loaded on first call")
+
+    # Pre-cache filler audio for all languages
+    await _precache_filler_audio()
 
     server = await asyncio.start_server(
         handle_connection,
