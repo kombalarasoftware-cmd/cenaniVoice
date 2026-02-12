@@ -114,9 +114,9 @@
 
 ## Claude Code Configuration
 - **Agents** (4): security-reviewer, code-reviewer, debugger, frontend-developer — all with `memory: user`, `maxTurns`, `permissionMode`
-- **Skills** (12): review, security, test, deploy, refactor, changelog, fix-issue, interview, cascade-edit, create-pr, todo-scan, space
+- **Skills** (14): review, security, test, deploy, refactor, changelog, fix-issue, interview, cascade-edit, create-pr, todo-scan, space, visual-dev, design-inspiration
 - **Hooks** (11 active): SessionStart, PreToolUse (lint-check + filter-test-output), PostToolUse (python-check + ruff-check + cascade-detect), Notification, Stop (stop-check + todo-check), PreCompact, SessionEnd
-- **Rules** (8): backend-python, frontend-react, security, docker-infra, api-routes, celery-tasks, database-models, react-components
+- **Rules** (9): backend-python, frontend-react, frontend-design, security, docker-infra, api-routes, celery-tasks, database-models, react-components
 - **MCP**: context7 (library docs, cmd /c wrapper for Windows)
 - **Plugins** (8): GitHub, Playwright, Context7, Sentry, Figma, Pyright LSP, TypeScript LSP, Superpowers
 - **Copilot Integration**: copilot-instructions.md, path-specific instructions (python, typescript), copilot-setup-steps.yml, 4 custom agents, Copilot CLI v1.2.0
@@ -132,6 +132,7 @@
 - **$CLAUDE_PROJECT_DIR bug**: Does NOT expand on Windows cmd.exe — use relative paths in hook commands
 
 ## Recent Changes
+- [2026-02-12] Visual design system: visual-dev skill (Playwright feedback loop), design-inspiration skill, frontend-design.md rule, framer-motion installed, tailwind enhanced (float, gradient-shift, blur-in, glassmorphism), CLAUDE.md design philosophy added
 - [2026-02-11] Copilot features adapted to Claude Code: cascade-edit, create-pr, todo-scan, space skills; ruff-check, cascade-detect, todo-check hooks; 4 granular path-scoped rules
 - [2026-02-11] GitHub Copilot integration: copilot-instructions.md, path-specific instructions, copilot-setup-steps.yml, 4 custom agents, Copilot CLI installed
 - [2026-02-11] GitHub repo hardened: secret scanning, Dependabot, CODEOWNERS, issue/PR templates, SECURITY.md, 9 labels, description + 8 topics

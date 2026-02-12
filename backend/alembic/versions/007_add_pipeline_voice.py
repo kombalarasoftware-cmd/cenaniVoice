@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = "007_add_pipeline_voice"
-down_revision = "006_add_pipeline_provider"
+down_revision = "006"
 branch_labels = None
 depends_on = None
 
