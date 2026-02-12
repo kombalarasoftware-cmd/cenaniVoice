@@ -312,6 +312,7 @@ async def initiate_outbound_call(
                 "knowledge_base": agent.knowledge_base or "",
                 "human_transfer": agent.human_transfer if agent.human_transfer is not None else True,
                 "conversation_history": conversation_history,
+                "customer_data": (request.variables or {}).get("customer_data", {}),
             }
 
             if redis_client:

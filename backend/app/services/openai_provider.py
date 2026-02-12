@@ -146,6 +146,7 @@ class OpenAIProvider(CallProvider):
                 "record_calls": agent.record_calls if agent.record_calls is not None else True,
                 "human_transfer": agent.human_transfer if agent.human_transfer is not None else True,
                 "conversation_history": conversation_history,
+                "customer_data": (variables or {}).get("customer_data", {}),
             }
 
             if redis_client:

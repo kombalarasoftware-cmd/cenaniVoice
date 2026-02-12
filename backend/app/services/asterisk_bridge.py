@@ -951,6 +951,8 @@ class CallBridge:
         self.agent_prompt = SYSTEM_INSTRUCTIONS
         self.customer_name = None
         self.customer_title = None  # Mr/Mrs (translated at runtime by language)
+        self.agent_name = "AI Agent"  # Agent display name for greeting
+        self.customer_data = {}  # Customer data dict for greeting variable replacement
         self.greeting_message = None  # Agent's custom greeting message
         self.first_speaker = "agent"
         self.agent_temperature = 0.6
@@ -1040,6 +1042,8 @@ class CallBridge:
             self.agent_prompt = call_setup.get("prompt") or SYSTEM_INSTRUCTIONS
             self.customer_name = call_setup.get("customer_name") or None
             self.customer_title = call_setup.get("customer_title") or None
+            self.agent_name = call_setup.get("agent_name") or "AI Agent"
+            self.customer_data = call_setup.get("customer_data") or {}
             # Store agent_id for CallLog tracking
             agent_id_val = call_setup.get("agent_id")
             self.agent_id = int(agent_id_val) if agent_id_val else None
@@ -1429,16 +1433,23 @@ class CallBridge:
 
         # Use agent's custom greeting message if available
         if self.greeting_message:
-            # Replace template variables like {customer_name}
-            greeting = self.greeting_message
-            if self.customer_name:
-                greeting = greeting.replace("{customer_name}", self.customer_name)
-                greeting = greeting.replace("{müşteri_adı}", self.customer_name)
+            # Build customer_data dict for process_greeting
+            from app.services.greeting_processor import process_greeting
+            greeting_customer_data = {
+                "name": self.customer_name or "",
+                "customer_title": self.customer_title or "",
+                "custom_data": self.customer_data,
+            }
+            # Also inject title-related variables
             if self.customer_title:
-                localized_title = self._get_localized_title()
-                addressed_name = self._get_addressed_name()
-                greeting = greeting.replace("{customer_title}", localized_title)
-                greeting = greeting.replace("{addressed_name}", addressed_name)
+                greeting_customer_data["customer_title"] = self._get_localized_title()
+                greeting_customer_data["addressed_name"] = self._get_addressed_name()
+
+            greeting = process_greeting(
+                template=self.greeting_message,
+                customer_data=greeting_customer_data,
+                agent_name=self.agent_name,
+            )
             
             greeting_instruction = f"Greet the customer by saying EXACTLY this text: '{greeting}'"
         else:

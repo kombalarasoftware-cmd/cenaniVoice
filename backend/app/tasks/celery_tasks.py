@@ -187,7 +187,10 @@ def make_call(self, call_data: dict):
                 customer_name=customer_name or "",
                 customer_title="",
                 conversation_history="",
-                variables={"campaign_id": str(campaign_id)},
+                variables={
+                    "campaign_id": str(campaign_id),
+                    "customer_data": customer_data or {},
+                },
             )
 
             # Update call log with provider result
