@@ -195,8 +195,8 @@ services:
           cpus: '1.0'
 
   # ===========================================
-  # Asterisk AudioSocket Bridge (OpenAI provider only)
-  # Not used when agent.provider = "ultravox"
+  # Asterisk AudioSocket Bridge (OpenAI + xAI providers)
+  # Not used when agent.provider = "ultravox" or "pipeline"
   # ===========================================
   asterisk-bridge:
     image: voiceai-backend

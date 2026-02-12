@@ -93,6 +93,7 @@ logger = logging.getLogger("asterisk-realtime-bridge")
 # ============================================================================
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "YOUR_API_KEY_HERE")
+XAI_API_KEY = os.environ.get("XAI_API_KEY", "")
 MODEL = os.environ.get("REALTIME_MODEL", "gpt-realtime-mini")
 
 # AudioSocket server ayarları
@@ -148,8 +149,14 @@ COST_PER_TOKEN = {
     },
 }
 
+# xAI Grok Voice Agent Pricing (per minute flat rate)
+XAI_COST_PER_MINUTE = 0.10  # $0.10/min estimated (xAI per-minute billing)
+
 # OpenAI WebSocket URL
 OPENAI_WS_URL = f"wss://api.openai.com/v1/realtime?model={MODEL}"
+
+# xAI WebSocket URL (model is sent in session config, not URL)
+XAI_WS_URL = "wss://api.x.ai/v1/realtime"
 
 # ============================================================================
 # ASTERISK HANGUP CAUSE → SIP CODE MAPPING
@@ -666,6 +673,7 @@ If any tool call fails:
 
 from app.services.tool_registry import to_openai_tools as _registry_to_openai_tools
 from app.core.voice_config import OPENAI_VALID_VOICES
+from app.core.voice_config import XAI_VALID_VOICES
 
 def _build_tools(agent_config: dict | None = None) -> list[dict]:
     """Build OpenAI-format tools from the universal tool registry."""
@@ -862,6 +870,9 @@ class CallBridge:
         # Geçerli OpenAI Realtime ses seçenekleri
         self.VALID_VOICES = OPENAI_VALID_VOICES
         
+        # Provider tracking (openai or xai)
+        self.provider = "openai"  # Default, overridden from Redis call_setup
+        
         # Agent ayarları (default değerler)
         self.agent_voice = "ash"
         self.agent_model = MODEL  # gpt-realtime-mini veya gpt-realtime
@@ -935,11 +946,19 @@ class CallBridge:
         
         if call_setup:
             # Redis'te bulundu - outbound çağrı, agent ayarları mevcut
-            voice = call_setup.get("voice") or "ash"
-            self.agent_voice = voice if voice in self.VALID_VOICES else "ash"
-            if voice != self.agent_voice:
-                logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Geçersiz voice '{voice}', 'ash' kullanılıyor")
-            self.agent_model = call_setup.get("model") or MODEL
+            # Detect provider (openai or xai)
+            self.provider = call_setup.get("provider") or "openai"
+            
+            if self.provider == "xai":
+                # xAI Grok voices
+                self.VALID_VOICES = XAI_VALID_VOICES
+                voice = call_setup.get("voice") or "Ara"
+                self.agent_voice = voice if voice in self.VALID_VOICES else "Ara"
+                self.agent_model = call_setup.get("model") or "grok-2-realtime"
+            else:
+                voice = call_setup.get("voice") or "ash"
+                self.agent_voice = voice if voice in self.VALID_VOICES else "ash"
+                self.agent_model = call_setup.get("model") or MODEL
             self.agent_language = call_setup.get("language") or "tr"
             self.agent_prompt = call_setup.get("prompt") or SYSTEM_INSTRUCTIONS
             self.customer_name = call_setup.get("customer_name") or None
@@ -1058,21 +1077,33 @@ class CallBridge:
             await self._cleanup()
 
     async def _connect_openai(self):
-        """OpenAI Realtime WebSocket'e bağlan."""
-        # Model'i agent ayarından al
-        openai_ws_url = f"wss://api.openai.com/v1/realtime?model={self.agent_model}"
+        """Connect to OpenAI or xAI Realtime WebSocket based on provider."""
+        if self.provider == "xai":
+            # xAI Grok: model is sent in session config, not URL
+            ws_url = XAI_WS_URL
+            api_key = XAI_API_KEY
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+            }
+            provider_label = "xAI Grok"
+        else:
+            # OpenAI Realtime: model in URL, requires OpenAI-Beta header
+            ws_url = f"wss://api.openai.com/v1/realtime?model={self.agent_model}"
+            api_key = OPENAI_API_KEY
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "OpenAI-Beta": "realtime=v1",
+            }
+            provider_label = "OpenAI"
         
         self.openai_ws = await ws_connect(
-            openai_ws_url,
-            additional_headers={  # websockets 16.x için additional_headers kullanılır
-                "Authorization": f"Bearer {OPENAI_API_KEY}",
-                "OpenAI-Beta": "realtime=v1",  # ✅ ZORUNLU HEADER
-            },
+            ws_url,
+            additional_headers=headers,
             ping_interval=20,
             ping_timeout=10,
             max_size=10 * 1024 * 1024,
         )
-        logger.info(f"[{self.call_uuid[:8]}] 🔌 OpenAI bağlantısı kuruldu (model: {self.agent_model})")
+        logger.info(f"[{self.call_uuid[:8]}] 🔌 {provider_label} bağlantısı kuruldu (model: {self.agent_model})")
 
     async def _wait_for_event(self, target_type: str, timeout: float = 5.0):
         """
@@ -1216,6 +1247,10 @@ If you detect an answering machine, voicemail, or automated greeting system:
                 "max_response_output_tokens": self.agent_max_output_tokens,
             }
         }
+        
+        # xAI requires model in session config (not in URL like OpenAI)
+        if self.provider == "xai":
+            config["session"]["model"] = self.agent_model
         
         # Noise reduction: only include when enabled (don't send null - API may reject/ignore)
         if self.agent_noise_reduction:

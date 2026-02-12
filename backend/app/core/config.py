@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     ULTRAVOX_BASE_URL: str = "https://api.ultravox.ai/api"
     ULTRAVOX_WEBHOOK_URL: str = ""  # Public URL for Ultravox webhook callbacks
 
+    # xAI (Grok Voice Agent)
+    XAI_API_KEY: str = ""
+
     # Cloud Pipeline API Keys
     GROQ_API_KEY: str = ""
     CEREBRAS_API_KEY: str = ""

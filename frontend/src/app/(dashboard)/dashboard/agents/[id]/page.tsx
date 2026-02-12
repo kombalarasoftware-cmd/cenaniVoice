@@ -639,7 +639,7 @@ export default function AgentEditorPage() {
         setUninterruptible(data.greeting_uninterruptible ?? false);
         setFirstMessageDelay(data.first_message_delay ? data.first_message_delay.toString() : '');
         setSelectedProvider(data.provider || 'openai');
-        setSelectedModel(data.model_type || (data.provider === 'pipeline' ? 'pipeline-cloud' : 'gpt-realtime-mini'));
+        setSelectedModel(data.model_type || (data.provider === 'pipeline' ? 'pipeline-cloud' : data.provider === 'xai' ? 'grok-2-realtime' : 'gpt-realtime-mini'));
         setSelectedLanguage(data.language || 'tr');
         setSelectedTimezone(data.timezone || 'Europe/Istanbul');
 
@@ -656,6 +656,8 @@ export default function AgentEditorPage() {
         // For pipeline agents, selectedVoice should reflect the TTS voice (not OpenAI voice)
         if (data.provider === 'pipeline' && resolvedTtsVoice) {
           setSelectedVoice(resolvedTtsVoice);
+        } else if (data.provider === 'xai') {
+          setSelectedVoice(data.voice || 'Ara');
         } else {
           setSelectedVoice(data.voice || 'alloy');
         }
@@ -793,6 +795,14 @@ export default function AgentEditorPage() {
     { id: 'verse', name: 'Verse', gender: 'male', description: 'Dynamic, expressive' },
     { id: 'marin', name: 'Marin ⭐', gender: 'female', description: 'Natural, recommended' },
     { id: 'cedar', name: 'Cedar ⭐', gender: 'male', description: 'Natural, recommended' },
+  ];
+
+  const xaiVoices = [
+    { id: 'Ara', name: 'Ara ⭐', gender: 'female', description: 'Default female' },
+    { id: 'Rex', name: 'Rex', gender: 'male', description: 'Male voice' },
+    { id: 'Sal', name: 'Sal', gender: 'female', description: 'Neutral voice' },
+    { id: 'Eve', name: 'Eve', gender: 'female', description: 'Female voice' },
+    { id: 'Leo', name: 'Leo', gender: 'male', description: 'Male voice' },
   ];
 
   const ultravoxVoices = [
@@ -1040,7 +1050,7 @@ export default function AgentEditorPage() {
 
   const pipelineVoices = getPipelineVoices();
 
-  const allVoices = selectedProvider === 'ultravox' ? ultravoxVoices : selectedProvider === 'pipeline' ? pipelineVoices : openaiVoices;
+  const allVoices = selectedProvider === 'ultravox' ? ultravoxVoices : selectedProvider === 'pipeline' ? pipelineVoices : selectedProvider === 'xai' ? xaiVoices : openaiVoices;
   const voices = voiceGenderFilter === 'all' ? allVoices : allVoices.filter(v => v.gender === voiceGenderFilter);
 
   const addInactivityMessage = () => {
@@ -1142,7 +1152,7 @@ export default function AgentEditorPage() {
           },
           provider: selectedProvider,
           voice_settings: {
-            model_type: selectedProvider === 'pipeline' ? 'pipeline-cloud' : selectedModel,
+            model_type: selectedProvider === 'pipeline' ? 'pipeline-cloud' : selectedProvider === 'xai' ? 'grok-2-realtime' : selectedModel,
             voice: selectedVoice,
             language: selectedLanguage,
             timezone: selectedTimezone,
@@ -2665,7 +2675,7 @@ A: Credit card, bank transfer, automatic payment order.
                 {/* Provider Selection */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">AI Provider</label>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-4 gap-3">
                     <button
                       onClick={() => {
                         setSelectedProvider('openai');
@@ -2683,6 +2693,24 @@ A: Credit card, bank transfer, automatic payment order.
                     >
                       <p className="font-medium text-sm">OpenAI Realtime</p>
                       <p className="text-xs text-muted-foreground">GPT-4o via Asterisk, token-based pricing</p>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedProvider('xai');
+                        setSelectedModel('grok-2-realtime');
+                        setSelectedVoice('Ara');
+                        setVoiceGenderFilter('all');
+                        setHasChanges(true);
+                      }}
+                      className={cn(
+                        'p-3 rounded-lg border text-left transition-all',
+                        selectedProvider === 'xai'
+                          ? 'border-primary-500 bg-primary-500/5'
+                          : 'border-border hover:border-primary-500/50'
+                      )}
+                    >
+                      <p className="font-medium text-sm">xAI Grok</p>
+                      <p className="text-xs text-muted-foreground">Grok voice agent, per-minute billing</p>
                     </button>
                     <button
                       onClick={() => {
@@ -2729,7 +2757,7 @@ A: Credit card, bank transfer, automatic payment order.
 
                 {/* Basic Settings - 2 Column Grid */}
                 <div className="grid grid-cols-2 gap-4">
-                  {/* Model Selection (OpenAI / Ultravox) or hidden for Pipeline */}
+                  {/* Model Selection (OpenAI / xAI / Ultravox) or hidden for Pipeline */}
                   {selectedProvider !== 'pipeline' && (
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Model</label>
@@ -2743,6 +2771,10 @@ A: Credit card, bank transfer, automatic payment order.
                           <option value="gpt-realtime-mini">gpt-realtime-mini ($10/$20 per 1M audio tokens)</option>
                           <option value="gpt-realtime">gpt-realtime ($32/$64 per 1M audio tokens)</option>
                         </>
+                      ) : selectedProvider === 'xai' ? (
+                        <>
+                          <option value="grok-2-realtime">grok-2-realtime (per-minute billing)</option>
+                        </>
                       ) : (
                         <>
                           <option value="ultravox-v0.7">Ultravox v0.7 (latest, recommended)</option>
@@ -2755,6 +2787,8 @@ A: Credit card, bank transfer, automatic payment order.
                     <p className="text-xs text-muted-foreground">
                       {selectedProvider === 'openai'
                         ? 'Mini model is more cost-effective for most use cases.'
+                        : selectedProvider === 'xai'
+                        ? 'xAI Grok voice agent with flat per-minute pricing.'
                         : 'Ultravox v0.7 is the latest model with best quality.'}
                     </p>
                   </div>

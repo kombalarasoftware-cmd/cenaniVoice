@@ -277,7 +277,8 @@ async def initiate_outbound_call(
             return OutboundCallResponse(success=False, message="Pipeline call failed. Please try again.")
 
     # -----------------------------------------------------------------
-    # OPENAI PROVIDER PATH (existing Asterisk ARI flow)
+    # OPENAI / XAI PROVIDER PATH (Asterisk ARI → AudioSocket → WebSocket)
+    # Both use the same Asterisk flow; xAI differs in WS URL & voices
     # -----------------------------------------------------------------
     call_uuid = str(uuid_lib.uuid4())
     channel_variables = {"VOICEAI_UUID": call_uuid}
@@ -286,7 +287,7 @@ async def initiate_outbound_call(
         try:
             model_str = str(agent.model_type) if agent.model_type else "gpt-realtime-mini"
             if "RealtimeModel." in model_str:
-                model_str = model_str.replace("RealtimeModel.GPT_REALTIME_MINI", "gpt-realtime-mini").replace("RealtimeModel.GPT_REALTIME", "gpt-realtime")
+                model_str = model_str.replace("RealtimeModel.GPT_REALTIME_MINI", "gpt-realtime-mini").replace("RealtimeModel.GPT_REALTIME", "gpt-realtime").replace("RealtimeModel.XAI_GROK", "grok-2-realtime")
 
             # Build full prompt from all prompt sections
             prompt_parts = []
@@ -314,13 +315,21 @@ async def initiate_outbound_call(
                 prompt_parts.append(f"# Knowledge Base\n{agent.knowledge_base}")
             full_prompt = "\n\n".join(prompt_parts) if prompt_parts else ""
 
-            VALID_VOICES = {'alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar'}
-            agent_voice = agent.voice if agent.voice in VALID_VOICES else "ash"
+            # Voice validation per provider
+            if provider_type == "xai":
+                XAI_VALID_VOICES = {'Ara', 'Rex', 'Sal', 'Eve', 'Leo'}
+                agent_voice = agent.voice if agent.voice in XAI_VALID_VOICES else "Ara"
+                if not model_str or model_str.startswith("gpt-"):
+                    model_str = "grok-2-realtime"
+            else:
+                VALID_VOICES = {'alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar'}
+                agent_voice = agent.voice if agent.voice in VALID_VOICES else "ash"
 
             call_setup_data = {
                 "agent_id": str(agent.id),
                 "agent_name": agent.name or "AI Agent",
                 "name": agent.name or "AI Agent",
+                "provider": provider_type,  # "openai" or "xai" — bridge reads this
                 "voice": agent_voice,
                 "model": model_str,
                 "language": agent.language or "tr",
@@ -416,7 +425,7 @@ async def initiate_outbound_call(
                     agent_id_int = int(request.agent_id) if request.agent_id else None
                     call_log = CallLog(
                         call_sid=call_uuid,
-                        provider="openai",
+                        provider=provider_type,  # "openai" or "xai"
                         status=CallStatus.RINGING,
                         to_number=phone_number,
                         from_number=caller_id,

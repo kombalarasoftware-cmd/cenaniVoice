@@ -143,6 +143,21 @@ ULTRAVOX_VOICES: List[VoiceDefinition] = [
 
 ULTRAVOX_VALID_VOICES = {v.id for v in ULTRAVOX_VOICES}
 
+
+# =============================================================================
+# xAI Grok Voice Agent Voices
+# Source: https://docs.x.ai/developers/model-capabilities/audio/voice-agent
+# =============================================================================
+XAI_VOICES: List[VoiceDefinition] = [
+    VoiceDefinition("Ara", "Ara", VoiceGender.FEMALE, "Default female voice", "xai", recommended=True),
+    VoiceDefinition("Rex", "Rex", VoiceGender.MALE, "Male voice", "xai"),
+    VoiceDefinition("Sal", "Sal", VoiceGender.FEMALE, "Neutral voice", "xai"),
+    VoiceDefinition("Eve", "Eve", VoiceGender.FEMALE, "Female voice", "xai"),
+    VoiceDefinition("Leo", "Leo", VoiceGender.MALE, "Male voice", "xai"),
+]
+
+XAI_VALID_VOICES = {v.id for v in XAI_VOICES}
+
 # OpenAI voice name → Ultravox voice name mapping
 OPENAI_TO_ULTRAVOX_VOICE_MAP = {
     "alloy": "Alex",
@@ -167,12 +182,19 @@ def get_voices_by_provider(provider: str) -> List[dict]:
         return [v.to_dict() for v in OPENAI_REALTIME_VOICES]
     elif provider == "ultravox":
         return [v.to_dict() for v in ULTRAVOX_VOICES]
+    elif provider == "xai":
+        return [v.to_dict() for v in XAI_VOICES]
     return []
 
 
 def get_voices_by_gender(provider: str, gender: str) -> List[dict]:
     """Get voices filtered by provider and gender."""
-    voices = OPENAI_REALTIME_VOICES if provider == "openai" else ULTRAVOX_VOICES
+    if provider == "xai":
+        voices = XAI_VOICES
+    elif provider == "ultravox":
+        voices = ULTRAVOX_VOICES
+    else:
+        voices = OPENAI_REALTIME_VOICES
     return [v.to_dict() for v in voices if v.gender.value == gender]
 
 
@@ -182,4 +204,6 @@ def validate_voice(voice_id: str, provider: str) -> str:
         return voice_id if voice_id in OPENAI_VALID_VOICES else "ash"
     elif provider == "ultravox":
         return voice_id if voice_id in ULTRAVOX_VALID_VOICES else "Mark"
+    elif provider == "xai":
+        return voice_id if voice_id in XAI_VALID_VOICES else "Ara"
     return voice_id

@@ -129,10 +129,11 @@ class AIProvider(str, enum.Enum):
     OPENAI = "openai"
     ULTRAVOX = "ultravox"
     PIPELINE = "pipeline"
+    XAI = "xai"
 
 
 class RealtimeModel(str, enum.Enum):
-    """AI Model Options (OpenAI, Ultravox, and Pipeline)"""
+    """AI Model Options (OpenAI, Ultravox, Pipeline, and xAI)"""
     # OpenAI models
     GPT_REALTIME = "gpt-realtime"           # Premium: $32/$64 per 1M tokens
     GPT_REALTIME_MINI = "gpt-realtime-mini"  # Economic: $10/$20 per 1M tokens
@@ -146,6 +147,8 @@ class RealtimeModel(str, enum.Enum):
     PIPELINE_QWEN_7B = "pipeline-qwen-7b"       # Legacy: Qwen 2.5 7B local
     PIPELINE_LLAMA_8B = "pipeline-llama-8b"      # Legacy: Llama 3.1 8B local
     PIPELINE_MISTRAL_7B = "pipeline-mistral-7b"  # Legacy: Mistral 7B local
+    # xAI Grok models
+    XAI_GROK = "grok-2-realtime"                 # xAI Grok voice, per-minute billing
 
 
 class TranscriptModel(str, enum.Enum):

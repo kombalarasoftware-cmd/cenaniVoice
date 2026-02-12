@@ -96,6 +96,14 @@ const openaiVoices = [
   { id: 'cedar', name: 'Cedar ⭐', description: 'Natural, recommended', gender: 'male' },
 ];
 
+const xaiVoices = [
+  { id: 'Ara', name: 'Ara ⭐', description: 'Default female', gender: 'female' },
+  { id: 'Rex', name: 'Rex', description: 'Male voice', gender: 'male' },
+  { id: 'Sal', name: 'Sal', description: 'Neutral voice', gender: 'female' },
+  { id: 'Eve', name: 'Eve', description: 'Female voice', gender: 'female' },
+  { id: 'Leo', name: 'Leo', description: 'Male voice', gender: 'male' },
+];
+
 const ultravoxVoices = [
   // Turkish
   { id: 'Cicek-Turkish', name: 'Cicek', description: 'TR, Female', gender: 'female' },
@@ -214,6 +222,7 @@ const pipelineVoices = [
 
 const providers = [
   { id: 'openai', name: 'OpenAI Realtime', description: 'GPT-4o Realtime via Asterisk' },
+  { id: 'xai', name: 'xAI Grok', description: 'Grok voice agent, per-min' },
   { id: 'ultravox', name: 'Ultravox', description: 'Native SIP, $0.05/min' },
   { id: 'pipeline', name: 'Pipeline (Cloud)', description: 'Cloud STT + LLM + TTS' },
 ];
@@ -230,7 +239,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
   const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
   const [isLoading, setIsLoading] = useState(false);
 
-  const allVoices = selectedProvider === 'ultravox' ? ultravoxVoices : selectedProvider === 'pipeline' ? pipelineVoices : openaiVoices;
+  const allVoices = selectedProvider === 'ultravox' ? ultravoxVoices : selectedProvider === 'pipeline' ? pipelineVoices : selectedProvider === 'xai' ? xaiVoices : openaiVoices;
   const voices = genderFilter === 'all' ? allVoices : allVoices.filter(v => v.gender === genderFilter);
 
   const handleCreate = async () => {
@@ -260,6 +269,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
           provider: selectedProvider,
           template: selectedTemplate,
           voice_settings: {
+            model_type: selectedProvider === 'pipeline' ? 'pipeline-cloud' : selectedProvider === 'xai' ? 'grok-2-realtime' : selectedProvider === 'ultravox' ? 'ultravox-v0.7' : 'gpt-realtime-mini',
             voice: selectedVoice,
             language: selectedLanguage,
             speech_speed: 1.0,
@@ -456,13 +466,13 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
                 <label className="block text-sm font-medium mb-2">
                   AI Provider
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   {providers.map((p) => (
                     <button
                       key={p.id}
                       onClick={() => {
                         setSelectedProvider(p.id);
-                        setSelectedVoice(p.id === 'ultravox' ? 'Mark' : p.id === 'pipeline' ? 'azra' : 'alloy');
+                        setSelectedVoice(p.id === 'ultravox' ? 'Mark' : p.id === 'pipeline' ? 'azra' : p.id === 'xai' ? 'Ara' : 'alloy');
                         setGenderFilter('all');
                       }}
                       className={cn(
