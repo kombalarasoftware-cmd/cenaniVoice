@@ -2646,17 +2646,41 @@ A: Credit card, bank transfer, automatic payment order.
                       </select>
                     </div>
 
-                    {/* LLM Model Override */}
+                    {/* LLM Model */}
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">LLM Model <span className="text-muted-foreground">(optional)</span></label>
-                      <input
-                        type="text"
-                        value={llmModel}
+                      <label className="text-sm font-medium">LLM Model</label>
+                      <select
+                        value={llmModel || ''}
                         onChange={(e) => { setLlmModel(e.target.value); setHasChanges(true); }}
-                        placeholder={llmProvider === 'groq' ? 'llama-3.3-70b-versatile' : llmProvider === 'cerebras' ? 'llama-3.3-70b' : 'gpt-4o-mini'}
                         className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                      <p className="text-xs text-muted-foreground">Leave empty for default model</p>
+                      >
+                        {llmProvider === 'groq' && (
+                        <>
+                          <option value="">llama-3.3-70b-versatile (default)</option>
+                          <option value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile</option>
+                          <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant</option>
+                          <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B</option>
+                          <option value="qwen/qwen3-32b">Qwen 3 32B</option>
+                        </>
+                        )}
+                        {llmProvider === 'openai' && (
+                        <>
+                          <option value="">gpt-4o-mini (default)</option>
+                          <option value="gpt-4o">GPT-4o</option>
+                          <option value="gpt-4o-mini">GPT-4o Mini</option>
+                          <option value="gpt-4.1-nano">GPT-4.1 Nano</option>
+                          <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
+                        </>
+                        )}
+                        {llmProvider === 'cerebras' && (
+                        <>
+                          <option value="">llama-3.3-70b (default)</option>
+                          <option value="llama-3.3-70b">Llama 3.3 70B</option>
+                          <option value="llama3.1-8b">Llama 3.1 8B</option>
+                          <option value="qwen-3-32b">Qwen 3 32B</option>
+                        </>
+                        )}
+                      </select>
                     </div>
                   </>
                   )}
