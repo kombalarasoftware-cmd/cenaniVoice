@@ -2629,7 +2629,79 @@ A: Credit card, bank transfer, automatic payment order.
                   </div>
                   )}
 
-                  {/* Voice Selection */}
+                  {/* Cloud Pipeline: Row 1 - LLM Provider + LLM Model */}
+                  {selectedProvider === 'pipeline' && (
+                  <>
+                    {/* LLM Provider */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">LLM Provider</label>
+                      <select
+                        value={llmProvider}
+                        onChange={(e) => { setLlmProvider(e.target.value); setHasChanges(true); }}
+                        className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      >
+                        <option value="groq">Groq (Llama 3.3 70B, ultra-fast)</option>
+                        <option value="openai">OpenAI (GPT-4o-mini)</option>
+                        <option value="cerebras">Cerebras (Llama 3.3 70B)</option>
+                      </select>
+                    </div>
+
+                    {/* LLM Model Override */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">LLM Model <span className="text-muted-foreground">(optional)</span></label>
+                      <input
+                        type="text"
+                        value={llmModel}
+                        onChange={(e) => { setLlmModel(e.target.value); setHasChanges(true); }}
+                        placeholder={llmProvider === 'groq' ? 'llama-3.3-70b-versatile' : llmProvider === 'cerebras' ? 'llama-3.3-70b' : 'gpt-4o-mini'}
+                        className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                      <p className="text-xs text-muted-foreground">Leave empty for default model</p>
+                    </div>
+                  </>
+                  )}
+
+                  {/* Cloud Pipeline: Row 2 - STT Provider + TTS Provider */}
+                  {selectedProvider === 'pipeline' && (
+                  <>
+                    {/* STT Provider */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">STT Provider</label>
+                      <select
+                        value={sttProvider}
+                        onChange={(e) => { setSttProvider(e.target.value); setHasChanges(true); }}
+                        className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      >
+                        <option value="deepgram">Deepgram (Nova-3, fast)</option>
+                        <option value="openai">OpenAI (gpt-4o-transcribe)</option>
+                      </select>
+                    </div>
+
+                    {/* TTS Provider */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">TTS Provider</label>
+                      <select
+                        value={ttsProvider}
+                        onChange={(e) => {
+                          const newTts = e.target.value;
+                          setTtsProvider(newTts);
+                          // Reset voice when TTS provider changes
+                          if (newTts === 'cartesia') setSelectedVoice('katie');
+                          else if (newTts === 'openai') setSelectedVoice('nova');
+                          else if (newTts === 'deepgram') setSelectedVoice('aura-2-thalia-en');
+                          setHasChanges(true);
+                        }}
+                        className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      >
+                        <option value="cartesia">Cartesia Sonic-3 (ultra-low latency)</option>
+                        <option value="openai">OpenAI TTS (tts-1)</option>
+                        <option value="deepgram">Deepgram Aura-2</option>
+                      </select>
+                    </div>
+                  </>
+                  )}
+
+                  {/* Voice Selection - Row 3 left (pairs with Language) */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <label className="text-sm font-medium">Voice</label>
@@ -2667,73 +2739,6 @@ A: Credit card, bank transfer, automatic payment order.
                       ))}
                     </select>
                   </div>
-
-                  {/* Cloud Pipeline Provider Configuration */}
-                  {selectedProvider === 'pipeline' && (
-                  <>
-                    {/* STT Provider */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">STT Provider</label>
-                      <select
-                        value={sttProvider}
-                        onChange={(e) => { setSttProvider(e.target.value); setHasChanges(true); }}
-                        className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      >
-                        <option value="deepgram">Deepgram (Nova-3, fast)</option>
-                        <option value="openai">OpenAI (gpt-4o-transcribe)</option>
-                      </select>
-                    </div>
-
-                    {/* LLM Provider */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">LLM Provider</label>
-                      <select
-                        value={llmProvider}
-                        onChange={(e) => { setLlmProvider(e.target.value); setHasChanges(true); }}
-                        className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      >
-                        <option value="groq">Groq (Llama 3.3 70B, ultra-fast)</option>
-                        <option value="openai">OpenAI (GPT-4o-mini)</option>
-                        <option value="cerebras">Cerebras (Llama 3.3 70B)</option>
-                      </select>
-                    </div>
-
-                    {/* TTS Provider */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">TTS Provider</label>
-                      <select
-                        value={ttsProvider}
-                        onChange={(e) => {
-                          const newTts = e.target.value;
-                          setTtsProvider(newTts);
-                          // Reset voice when TTS provider changes
-                          if (newTts === 'cartesia') setSelectedVoice('katie');
-                          else if (newTts === 'openai') setSelectedVoice('nova');
-                          else if (newTts === 'deepgram') setSelectedVoice('aura-2-thalia-en');
-                          setHasChanges(true);
-                        }}
-                        className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      >
-                        <option value="cartesia">Cartesia Sonic-3 (ultra-low latency)</option>
-                        <option value="openai">OpenAI TTS (tts-1)</option>
-                        <option value="deepgram">Deepgram Aura-2</option>
-                      </select>
-                    </div>
-
-                    {/* LLM Model Override */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">LLM Model <span className="text-muted-foreground">(optional)</span></label>
-                      <input
-                        type="text"
-                        value={llmModel}
-                        onChange={(e) => { setLlmModel(e.target.value); setHasChanges(true); }}
-                        placeholder={llmProvider === 'groq' ? 'llama-3.3-70b-versatile' : llmProvider === 'cerebras' ? 'llama-3.3-70b' : 'gpt-4o-mini'}
-                        className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                      <p className="text-xs text-muted-foreground">Leave empty for default model</p>
-                    </div>
-                  </>
-                  )}
 
                   {/* Language */}
                   <div className="space-y-2">
