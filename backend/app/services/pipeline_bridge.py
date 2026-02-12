@@ -268,8 +268,12 @@ async def synthesize_speech(text: str, voice: str = "tr_TR-dfki-medium") -> byte
     """
     Synthesize speech using Piper TTS via Wyoming protocol.
 
-    Returns raw PCM16 audio at Piper's native sample rate (usually 22050Hz).
-    Wyoming protocol uses newline-delimited JSON events.
+    Wyoming protocol format per event:
+      1. event_json + newline  (contains type, data_length, payload_length)
+      2. data_json             (exactly data_length bytes, no trailing newline)
+      3. payload               (exactly payload_length bytes, only for audio-chunk)
+
+    Returns raw PCM16 audio at Piper's native sample rate (22050Hz).
     """
     try:
         reader, writer = await asyncio.wait_for(
@@ -277,7 +281,6 @@ async def synthesize_speech(text: str, voice: str = "tr_TR-dfki-medium") -> byte
             timeout=5.0,
         )
 
-        # Wyoming protocol: newline-delimited JSON events
         # Send synthesize event
         event = {
             "type": "synthesize",
@@ -290,11 +293,11 @@ async def synthesize_speech(text: str, voice: str = "tr_TR-dfki-medium") -> byte
         writer.write(event_line.encode("utf-8"))
         await writer.drain()
 
-        # Read audio response events (newline-delimited JSON)
+        # Read Wyoming response events
         audio_chunks = []
         try:
             while True:
-                # Read one JSON event line
+                # Step 1: Read event header line (JSON + newline)
                 line = await asyncio.wait_for(reader.readline(), timeout=30.0)
                 if not line:
                     break
@@ -304,20 +307,25 @@ async def synthesize_speech(text: str, voice: str = "tr_TR-dfki-medium") -> byte
 
                 resp_event = json.loads(line_str)
                 event_type = resp_event.get("type", "")
+                data_length = resp_event.get("data_length", 0)
+                payload_length = resp_event.get("payload_length", 0)
 
-                if event_type == "audio-chunk":
-                    # Read audio payload bytes after the JSON line
-                    payload_len = resp_event.get("payload_length", 0)
-                    if payload_len > 0:
-                        audio = await asyncio.wait_for(
-                            _read_exactly(reader, payload_len), timeout=10.0
-                        )
-                        audio_chunks.append(audio)
+                # Step 2: Read data JSON (exactly data_length bytes)
+                if data_length > 0:
+                    await asyncio.wait_for(
+                        _read_exactly(reader, data_length), timeout=5.0
+                    )
+
+                # Step 3: Read payload (only for audio-chunk)
+                if event_type == "audio-chunk" and payload_length > 0:
+                    audio = await asyncio.wait_for(
+                        _read_exactly(reader, payload_length), timeout=10.0
+                    )
+                    audio_chunks.append(audio)
                 elif event_type == "audio-stop":
                     break
                 elif event_type == "error":
-                    err_msg = resp_event.get("data", {}).get("text", "Unknown error")
-                    logger.error(f"Piper TTS error event: {err_msg}")
+                    logger.error(f"Piper TTS error event: {resp_event}")
                     break
         except asyncio.TimeoutError:
             logger.warning("Piper TTS response timeout")
@@ -327,7 +335,7 @@ async def synthesize_speech(text: str, voice: str = "tr_TR-dfki-medium") -> byte
 
         if audio_chunks:
             result = b"".join(audio_chunks)
-            logger.debug(f"Piper TTS: {len(result)} bytes for '{text[:50]}'")
+            logger.info(f"Piper TTS: {len(result)} bytes for '{text[:50]}'")
             return result
 
         logger.warning(f"Piper TTS returned no audio for: '{text[:80]}'")
@@ -335,7 +343,6 @@ async def synthesize_speech(text: str, voice: str = "tr_TR-dfki-medium") -> byte
 
     except Exception as e:
         logger.error(f"Piper TTS error: {e}")
-        # Fallback: try HTTP-based Piper if Wyoming fails
         return await _synthesize_speech_http(text, voice)
 
 
