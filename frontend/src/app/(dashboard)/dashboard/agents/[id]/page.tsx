@@ -2668,7 +2668,7 @@ A: Credit card, bank transfer, automatic payment order.
                     </select>
                   </div>
 
-                  {/* Cloud Pipeline Provider Configuration (shown only when pipeline is selected) */}
+                  {/* Cloud Pipeline Provider Configuration */}
                   {selectedProvider === 'pipeline' && (
                   <>
                     {/* STT Provider */}
