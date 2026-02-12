@@ -125,7 +125,7 @@ function parsePromptSections(prompt: string): ParsedPromptSections {
     { key: 'rules', patterns: [/^#\s*(Character\s*normalization|Instructions?|Rules?)/im] },
     { key: 'flow', patterns: [/^#\s*(Error\s*handling|Flow|Process)/im] },
     { key: 'safety', patterns: [/^#\s*(Safety\s*&?\s*Escalation|Safety|Security)/im] },
-    { key: 'language', patterns: [/^#\s*(Language\s*Guidelines?|Language|Dil|Sprache)/im] },
+    { key: 'language', patterns: [/^#\s*(Language\s*Guidelines?|Language)/im] },
   ];
   
   const lines = prompt.split('\n');
@@ -664,7 +664,7 @@ export default function AgentEditorPage() {
         
         // Load inactivity messages
         if (data.inactivity_messages && Array.isArray(data.inactivity_messages)) {
-          setInactivityMessages(data.inactivity_messages.map((msg: any, index: number) => ({
+          setInactivityMessages(data.inactivity_messages.map((msg: { duration?: number; message?: string; end_behavior?: string }, index: number) => ({
             id: (index + 1).toString(),
             duration: msg.duration || 30,
             message: msg.message || '',
@@ -955,14 +955,14 @@ export default function AgentEditorPage() {
             else if (header.includes('guardrails') || header.includes('kısıtlama')) currentSection = 'sample_phrases';
             else if (header.includes('tool')) currentSection = 'tools';
             else if (header.includes('character') || header.includes('normalization')) currentSection = 'rules';
-            else if (header.includes('error') || header.includes('hata')) currentSection = 'flow';
+            else if (header.includes('error')) currentSection = 'flow';
             // Legacy fallback patterns
             else if (header.includes('role') || header.includes('objective')) currentSection = 'role';
             else if (header.includes('instruction') || header.includes('rule')) currentSection = 'rules';
             else if (header.includes('flow')) currentSection = 'flow';
             else if (header.includes('phrase')) currentSection = 'sample_phrases';
             else if (header.includes('safety') || header.includes('escalation')) currentSection = 'safety';
-            else if (header.includes('language') || header.includes('dil') || header.includes('sprache')) currentSection = 'language';
+            else if (header.includes('language')) currentSection = 'language';
             else if (header.includes('pronunciation')) currentSection = 'pronunciations';
             else if (header.includes('context')) currentSection = 'context';
             else currentSection = 'role'; // Default

@@ -92,7 +92,7 @@ logger = logging.getLogger("asterisk-realtime-bridge")
 # CONFIGURATION
 # ============================================================================
 
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "YOUR_API_KEY_HERE")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 XAI_API_KEY = os.environ.get("XAI_API_KEY", "")
 MODEL = os.environ.get("REALTIME_MODEL", "gpt-realtime-mini")
 
@@ -1175,11 +1175,11 @@ class CallBridge:
                     self._check_hangup_signal(),
                 )
         except Exception as e:
-            logger.error(f"[{self.call_uuid[:8]}] ❌ Hata: {e}")
+            logger.error(f"[{self.call_uuid[:8]}] Bridge error: {e}")
             self.stats["errors"] += 1
             if not self.sip_code:
                 self.sip_code = 500
-                self.hangup_cause = f"Error: {str(e)[:80]}"
+                self.hangup_cause = "Internal bridge error"
         finally:
             await self._cleanup()
 

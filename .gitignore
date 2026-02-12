@@ -69,6 +69,7 @@ yarn-error.log*
 # Next.js
 .next/
 out/
+*.tsbuildinfo
 
 # Nuxt.js
 .nuxt/
