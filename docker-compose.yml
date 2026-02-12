@@ -326,7 +326,9 @@ services:
   # Same architecture as asterisk-bridge but uses local models
   # ===========================================
   pipeline-bridge:
-    image: voiceai-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     user: "1000:1000"
     env_file:
       - .env

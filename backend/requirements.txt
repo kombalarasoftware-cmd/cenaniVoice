@@ -30,6 +30,7 @@ websockets>=16.0
 # HTTP Client (used for Ultravox REST API + testing)
 httpx>=0.27.0
 aiohttp==3.9.3
+requests>=2.31.0
 
 # Data Validation
 pydantic==2.5.3
