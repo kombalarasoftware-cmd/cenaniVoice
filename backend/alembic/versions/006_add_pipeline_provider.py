@@ -22,13 +22,14 @@ def upgrade() -> None:
     # No schema change needed — provider column is String(20), accepts any value
 
     # Add pipeline model values to RealtimeModel enum
-    # The enum is stored as a PostgreSQL ENUM type, so we need to add new values
-    op.execute("ALTER TYPE realtimemodel ADD VALUE IF NOT EXISTS 'pipeline-qwen-7b'")
-    op.execute("ALTER TYPE realtimemodel ADD VALUE IF NOT EXISTS 'pipeline-llama-8b'")
-    op.execute("ALTER TYPE realtimemodel ADD VALUE IF NOT EXISTS 'pipeline-mistral-7b'")
+    # SQLAlchemy uses enum NAME (not value) when native_enum=True
+    # Existing pattern: GPT_REALTIME, GPT_REALTIME_MINI, ULTRAVOX, etc.
+    op.execute("ALTER TYPE realtimemodel ADD VALUE IF NOT EXISTS 'PIPELINE_QWEN_7B'")
+    op.execute("ALTER TYPE realtimemodel ADD VALUE IF NOT EXISTS 'PIPELINE_LLAMA_8B'")
+    op.execute("ALTER TYPE realtimemodel ADD VALUE IF NOT EXISTS 'PIPELINE_MISTRAL_7B'")
 
-    # Add 'pipeline' to AIProvider enum type
-    op.execute("ALTER TYPE aiprovider ADD VALUE IF NOT EXISTS 'pipeline'")
+    # AIProvider enum type does not exist in PostgreSQL (provider is String(20))
+    # No ALTER TYPE needed
 
 
 def downgrade() -> None:
