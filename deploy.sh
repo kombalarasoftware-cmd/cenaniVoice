@@ -101,11 +101,11 @@ fi
 echo ""
 echo "[4/8] Configuring firewall..."
 if command -v ufw &> /dev/null; then
-    ufw allow 22/tcp    # SSH
-    ufw allow 80/tcp    # HTTP
-    ufw allow 443/tcp   # HTTPS
-    ufw allow 5060/udp  # SIP
-    ufw allow 5060/tcp  # SIP TCP
+    ufw allow 4323/tcp   # SSH (custom port)
+    ufw allow 80/tcp     # HTTP
+    ufw allow 443/tcp    # HTTPS
+    ufw allow 5043/udp   # SIP (custom port)
+    ufw allow 5043/tcp   # SIP TCP (custom port)
     ufw allow 10000:10100/udp  # RTP
     ufw --force enable
     echo "Firewall configured."

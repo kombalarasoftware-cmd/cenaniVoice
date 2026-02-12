@@ -5,6 +5,7 @@ import { StatsCard } from '@/components/dashboard/stats-card';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
+import { formatDuration } from '@/lib/utils';
 import {
   PhoneCall,
   CheckCircle,
@@ -47,12 +48,6 @@ export default function DashboardPage() {
     };
     fetchStats();
   }, []);
-
-  const formatDuration = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
 
   return (
     <div className="min-h-screen">

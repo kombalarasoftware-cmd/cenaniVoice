@@ -218,7 +218,7 @@ class OpenAIRealtimeClient:
         except Exception as e:
             logger.error(f"Failed to connect: {e}")
             if self.on_error:
-                self.on_error(str(e))
+                self.on_error("Connection failed")
             raise
     
     async def _configure_session(self, system_prompt: Optional[str] = None, tools: Optional[list] = None):
@@ -273,8 +273,8 @@ class OpenAIRealtimeClient:
         except Exception as e:
             logger.error(f"Error receiving messages: {e}")
             if self.on_error:
-                self.on_error(str(e))
-    
+                self.on_error("Message receive error")
+
     async def _handle_message(self, message: dict):
         """Handle incoming WebSocket message"""
         event_type = message.get("type", "")
@@ -366,7 +366,7 @@ class OpenAIRealtimeClient:
                     "item": {
                         "type": "function_call_output",
                         "call_id": call_id,
-                        "output": json.dumps({"error": str(e)})
+                        "output": json.dumps({"error": "Tool execution failed"})
                     }
                 })
     

@@ -214,7 +214,7 @@ def make_call(self, call_data: dict):
             call_log.status = CallStatus.FAILED
             call_log.ended_at = datetime.utcnow()
             db.commit()
-        return {"success": False, "error": str(e), "permanent": True}
+        return {"success": False, "error": "Call processing failed", "permanent": True}
 
     except TransientError as e:
         # Let Celery handle retry
@@ -244,7 +244,7 @@ def make_call(self, call_data: dict):
             except MaxRetriesExceededError:
                 logger.error(f"Max retries exceeded for call {call_data.get('call_id')}")
 
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "Call processing failed"}
 
     finally:
         db.close()
@@ -816,7 +816,7 @@ def transcribe_recording(call_id: int):
 
     except Exception as e:
         logger.error(f"Error transcribing call {call_id}: {e}\n{traceback.format_exc()}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "Transcription failed"}
 
     finally:
         db.close()
@@ -974,7 +974,7 @@ def send_webhook(self, webhook_id: int, event: str, data: dict):
                     last_error = :error
                 WHERE id = :webhook_id
                 """),
-                {"webhook_id": webhook_id, "error": str(e)}
+                {"webhook_id": webhook_id, "error": type(e).__name__}
             )
             db.commit()
 
@@ -990,11 +990,11 @@ def send_webhook(self, webhook_id: int, event: str, data: dict):
                     last_error = :error
                 WHERE id = :webhook_id
                 """),
-                {"webhook_id": webhook_id, "error": str(e)}
+                {"webhook_id": webhook_id, "error": type(e).__name__}
             )
             db.commit()
 
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "Webhook delivery failed"}
 
     finally:
         db.close()

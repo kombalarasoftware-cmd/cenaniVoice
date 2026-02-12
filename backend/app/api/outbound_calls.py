@@ -493,7 +493,7 @@ async def hangup_call(
                     results.append(f"ARI error: {error_text}")
     except Exception as e:
         logger.error(f"ARI hangup error: {e}")
-        results.append(f"ARI error: {str(e)}")
+        results.append("ARI error: hangup command failed")
     
     return {"success": True, "message": "; ".join(results) if results else "Hangup signal sent"}
 

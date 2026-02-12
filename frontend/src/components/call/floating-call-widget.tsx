@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { cn } from '@/lib/utils';
+import { cn, formatDuration } from '@/lib/utils';
 import {
   Phone,
   PhoneOff,
@@ -18,12 +18,6 @@ import {
   X,
 } from 'lucide-react';
 import { useCall } from '@/components/providers/call-provider';
-
-function formatDuration(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-}
 
 export function FloatingCallWidget() {
   const {

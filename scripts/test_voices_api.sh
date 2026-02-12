@@ -4,7 +4,7 @@ set -e
 
 LOGIN_RESP=$(curl -s -X POST "https://one.speakmaxi.com/api/v1/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"email":"cmutlu2006@hotmail.com","password":"Speakmaxi2026!"}')
+  -d "{\"email\":\"${VOICEAI_EMAIL:?Please set VOICEAI_EMAIL}\",\"password\":\"${VOICEAI_PASSWORD:?Please set VOICEAI_PASSWORD}\"}")
 
 TOKEN=$(echo "$LOGIN_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 

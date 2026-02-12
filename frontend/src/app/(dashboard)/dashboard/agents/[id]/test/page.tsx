@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { cn, formatDuration } from '@/lib/utils';
 import {
   ArrowLeft,
   Bot,
@@ -80,12 +80,6 @@ export default function AgentTestPage() {
     }
     return () => clearInterval(interval);
   }, [isCallActive]);
-
-  const formatDuration = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
 
   const handleStartCall = async () => {
     if (!testPhone) {

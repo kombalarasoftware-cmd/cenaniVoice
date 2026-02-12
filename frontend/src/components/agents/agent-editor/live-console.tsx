@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@/lib/utils';
+import { cn, formatDuration } from '@/lib/utils';
 import {
   Phone,
   PhoneOff,
@@ -32,12 +32,6 @@ interface LiveConsoleProps {
   onCallEnd?: () => void;
   onClose?: () => void;
   className?: string;
-}
-
-function formatDuration(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
 export function LiveConsole({ agentId, providerInfo, onCallStart, onCallEnd, onClose, className }: LiveConsoleProps) {

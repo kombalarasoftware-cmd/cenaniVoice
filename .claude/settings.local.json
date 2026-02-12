@@ -29,7 +29,9 @@
       "WebFetch(domain:code.visualstudio.com)",
       "Bash(grep:*)",
       "Bash(npm bin:*)",
-      "Bash(npm prefix:*)"
+      "Bash(npm prefix:*)",
+      "Bash(npx tsc:*)",
+      "Bash(python -c:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

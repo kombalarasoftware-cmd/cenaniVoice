@@ -1,7 +1,7 @@
 'use client';
 
 import { Header } from '@/components/layout/header';
-import { cn } from '@/lib/utils';
+import { cn, formatDuration } from '@/lib/utils';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   PhoneCall,
@@ -101,13 +101,6 @@ function formatDate(dateStr: string) {
   const hours = String(d.getHours()).padStart(2, '0');
   const mins = String(d.getMinutes()).padStart(2, '0');
   return `${day}/${month}/${year} ${hours}:${mins}`;
-}
-
-function formatDuration(seconds: number) {
-  if (!seconds || seconds === 0) return '0:00';
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${String(secs).padStart(2, '0')}`;
 }
 
 function formatCost(cost: number) {

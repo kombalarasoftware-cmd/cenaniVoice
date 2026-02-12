@@ -74,7 +74,7 @@ async def process_document_background(
                 doc = await db.get(AgentDocument, document_id)
                 if doc:
                     doc.status = "error"
-                    doc.error_message = str(e)[:500]
+                    doc.error_message = "Document processing failed. Please retry or contact support."
                     await db.commit()
         except Exception as inner_e:
             logger.error(f"Failed to update document error status: {inner_e}")

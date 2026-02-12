@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from typing import Optional
+import html
 import logging
 import redis
 
@@ -450,6 +451,8 @@ async def approve_user(token: str, db: Session = Depends(get_db)):
 
 def _approval_result_page(success: bool, title: str, message: str) -> str:
     """Generate a simple HTML page to show approval result."""
+    title = html.escape(title)
+    message = html.escape(message)
     color = "#22c55e" if success else "#ef4444"
     icon = "✅" if success else "❌"
     return f"""

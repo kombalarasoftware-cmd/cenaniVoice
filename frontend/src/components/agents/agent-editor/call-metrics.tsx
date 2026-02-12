@@ -1,10 +1,10 @@
 'use client';
 
-import { cn } from '@/lib/utils';
-import { 
-  Clock, 
-  Zap, 
-  MessageSquare, 
+import { cn, formatDuration } from '@/lib/utils';
+import {
+  Clock,
+  Zap,
+  MessageSquare,
   AlertTriangle,
   TrendingUp,
   Download,
@@ -46,12 +46,6 @@ interface CallMetricsBarProps {
   isActive?: boolean;
   onExportTranscript?: (format: 'txt' | 'json' | 'pdf') => void;
   className?: string;
-}
-
-function formatDuration(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
 function formatLatency(ms: number): string {
