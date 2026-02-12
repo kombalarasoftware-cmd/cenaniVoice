@@ -96,6 +96,12 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "YOUR_API_KEY_HERE")
 XAI_API_KEY = os.environ.get("XAI_API_KEY", "")
 MODEL = os.environ.get("REALTIME_MODEL", "gpt-realtime-mini")
 
+# Google Gemini (Vertex AI) settings
+GOOGLE_SERVICE_ACCOUNT_FILE = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE", "")
+GOOGLE_PROJECT_ID = os.environ.get("GOOGLE_PROJECT_ID", "")
+GOOGLE_LOCATION = os.environ.get("GOOGLE_LOCATION", "us-central1")
+GEMINI_DEFAULT_MODEL = "gemini-live-2.5-flash-native-audio"
+
 # AudioSocket server ayarları
 AUDIOSOCKET_HOST = os.environ.get("AUDIOSOCKET_HOST", "0.0.0.0")
 AUDIOSOCKET_PORT = int(os.environ.get("AUDIOSOCKET_PORT", "9092"))
@@ -152,11 +158,82 @@ COST_PER_TOKEN = {
 # xAI Grok Voice Agent Pricing (per minute flat rate)
 XAI_COST_PER_MINUTE = 0.10  # $0.10/min estimated (xAI per-minute billing)
 
+# Google Gemini Live API Pricing (per 1M tokens)
+GEMINI_COST_PER_TOKEN = {
+    "input_audio": 3.00 / 1_000_000,
+    "output_audio": 12.00 / 1_000_000,
+}
+
 # OpenAI WebSocket URL
 OPENAI_WS_URL = f"wss://api.openai.com/v1/realtime?model={MODEL}"
 
 # xAI WebSocket URL (model is sent in session config, not URL)
 XAI_WS_URL = "wss://api.x.ai/v1/realtime"
+
+# Gemini Vertex AI WebSocket URL template
+# Format: wss://{LOCATION}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent
+# Gemini Vertex AI WebSocket URL template
+# Format: wss://{LOCATION}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent
+GEMINI_WS_URL_TEMPLATE = "wss://{location}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent"
+
+
+# ============================================================================
+# GEMINI VERTEX AI - OAuth2 Token Management
+# ============================================================================
+
+_gemini_credentials = None
+_gemini_token_cache: dict = {"token": None, "expiry": 0}
+
+
+def _get_gemini_access_token() -> str:
+    """
+    Get a valid OAuth2 access token for Vertex AI from service account JSON.
+    Caches the token and refreshes when expired.
+    Uses google-auth library for service account authentication.
+    """
+    global _gemini_credentials
+
+    # Check cache first
+    if _gemini_token_cache["token"] and time.time() < _gemini_token_cache["expiry"] - 60:
+        return _gemini_token_cache["token"]
+
+    try:
+        from google.oauth2 import service_account
+        from google.auth.transport.requests import Request
+
+        if _gemini_credentials is None:
+            sa_file = GOOGLE_SERVICE_ACCOUNT_FILE
+            if not sa_file or not os.path.exists(sa_file):
+                raise FileNotFoundError(
+                    f"Google service account file not found: {sa_file}. "
+                    "Set GOOGLE_SERVICE_ACCOUNT_FILE environment variable."
+                )
+            _gemini_credentials = service_account.Credentials.from_service_account_file(
+                sa_file,
+                scopes=["https://www.googleapis.com/auth/cloud-platform"],
+            )
+
+        # Refresh the token
+        _gemini_credentials.refresh(Request())
+
+        _gemini_token_cache["token"] = _gemini_credentials.token
+        # Token typically expires in 3600s; store expiry
+        if _gemini_credentials.expiry:
+            _gemini_token_cache["expiry"] = _gemini_credentials.expiry.timestamp()
+        else:
+            _gemini_token_cache["expiry"] = time.time() + 3500
+
+        logger.info("🔑 Gemini OAuth2 token refreshed successfully")
+        return _gemini_credentials.token
+
+    except ImportError:
+        raise ImportError(
+            "google-auth package is required for Gemini provider. "
+            "Install it with: pip install google-auth"
+        )
+    except Exception as e:
+        logger.error(f"❌ Gemini OAuth2 token error: {e}")
+        raise
 
 # ============================================================================
 # ASTERISK HANGUP CAUSE → SIP CODE MAPPING
@@ -672,12 +749,19 @@ If any tool call fails:
 # The bridge calls _build_tools() during session setup to resolve them.
 
 from app.services.tool_registry import to_openai_tools as _registry_to_openai_tools
+from app.services.tool_registry import to_gemini_tools as _registry_to_gemini_tools
 from app.core.voice_config import OPENAI_VALID_VOICES
 from app.core.voice_config import XAI_VALID_VOICES
+from app.core.voice_config import GEMINI_VALID_VOICES
 
 def _build_tools(agent_config: dict | None = None) -> list[dict]:
     """Build OpenAI-format tools from the universal tool registry."""
     return _registry_to_openai_tools(agent_config or {})
+
+
+def _build_gemini_tools(agent_config: dict | None = None) -> list[dict]:
+    """Build Gemini-format tools from the universal tool registry."""
+    return _registry_to_gemini_tools(agent_config or {})
 
 # ============================================================================
 # AUDIOSOCKET PROTOKOLÜ
@@ -955,6 +1039,12 @@ class CallBridge:
                 voice = call_setup.get("voice") or "Ara"
                 self.agent_voice = voice if voice in self.VALID_VOICES else "Ara"
                 self.agent_model = call_setup.get("model") or "grok-2-realtime"
+            elif self.provider == "gemini":
+                # Google Gemini voices
+                self.VALID_VOICES = GEMINI_VALID_VOICES
+                voice = call_setup.get("voice") or "Kore"
+                self.agent_voice = voice if voice in self.VALID_VOICES else "Kore"
+                self.agent_model = call_setup.get("model") or GEMINI_DEFAULT_MODEL
             else:
                 voice = call_setup.get("voice") or "ash"
                 self.agent_voice = voice if voice in self.VALID_VOICES else "ash"
@@ -1057,20 +1147,33 @@ class CallBridge:
             
             # Wait for initial event before configuring
             # OpenAI sends session.created; xAI sends conversation.created
-            if self.provider == "xai":
+            # Gemini: uses setup/setupComplete flow (handled in _connect_gemini)
+            if self.provider == "gemini":
+                # Gemini connection includes setup in the connect phase
+                pass  # _connect_gemini already handles setup + setupComplete
+            elif self.provider == "xai":
                 await self._wait_for_event("conversation.created", timeout=5.0)
+                await self._configure_session()
+                await self._wait_for_event("session.updated", timeout=3.0)
             else:
                 await self._wait_for_event("session.created", timeout=5.0)
-            await self._configure_session()
-            # Wait for session.updated to confirm config applied (replaces asyncio.sleep(0.3))
-            await self._wait_for_event("session.updated", timeout=3.0)
+                await self._configure_session()
+                await self._wait_for_event("session.updated", timeout=3.0)
+            
             await self._trigger_greeting()
 
-            await asyncio.gather(
-                self._asterisk_to_openai(),
-                self._openai_to_asterisk(),
-                self._check_hangup_signal(),
-            )
+            if self.provider == "gemini":
+                await asyncio.gather(
+                    self._asterisk_to_gemini(),
+                    self._gemini_to_asterisk(),
+                    self._check_hangup_signal(),
+                )
+            else:
+                await asyncio.gather(
+                    self._asterisk_to_openai(),
+                    self._openai_to_asterisk(),
+                    self._check_hangup_signal(),
+                )
         except Exception as e:
             logger.error(f"[{self.call_uuid[:8]}] ❌ Hata: {e}")
             self.stats["errors"] += 1
@@ -1081,7 +1184,11 @@ class CallBridge:
             await self._cleanup()
 
     async def _connect_openai(self):
-        """Connect to OpenAI or xAI Realtime WebSocket based on provider."""
+        """Connect to OpenAI, xAI, or Gemini Realtime WebSocket based on provider."""
+        if self.provider == "gemini":
+            await self._connect_gemini()
+            return
+        
         if self.provider == "xai":
             # xAI Grok: model is sent in session config, not URL
             ws_url = XAI_WS_URL
@@ -1108,6 +1215,90 @@ class CallBridge:
             max_size=10 * 1024 * 1024,
         )
         logger.info(f"[{self.call_uuid[:8]}] 🔌 {provider_label} bağlantısı kuruldu (model: {self.agent_model})")
+
+    async def _connect_gemini(self):
+        """
+        Connect to Google Gemini Live API via Vertex AI WebSocket.
+        Sends setup message and waits for setupComplete.
+        
+        Gemini uses a completely different protocol than OpenAI/xAI:
+        - OAuth2 Bearer auth (from service account)
+        - Setup message as first frame (contains model, voice, system instruction, tools)
+        - setupComplete event confirms ready state
+        """
+        # Get OAuth2 access token
+        access_token = _get_gemini_access_token()
+        
+        # Build WebSocket URL
+        location = GOOGLE_LOCATION or "us-central1"
+        ws_url = GEMINI_WS_URL_TEMPLATE.format(location=location)
+        
+        # Build model resource name for Vertex AI
+        project_id = GOOGLE_PROJECT_ID
+        if not project_id:
+            raise ValueError("GOOGLE_PROJECT_ID is required for Gemini provider")
+        
+        model_resource = (
+            f"projects/{project_id}/locations/{location}"
+            f"/publishers/google/models/{self.agent_model}"
+        )
+        
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+        
+        self.openai_ws = await ws_connect(
+            ws_url,
+            additional_headers=headers,
+            ping_interval=20,
+            ping_timeout=10,
+            max_size=10 * 1024 * 1024,
+        )
+        logger.info(f"[{self.call_uuid[:8]}] 🔌 Gemini bağlantısı kuruldu (model: {self.agent_model})")
+        
+        # Build and send setup message (must be first message)
+        instructions = self.agent_prompt or "You are a helpful voice assistant."
+        
+        setup_msg = {
+            "setup": {
+                "model": model_resource,
+                "generationConfig": {
+                    "responseModalities": ["AUDIO"],
+                    "speechConfig": {
+                        "voiceConfig": {
+                            "prebuiltVoiceConfig": {
+                                "voiceName": self.agent_voice
+                            }
+                        }
+                    },
+                    "temperature": self.agent_temperature,
+                },
+                "systemInstruction": {
+                    "parts": [{"text": instructions}]
+                },
+                "tools": _build_gemini_tools(),
+            }
+        }
+        
+        await self.openai_ws.send(json.dumps(setup_msg))
+        logger.info(f"[{self.call_uuid[:8]}] ⚙️ Gemini setup gönderildi: voice={self.agent_voice}, model={self.agent_model}")
+        
+        # Wait for setupComplete
+        try:
+            deadline = time.monotonic() + 10.0
+            while time.monotonic() < deadline:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                msg = await asyncio.wait_for(self.openai_ws.recv(), timeout=remaining)
+                event = json.loads(msg)
+                if "setupComplete" in event:
+                    logger.info(f"[{self.call_uuid[:8]}] ✅ Gemini setupComplete alındı")
+                    return
+                logger.debug(f"[{self.call_uuid[:8]}] ⏳ Gemini beklenen: setupComplete, gelen: {list(event.keys())}")
+        except asyncio.TimeoutError:
+            logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Gemini setupComplete için timeout, devam ediliyor")
 
     async def _wait_for_event(self, target_type: str, timeout: float = 5.0):
         """
@@ -1319,10 +1510,22 @@ If you detect an answering machine, voicemail, or automated greeting system:
         if self.provider == "xai":
             response_payload["modalities"] = ["text", "audio"]
         
-        await self.openai_ws.send(json.dumps({
-            "type": "response.create",
-            "response": response_payload
-        }))
+        if self.provider == "gemini":
+            # Gemini uses clientContent to send text instruction for greeting
+            await self.openai_ws.send(json.dumps({
+                "clientContent": {
+                    "turns": [{
+                        "role": "user",
+                        "parts": [{"text": greeting_instruction}]
+                    }],
+                    "turnComplete": True
+                }
+            }))
+        else:
+            await self.openai_ws.send(json.dumps({
+                "type": "response.create",
+                "response": response_payload
+            }))
         logger.info(f"[{self.call_uuid[:8]}] 🎙️ Greeting gönderildi: {greeting_instruction[:80]}...")
 
     # ---- Asterisk → OpenAI ----
@@ -1583,6 +1786,240 @@ If you detect an answering machine, voicemail, or automated greeting system:
             logger.error(f"[{self.call_uuid[:8]}] ❌ OpenAI event hatası: {e}")
         finally:
             self.is_active = False
+
+    # ---- Asterisk → Gemini (Google) ----
+
+    async def _asterisk_to_gemini(self):
+        """
+        Read 24kHz PCM16 from Asterisk and send to Gemini Live API.
+        Gemini uses realtimeInput.audio format with mime type.
+        """
+        try:
+            while self.is_active:
+                msg_type, payload = await read_audiosocket_message(self.reader)
+
+                if msg_type == MSG_HANGUP:
+                    logger.info(f"[{self.call_uuid[:8]}] 📴 Asterisk hangup")
+                    self.sip_code = self.sip_code or 200
+                    self.hangup_cause = self.hangup_cause or "Normal Clearing"
+                    self.is_active = False
+                    break
+
+                elif msg_type == MSG_UUID:
+                    pass
+
+                elif msg_type == MSG_DTMF:
+                    digit = payload.decode("ascii", errors="replace").strip()
+                    logger.info(f"[{self.call_uuid[:8]}] 📱 DTMF: {digit}")
+
+                elif msg_type in (MSG_AUDIO_8K, MSG_AUDIO_16K, MSG_AUDIO_24K, MSG_AUDIO_48K):
+                    self.stats["audio_frames_in"] += 1
+                    self.stats["audio_bytes_in"] += len(payload)
+
+                    # Buffer audio
+                    self.audio_buffer.extend(payload)
+
+                    # Send when buffer is full (60ms chunks)
+                    if len(self.audio_buffer) >= self.buffer_target_bytes:
+                        audio_pcm = bytes(self.audio_buffer)
+                        self.audio_buffer.clear()
+
+                        # Save input audio to Redis for recording
+                        asyncio.create_task(save_audio_to_redis(self.call_uuid, audio_pcm, "input"))
+
+                        b64_audio = base64.b64encode(audio_pcm).decode("utf-8")
+
+                        if self.openai_ws and self.openai_ws.state == State.OPEN:
+                            # Gemini format: realtimeInput with mime type
+                            await self.openai_ws.send(json.dumps({
+                                "realtimeInput": {
+                                    "audio": {
+                                        "data": b64_audio,
+                                        "mimeType": "audio/pcm;rate=24000"
+                                    }
+                                }
+                            }))
+
+                elif msg_type == MSG_ERROR:
+                    error_code = payload[0] if payload else 0xFF
+                    logger.error(f"[{self.call_uuid[:8]}] ❌ AudioSocket error: 0x{error_code:02x}")
+                    self.stats["errors"] += 1
+
+        except asyncio.IncompleteReadError:
+            logger.info(f"[{self.call_uuid[:8]}] 📴 Asterisk bağlantısı kapandı")
+        except Exception as e:
+            logger.error(f"[{self.call_uuid[:8]}] ❌ Asterisk okuma hatası (Gemini): {e}")
+        finally:
+            self.is_active = False
+
+    # ---- Gemini → Asterisk ----
+
+    async def _gemini_to_asterisk(self):
+        """
+        Handle Gemini Live API server messages and send audio to Asterisk.
+        Gemini uses a completely different event format than OpenAI/xAI:
+        - serverContent.modelTurn.parts[].inlineData.data for audio
+        - toolCall.functionCalls[] for tool invocations
+        - serverContent.turnComplete for end of response
+        - serverContent.interrupted for user interruption
+        """
+        try:
+            pacer_interval = CHUNK_DURATION_MS / 1000.0
+            next_send_time: Optional[float] = None
+            output_buffer_min_bytes = ASTERISK_SAMPLE_RATE * 2 * self.output_buffer_min_ms // 1000
+            is_playing = False
+            
+            async for message in self.openai_ws:
+                if not self.is_active:
+                    break
+
+                event = json.loads(message)
+
+                # ── Audio output from model ──
+                server_content = event.get("serverContent")
+                if server_content:
+                    model_turn = server_content.get("modelTurn")
+                    if model_turn:
+                        parts = model_turn.get("parts", [])
+                        for part in parts:
+                            inline_data = part.get("inlineData")
+                            if inline_data:
+                                audio_b64 = inline_data.get("data", "")
+                                mime_type = inline_data.get("mimeType", "")
+                                
+                                if audio_b64:
+                                    audio_pcm = base64.b64decode(audio_b64)
+                                    self.output_buffer.extend(audio_pcm)
+                                    
+                                    # Save audio to Redis for recording
+                                    asyncio.create_task(save_audio_to_redis(self.call_uuid, audio_pcm, "output"))
+                                    
+                                    # Buffer until minimum, then stream
+                                    if not is_playing and len(self.output_buffer) < output_buffer_min_bytes:
+                                        continue
+                                    
+                                    is_playing = True
+                                    
+                                    # Send chunks to Asterisk
+                                    while len(self.output_buffer) >= ASTERISK_CHUNK_BYTES:
+                                        chunk = bytes(self.output_buffer[:ASTERISK_CHUNK_BYTES])
+                                        del self.output_buffer[:ASTERISK_CHUNK_BYTES]
+
+                                        if next_send_time is None:
+                                            next_send_time = time.monotonic()
+                                        else:
+                                            next_send_time += pacer_interval
+
+                                        delay = next_send_time - time.monotonic()
+                                        if delay > 0:
+                                            await asyncio.sleep(delay)
+
+                                        msg = build_audiosocket_message(MSG_AUDIO_24K, chunk)
+                                        self.writer.write(msg)
+                                        self.stats["audio_frames_out"] += 1
+                                        self.stats["audio_bytes_out"] += len(chunk)
+
+                                    await self.writer.drain()
+                            
+                            # Text part (transcript)
+                            text = part.get("text")
+                            if text:
+                                logger.info(f"[{self.call_uuid[:8]}] 🤖 Agent: \"{text}\"")
+                                await save_transcript_to_redis(self.call_uuid, "assistant", text)
+                    
+                    # Turn complete - flush remaining buffer
+                    if server_content.get("turnComplete"):
+                        while len(self.output_buffer) >= ASTERISK_CHUNK_BYTES:
+                            chunk = bytes(self.output_buffer[:ASTERISK_CHUNK_BYTES])
+                            del self.output_buffer[:ASTERISK_CHUNK_BYTES]
+                            msg = build_audiosocket_message(MSG_AUDIO_24K, chunk)
+                            self.writer.write(msg)
+                            if next_send_time:
+                                next_send_time += pacer_interval
+                                delay = next_send_time - time.monotonic()
+                                if delay > 0:
+                                    await asyncio.sleep(delay)
+                        
+                        # Flush remaining short chunk with padding
+                        if len(self.output_buffer) > 0:
+                            chunk = bytes(self.output_buffer) + b'\x00' * (ASTERISK_CHUNK_BYTES - len(self.output_buffer))
+                            self.output_buffer.clear()
+                            msg = build_audiosocket_message(MSG_AUDIO_24K, chunk)
+                            self.writer.write(msg)
+                        
+                        await self.writer.drain()
+                        is_playing = False
+                        next_send_time = None
+                        logger.debug(f"[{self.call_uuid[:8]}] ✅ Gemini turn complete")
+                    
+                    # User interruption
+                    if server_content.get("interrupted"):
+                        logger.debug(f"[{self.call_uuid[:8]}] 👂 Gemini interrupted - clearing buffer")
+                        self.output_buffer.clear()
+                        is_playing = False
+                        next_send_time = None
+                    
+                    # Input transcription from Gemini
+                    input_transcription = server_content.get("inputTranscription")
+                    if input_transcription:
+                        text = input_transcription.get("text", "")
+                        if text:
+                            logger.info(f"[{self.call_uuid[:8]}] 🗣️ Müşteri: \"{text}\"")
+                            await save_transcript_to_redis(self.call_uuid, "user", text)
+                            self.turn_count += 1
+
+                # ── Tool calls ──
+                tool_call = event.get("toolCall")
+                if tool_call:
+                    function_calls = tool_call.get("functionCalls", [])
+                    for fc in function_calls:
+                        await self._process_gemini_tool_call(fc)
+
+                # ── Usage/metadata ──
+                usage_metadata = event.get("usageMetadata")
+                if usage_metadata:
+                    logger.debug(
+                        f"[{self.call_uuid[:8]}] 📊 Gemini tokens: "
+                        f"prompt={usage_metadata.get('promptTokenCount', 0)} "
+                        f"response={usage_metadata.get('responseTokenCount', 0)}"
+                    )
+
+        except websockets.exceptions.ConnectionClosed as e:
+            logger.warning(f"[{self.call_uuid[:8]}] 🔌 Gemini kapandı: {e}")
+        except Exception as e:
+            logger.error(f"[{self.call_uuid[:8]}] ❌ Gemini event hatası: {e}")
+        finally:
+            self.is_active = False
+
+    async def _process_gemini_tool_call(self, fc: dict):
+        """Process a Gemini tool call and send response back."""
+        func_name = fc.get("name", "")
+        call_id = fc.get("id", "")
+        args = fc.get("args", {})
+
+        logger.info(f"[{self.call_uuid[:8]}] 🔧 Gemini Tool: {func_name}({json.dumps(args, ensure_ascii=False)})")
+        self.stats["tool_calls"] += 1
+
+        result = handle_tool_call(self.call_uuid, func_name, args)
+
+        # Send tool response in Gemini format
+        await self.openai_ws.send(json.dumps({
+            "toolResponse": {
+                "functionResponses": [{
+                    "response": {"result": result},
+                    "id": call_id
+                }]
+            }
+        }))
+
+        call_data = active_calls.get(self.call_uuid, {})
+        if call_data.get("transfer_requested"):
+            logger.info(f"[{self.call_uuid[:8]}] 🔄 Transfer istendi")
+
+        # Agent requested call end → delayed hangup
+        if call_data.get("end_call_requested"):
+            logger.info(f"[{self.call_uuid[:8]}] 🔚 End call → delayed hangup (3s)")
+            asyncio.create_task(self._delayed_hangup(3))
 
     async def _process_tool_call(self, item: dict):
         """Tool call'ı işle ve sonucu geri gönder."""

@@ -20,7 +20,7 @@ class VoiceDefinition:
     name: str
     gender: VoiceGender
     description: str
-    provider: str  # "openai" or "ultravox"
+    provider: str  # "openai", "ultravox", "xai", or "gemini"
     language: Optional[str] = None  # None means multilingual (OpenAI)
     recommended: bool = False
 
@@ -159,6 +159,48 @@ XAI_VOICES: List[VoiceDefinition] = [
 
 XAI_VALID_VOICES = {v.id for v in XAI_VOICES}
 
+
+# =============================================================================
+# Google Gemini Live Voices (Vertex AI)
+# Source: https://ai.google.dev/gemini-api/docs/speech-generation
+# 30 voices available, multilingual support (70+ languages)
+# =============================================================================
+GEMINI_VOICES: List[VoiceDefinition] = [
+    # Recommended voices
+    VoiceDefinition("Kore", "Kore", VoiceGender.FEMALE, "Clear, professional - Default", "gemini", recommended=True),
+    VoiceDefinition("Puck", "Puck", VoiceGender.MALE, "Friendly, warm", "gemini", recommended=True),
+    VoiceDefinition("Charon", "Charon", VoiceGender.MALE, "Deep, authoritative", "gemini"),
+    VoiceDefinition("Zephyr", "Zephyr", VoiceGender.FEMALE, "Soft, gentle", "gemini"),
+    VoiceDefinition("Fenrir", "Fenrir", VoiceGender.MALE, "Strong, confident", "gemini"),
+    VoiceDefinition("Leda", "Leda", VoiceGender.FEMALE, "Elegant, calm", "gemini"),
+    VoiceDefinition("Orus", "Orus", VoiceGender.MALE, "Rich, resonant", "gemini"),
+    VoiceDefinition("Aoede", "Aoede", VoiceGender.FEMALE, "Melodic, expressive", "gemini"),
+    VoiceDefinition("Callirrhoe", "Callirrhoe", VoiceGender.FEMALE, "Smooth, flowing", "gemini"),
+    VoiceDefinition("Autonoe", "Autonoe", VoiceGender.FEMALE, "Natural, balanced", "gemini"),
+    VoiceDefinition("Enceladus", "Enceladus", VoiceGender.MALE, "Powerful, dynamic", "gemini"),
+    VoiceDefinition("Iapetus", "Iapetus", VoiceGender.MALE, "Steady, reliable", "gemini"),
+    VoiceDefinition("Umbriel", "Umbriel", VoiceGender.NEUTRAL, "Neutral, versatile", "gemini"),
+    VoiceDefinition("Algieba", "Algieba", VoiceGender.MALE, "Warm, engaging", "gemini"),
+    VoiceDefinition("Despina", "Despina", VoiceGender.FEMALE, "Bright, energetic", "gemini"),
+    VoiceDefinition("Erinome", "Erinome", VoiceGender.FEMALE, "Graceful, poised", "gemini"),
+    VoiceDefinition("Algenib", "Algenib", VoiceGender.MALE, "Clear, articulate", "gemini"),
+    VoiceDefinition("Rasalgethi", "Rasalgethi", VoiceGender.MALE, "Deep, thoughtful", "gemini"),
+    VoiceDefinition("Laomedeia", "Laomedeia", VoiceGender.FEMALE, "Serene, composed", "gemini"),
+    VoiceDefinition("Achernar", "Achernar", VoiceGender.FEMALE, "Vibrant, lively", "gemini"),
+    VoiceDefinition("Alnilam", "Alnilam", VoiceGender.MALE, "Bold, commanding", "gemini"),
+    VoiceDefinition("Schedar", "Schedar", VoiceGender.FEMALE, "Warm, nurturing", "gemini"),
+    VoiceDefinition("Gacrux", "Gacrux", VoiceGender.MALE, "Friendly, approachable", "gemini"),
+    VoiceDefinition("Pulcherrima", "Pulcherrima", VoiceGender.FEMALE, "Beautiful, refined", "gemini"),
+    VoiceDefinition("Achird", "Achird", VoiceGender.MALE, "Calm, measured", "gemini"),
+    VoiceDefinition("Zubenelgenubi", "Zubenelgenubi", VoiceGender.MALE, "Precise, analytical", "gemini"),
+    VoiceDefinition("Vindemiatrix", "Vindemiatrix", VoiceGender.FEMALE, "Mature, wise", "gemini"),
+    VoiceDefinition("Sadachbia", "Sadachbia", VoiceGender.MALE, "Cheerful, optimistic", "gemini"),
+    VoiceDefinition("Sadaltager", "Sadaltager", VoiceGender.MALE, "Steady, professional", "gemini"),
+    VoiceDefinition("Sulafat", "Sulafat", VoiceGender.FEMALE, "Smooth, soothing", "gemini"),
+]
+
+GEMINI_VALID_VOICES = {v.id for v in GEMINI_VOICES}
+
 # OpenAI voice name → Ultravox voice name mapping
 OPENAI_TO_ULTRAVOX_VOICE_MAP = {
     "alloy": "Alex",
@@ -185,6 +227,8 @@ def get_voices_by_provider(provider: str) -> List[dict]:
         return [v.to_dict() for v in ULTRAVOX_VOICES]
     elif provider == "xai":
         return [v.to_dict() for v in XAI_VOICES]
+    elif provider == "gemini":
+        return [v.to_dict() for v in GEMINI_VOICES]
     return []
 
 
@@ -194,6 +238,8 @@ def get_voices_by_gender(provider: str, gender: str) -> List[dict]:
         voices = XAI_VOICES
     elif provider == "ultravox":
         voices = ULTRAVOX_VOICES
+    elif provider == "gemini":
+        voices = GEMINI_VOICES
     else:
         voices = OPENAI_REALTIME_VOICES
     return [v.to_dict() for v in voices if v.gender.value == gender]
@@ -207,4 +253,6 @@ def validate_voice(voice_id: str, provider: str) -> str:
         return voice_id if voice_id in ULTRAVOX_VALID_VOICES else "Mark"
     elif provider == "xai":
         return voice_id if voice_id in XAI_VALID_VOICES else "Ara"
+    elif provider == "gemini":
+        return voice_id if voice_id in GEMINI_VALID_VOICES else "Kore"
     return voice_id

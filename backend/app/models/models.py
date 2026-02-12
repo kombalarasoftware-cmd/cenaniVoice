@@ -129,10 +129,11 @@ class AIProvider(str, enum.Enum):
     OPENAI = "openai"
     ULTRAVOX = "ultravox"
     XAI = "xai"
+    GEMINI = "gemini"
 
 
 class RealtimeModel(str, enum.Enum):
-    """AI Model Options (OpenAI, Ultravox, and xAI)"""
+    """AI Model Options (OpenAI, Ultravox, xAI, and Gemini)"""
     # OpenAI models
     GPT_REALTIME = "gpt-realtime"           # Premium: $32/$64 per 1M tokens
     GPT_REALTIME_MINI = "gpt-realtime-mini"  # Economic: $10/$20 per 1M tokens
@@ -143,6 +144,9 @@ class RealtimeModel(str, enum.Enum):
     ULTRAVOX_V0_6_LLAMA3_3_70B = "ultravox-v0.6-llama3.3-70b"
     # xAI Grok models
     XAI_GROK = "grok-2-realtime"                 # xAI Grok voice, per-minute billing
+    # Google Gemini Live models (Vertex AI)
+    GEMINI_LIVE = "gemini-live-2.5-flash-native-audio"  # GA model
+    GEMINI_LIVE_PREVIEW = "gemini-live-2.5-flash-preview-native-audio-09-2025"  # Preview
 
 
 class TranscriptModel(str, enum.Enum):

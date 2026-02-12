@@ -104,6 +104,24 @@ const xaiVoices = [
   { id: 'Leo', name: 'Leo', description: 'Authoritative, strong', gender: 'male' },
 ];
 
+const geminiVoices = [
+  { id: 'Kore', name: 'Kore ⭐', description: 'Clear, professional - Default', gender: 'female' },
+  { id: 'Puck', name: 'Puck ⭐', description: 'Friendly, warm', gender: 'male' },
+  { id: 'Charon', name: 'Charon', description: 'Deep, authoritative', gender: 'male' },
+  { id: 'Zephyr', name: 'Zephyr', description: 'Soft, gentle', gender: 'female' },
+  { id: 'Fenrir', name: 'Fenrir', description: 'Strong, confident', gender: 'male' },
+  { id: 'Leda', name: 'Leda', description: 'Elegant, calm', gender: 'female' },
+  { id: 'Orus', name: 'Orus', description: 'Rich, resonant', gender: 'male' },
+  { id: 'Aoede', name: 'Aoede', description: 'Melodic, expressive', gender: 'female' },
+  { id: 'Enceladus', name: 'Enceladus', description: 'Powerful, dynamic', gender: 'male' },
+  { id: 'Umbriel', name: 'Umbriel', description: 'Neutral, versatile', gender: 'neutral' },
+  { id: 'Despina', name: 'Despina', description: 'Bright, energetic', gender: 'female' },
+  { id: 'Algieba', name: 'Algieba', description: 'Warm, engaging', gender: 'male' },
+  { id: 'Schedar', name: 'Schedar', description: 'Warm, nurturing', gender: 'female' },
+  { id: 'Gacrux', name: 'Gacrux', description: 'Friendly, approachable', gender: 'male' },
+  { id: 'Sulafat', name: 'Sulafat', description: 'Smooth, soothing', gender: 'female' },
+];
+
 const ultravoxVoices = [
   // Turkish
   { id: 'Cicek-Turkish', name: 'Cicek', description: 'TR, Female', gender: 'female' },
@@ -184,6 +202,7 @@ const ultravoxVoices = [
 const providers = [
   { id: 'openai', name: 'OpenAI Realtime', description: 'GPT-4o Realtime via Asterisk' },
   { id: 'xai', name: 'xAI Grok', description: 'Grok voice agent, per-min' },
+  { id: 'gemini', name: 'Google Gemini', description: 'Gemini Live, Vertex AI' },
   { id: 'ultravox', name: 'Ultravox', description: 'Native SIP, $0.05/min' },
 ];
 
@@ -199,7 +218,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
   const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
   const [isLoading, setIsLoading] = useState(false);
 
-  const allVoices = selectedProvider === 'ultravox' ? ultravoxVoices : selectedProvider === 'xai' ? xaiVoices : openaiVoices;
+  const allVoices = selectedProvider === 'ultravox' ? ultravoxVoices : selectedProvider === 'xai' ? xaiVoices : selectedProvider === 'gemini' ? geminiVoices : openaiVoices;
   const voices = genderFilter === 'all' ? allVoices : allVoices.filter(v => v.gender === genderFilter);
 
   const handleCreate = async () => {
@@ -229,7 +248,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
           provider: selectedProvider,
           template: selectedTemplate,
           voice_settings: {
-            model_type: selectedProvider === 'xai' ? 'grok-2-realtime' : selectedProvider === 'ultravox' ? 'ultravox-v0.7' : 'gpt-realtime-mini',
+            model_type: selectedProvider === 'xai' ? 'grok-2-realtime' : selectedProvider === 'ultravox' ? 'ultravox-v0.7' : selectedProvider === 'gemini' ? 'gemini-live-2.5-flash-native-audio' : 'gpt-realtime-mini',
             voice: selectedVoice,
             language: selectedLanguage,
             speech_speed: 1.0,

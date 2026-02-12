@@ -36,8 +36,12 @@ services:
       - .env
     environment:
       - ULTRAVOX_WEBHOOK_URL=${ULTRAVOX_WEBHOOK_URL:-http://localhost:8000/api/v1/webhooks/ultravox}
+      - GOOGLE_SERVICE_ACCOUNT_FILE=/app/gemini-sa.json
+      - GOOGLE_PROJECT_ID=${GOOGLE_PROJECT_ID:-geminiproje-481913}
+      - GOOGLE_LOCATION=${GOOGLE_LOCATION:-us-central1}
     volumes:
       - ./backend:/app
+      - ./geminiproje-481913-fffed81310c9.json:/app/gemini-sa.json:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -206,11 +210,15 @@ services:
       - .env
     volumes:
       - ./backend:/app
+      - ./geminiproje-481913-fffed81310c9.json:/app/gemini-sa.json:ro
     environment:
       - AUDIOSOCKET_HOST=0.0.0.0
       - AUDIOSOCKET_PORT=9092
       - MAX_CONCURRENT_CALLS=50
       - REALTIME_MODEL=gpt-realtime-mini
+      - GOOGLE_SERVICE_ACCOUNT_FILE=/app/gemini-sa.json
+      - GOOGLE_PROJECT_ID=${GOOGLE_PROJECT_ID:-geminiproje-481913}
+      - GOOGLE_LOCATION=${GOOGLE_LOCATION:-us-central1}
     networks:
       - voiceai-network
     command: python -m app.services.asterisk_bridge

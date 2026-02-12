@@ -367,6 +367,15 @@ export function LiveConsole({ agentId, providerInfo, onCallStart, onCallEnd, onC
                   <span className="font-medium capitalize">{providerInfo.voice || 'Ara'}</span>
                 </div>
               </div>
+            ) : providerInfo.provider === 'gemini' ? (
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-muted-foreground">Google Gemini</span>
+                <div className="flex items-center gap-3">
+                  <span className="font-medium font-mono text-[10px]">{providerInfo.model || 'gemini-live'}</span>
+                  <span className="text-muted-foreground">|</span>
+                  <span className="font-medium capitalize">{providerInfo.voice || 'Kore'}</span>
+                </div>
+              </div>
             ) : (
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-muted-foreground">Ultravox</span>

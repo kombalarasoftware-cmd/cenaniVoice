@@ -58,7 +58,7 @@ async def list_voices(
             })
         return {"provider": "deepgram-tts", "voices": voices}
 
-    if provider not in ("openai", "ultravox"):
+    if provider not in ("openai", "ultravox", "xai", "gemini"):
         raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
 
     if gender:

@@ -630,12 +630,14 @@ export default function AgentEditorPage() {
         setUninterruptible(data.greeting_uninterruptible ?? false);
         setFirstMessageDelay(data.first_message_delay ? data.first_message_delay.toString() : '');
         setSelectedProvider(data.provider || 'openai');
-        setSelectedModel(data.model_type || (data.provider === 'xai' ? 'grok-2-realtime' : 'gpt-realtime-mini'));
+        setSelectedModel(data.model_type || (data.provider === 'xai' ? 'grok-2-realtime' : data.provider === 'gemini' ? 'gemini-live-2.5-flash-native-audio' : 'gpt-realtime-mini'));
         setSelectedLanguage(data.language || 'tr');
         setSelectedTimezone(data.timezone || 'Europe/Istanbul');
 
         if (data.provider === 'xai') {
           setSelectedVoice(data.voice || 'Ara');
+        } else if (data.provider === 'gemini') {
+          setSelectedVoice(data.voice || 'Kore');
         } else {
           setSelectedVoice(data.voice || 'alloy');
         }
@@ -783,6 +785,24 @@ export default function AgentEditorPage() {
     { id: 'Leo', name: 'Leo', gender: 'male', description: 'Authoritative, strong' },
   ];
 
+  const geminiVoices = [
+    { id: 'Kore', name: 'Kore ⭐', gender: 'female', description: 'Clear, professional - Default' },
+    { id: 'Puck', name: 'Puck ⭐', gender: 'male', description: 'Friendly, warm' },
+    { id: 'Charon', name: 'Charon', gender: 'male', description: 'Deep, authoritative' },
+    { id: 'Zephyr', name: 'Zephyr', gender: 'female', description: 'Soft, gentle' },
+    { id: 'Fenrir', name: 'Fenrir', gender: 'male', description: 'Strong, confident' },
+    { id: 'Leda', name: 'Leda', gender: 'female', description: 'Elegant, calm' },
+    { id: 'Orus', name: 'Orus', gender: 'male', description: 'Rich, resonant' },
+    { id: 'Aoede', name: 'Aoede', gender: 'female', description: 'Melodic, expressive' },
+    { id: 'Enceladus', name: 'Enceladus', gender: 'male', description: 'Powerful, dynamic' },
+    { id: 'Umbriel', name: 'Umbriel', gender: 'neutral', description: 'Neutral, versatile' },
+    { id: 'Despina', name: 'Despina', gender: 'female', description: 'Bright, energetic' },
+    { id: 'Algieba', name: 'Algieba', gender: 'male', description: 'Warm, engaging' },
+    { id: 'Schedar', name: 'Schedar', gender: 'female', description: 'Warm, nurturing' },
+    { id: 'Gacrux', name: 'Gacrux', gender: 'male', description: 'Friendly, approachable' },
+    { id: 'Sulafat', name: 'Sulafat', gender: 'female', description: 'Smooth, soothing' },
+  ];
+
   const ultravoxVoices = [
     // Turkish
     { id: 'Cicek-Turkish', name: 'Cicek (TR, Female)', gender: 'female' },
@@ -860,7 +880,7 @@ export default function AgentEditorPage() {
     { id: 'Marcin-Polish', name: 'Marcin (PL, Male)', gender: 'male' },
   ];
 
-  const allVoices = selectedProvider === 'ultravox' ? ultravoxVoices : selectedProvider === 'xai' ? xaiVoices : openaiVoices;
+  const allVoices = selectedProvider === 'ultravox' ? ultravoxVoices : selectedProvider === 'xai' ? xaiVoices : selectedProvider === 'gemini' ? geminiVoices : openaiVoices;
   const voices = voiceGenderFilter === 'all' ? allVoices : allVoices.filter(v => v.gender === voiceGenderFilter);
 
   const addInactivityMessage = () => {
@@ -962,7 +982,7 @@ export default function AgentEditorPage() {
           },
           provider: selectedProvider,
           voice_settings: {
-            model_type: selectedProvider === 'xai' ? 'grok-2-realtime' : selectedModel,
+            model_type: selectedProvider === 'xai' ? 'grok-2-realtime' : selectedProvider === 'gemini' ? 'gemini-live-2.5-flash-native-audio' : selectedModel,
             voice: selectedVoice,
             language: selectedLanguage,
             timezone: selectedTimezone,
@@ -2475,7 +2495,7 @@ A: Credit card, bank transfer, automatic payment order.
                 {/* Provider Selection */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">AI Provider</label>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-4 gap-3">
                     <button
                       onClick={() => {
                         setSelectedProvider('openai');
@@ -2492,7 +2512,7 @@ A: Credit card, bank transfer, automatic payment order.
                       )}
                     >
                       <p className="font-medium text-sm">OpenAI Realtime</p>
-                      <p className="text-xs text-muted-foreground">GPT-4o via Asterisk, token-based pricing</p>
+                      <p className="text-xs text-muted-foreground">GPT-4o via Asterisk</p>
                     </button>
                     <button
                       onClick={() => {
@@ -2510,7 +2530,25 @@ A: Credit card, bank transfer, automatic payment order.
                       )}
                     >
                       <p className="font-medium text-sm">xAI Grok</p>
-                      <p className="text-xs text-muted-foreground">Grok voice agent, per-minute billing</p>
+                      <p className="text-xs text-muted-foreground">Per-minute billing</p>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedProvider('gemini');
+                        setSelectedModel('gemini-live-2.5-flash-native-audio');
+                        setSelectedVoice('Kore');
+                        setVoiceGenderFilter('all');
+                        setHasChanges(true);
+                      }}
+                      className={cn(
+                        'p-3 rounded-lg border text-left transition-all',
+                        selectedProvider === 'gemini'
+                          ? 'border-primary-500 bg-primary-500/5'
+                          : 'border-border hover:border-primary-500/50'
+                      )}
+                    >
+                      <p className="font-medium text-sm">Google Gemini</p>
+                      <p className="text-xs text-muted-foreground">Vertex AI Live API</p>
                     </button>
                     <button
                       onClick={() => {
@@ -2528,7 +2566,7 @@ A: Credit card, bank transfer, automatic payment order.
                       )}
                     >
                       <p className="font-medium text-sm">Ultravox</p>
-                      <p className="text-xs text-muted-foreground">Native SIP, $0.05/min flat rate</p>
+                      <p className="text-xs text-muted-foreground">Native SIP, $0.05/min</p>
                     </button>
                   </div>
                 </div>

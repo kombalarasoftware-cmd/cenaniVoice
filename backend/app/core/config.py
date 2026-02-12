@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     # xAI (Grok Voice Agent)
     XAI_API_KEY: str = ""
 
+    # Google Gemini (Vertex AI Live API)
+    GOOGLE_SERVICE_ACCOUNT_FILE: str = ""  # Path to service account JSON
+    GOOGLE_PROJECT_ID: str = ""  # GCP project ID (e.g. geminiproje-481913)
+    GOOGLE_LOCATION: str = "us-central1"  # Vertex AI region
+
     # SIP Trunk
     SIP_TRUNK_HOST: str = ""
     SIP_TRUNK_PORT: int = 5060

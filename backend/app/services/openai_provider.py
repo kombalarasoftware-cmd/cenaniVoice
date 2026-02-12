@@ -53,16 +53,17 @@ COST_PER_TOKEN = {
 }
 
 from app.core.voice_config import OPENAI_VALID_VOICES as VALID_VOICES
+from app.core.voice_config import XAI_VALID_VOICES, GEMINI_VALID_VOICES
 
 
 class OpenAIProvider(CallProvider):
     """
-    Call provider using Asterisk + AudioSocket + OpenAI Realtime.
+    Call provider using Asterisk + AudioSocket + AI WebSocket.
 
-    This wraps the existing outbound call flow:
-    1. Store agent config in Redis
+    This wraps the outbound call flow for OpenAI, xAI, and Gemini:
+    1. Store agent config in Redis (includes provider field)
     2. Call Asterisk ARI to originate channel
-    3. asterisk_bridge.py handles the audio bridging
+    3. asterisk_bridge.py handles the audio bridging to the correct provider
     """
 
     async def initiate_call(
@@ -115,11 +116,23 @@ class OpenAIProvider(CallProvider):
 
             full_prompt = "\n\n".join(prompt_parts) if prompt_parts else ""
 
-            agent_voice = agent.voice if agent.voice in VALID_VOICES else "ash"
+            # Detect provider from agent and validate voice
+            provider_type = getattr(agent, "provider", "openai") or "openai"
+            if provider_type == "xai":
+                agent_voice = agent.voice if agent.voice in XAI_VALID_VOICES else "Ara"
+                if not model_str or model_str.startswith("gpt-"):
+                    model_str = "grok-2-realtime"
+            elif provider_type == "gemini":
+                agent_voice = agent.voice if agent.voice in GEMINI_VALID_VOICES else "Kore"
+                if not model_str or model_str.startswith("gpt-") or model_str.startswith("grok-"):
+                    model_str = "gemini-live-2.5-flash-native-audio"
+            else:
+                agent_voice = agent.voice if agent.voice in VALID_VOICES else "ash"
 
             call_setup_data = {
                 "agent_id": str(agent.id),
                 "agent_name": agent.name or "AI Agent",
+                "provider": provider_type,  # "openai", "xai", or "gemini" — bridge reads this
                 "voice": agent_voice,
                 "model": model_str,
                 "language": agent.language or "tr",

@@ -635,3 +635,56 @@ def to_ultravox_tools(agent_config: dict, webhook_base: str) -> list[dict]:
         })
 
     return ultravox_tools
+
+
+# =============================================================================
+# GEMINI FORMAT CONVERTER
+# =============================================================================
+
+def to_gemini_tools(agent_config: dict) -> list[dict]:
+    """
+    Convert universal tool definitions to Gemini Live API
+    function declaration format.
+
+    Returns a list of tool objects with functionDeclarations,
+    ready for the Gemini setup message's ``tools`` field.
+
+    Gemini format:
+        [{"functionDeclarations": [{"name": ..., "description": ..., "parameters": {...}}]}]
+    """
+    applicable = get_tools_for_agent(agent_config or {})
+    declarations: list[dict] = []
+
+    for tool_def in applicable:
+        properties: dict = {}
+        required: list[str] = []
+
+        for param_name, param_schema in tool_def.get("parameters", {}).items():
+            # Gemini uses uppercase type names
+            param_copy = dict(param_schema)
+            if "type" in param_copy:
+                param_copy["type"] = param_copy["type"].upper()
+            properties[param_name] = param_copy
+
+        for req in tool_def.get("required", []):
+            required.append(req)
+
+        decl: dict = {
+            "name": tool_def["name"],
+            "description": tool_def["description"],
+        }
+
+        if properties:
+            decl["parameters"] = {
+                "type": "OBJECT",
+                "properties": properties,
+            }
+            if required:
+                decl["parameters"]["required"] = required
+
+        declarations.append(decl)
+
+    if not declarations:
+        return []
+
+    return [{"functionDeclarations": declarations}]

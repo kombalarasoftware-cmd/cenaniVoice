@@ -270,6 +270,11 @@ async def initiate_outbound_call(
                 agent_voice = agent.voice if agent.voice in XAI_VALID_VOICES else "Ara"
                 if not model_str or model_str.startswith("gpt-"):
                     model_str = "grok-2-realtime"
+            elif provider_type == "gemini":
+                from app.core.voice_config import GEMINI_VALID_VOICES
+                agent_voice = agent.voice if agent.voice in GEMINI_VALID_VOICES else "Kore"
+                if not model_str or model_str.startswith("gpt-") or model_str.startswith("grok-"):
+                    model_str = "gemini-live-2.5-flash-native-audio"
             else:
                 VALID_VOICES = {'alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar'}
                 agent_voice = agent.voice if agent.voice in VALID_VOICES else "ash"
