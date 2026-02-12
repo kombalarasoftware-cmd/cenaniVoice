@@ -226,6 +226,57 @@ async def initiate_outbound_call(
             return OutboundCallResponse(success=False, message="Ultravox call failed. Please try again.")
 
     # -----------------------------------------------------------------
+    # PIPELINE PROVIDER PATH (Local STT + LLM + TTS via Asterisk)
+    # -----------------------------------------------------------------
+    if provider_type == "pipeline" and agent:
+        try:
+            provider = get_provider("pipeline")
+            conversation_history = build_conversation_history(db, phone_number, agent.id)
+
+            result = await provider.initiate_call(
+                agent=agent,
+                phone_number=phone_number,
+                caller_id=caller_id,
+                customer_name=request.customer_name or "",
+                customer_title=request.customer_title or "",
+                conversation_history=conversation_history,
+                variables=request.variables,
+            )
+
+            # Create CallLog
+            try:
+                call_log = CallLog(
+                    call_sid=result["call_id"],
+                    provider="pipeline",
+                    status=CallStatus.RINGING,
+                    to_number=phone_number,
+                    from_number=caller_id,
+                    customer_name=request.customer_name or None,
+                    agent_id=int(request.agent_id) if request.agent_id else None,
+                    started_at=datetime.utcnow(),
+                )
+                db.add(call_log)
+                db.commit()
+                db.refresh(call_log)
+                db_call_id = call_log.id
+                logger.info(f"Pipeline CallLog created: call_sid={result['call_id'][:8]}, db_id={db_call_id}")
+            except Exception as e:
+                logger.warning(f"Failed to create Pipeline CallLog: {e}")
+                db.rollback()
+                db_call_id = None
+
+            return OutboundCallResponse(
+                success=True,
+                channel_id=result.get("channel_id"),
+                call_id=result["call_id"],
+                db_call_id=db_call_id,
+                message=f"Pipeline call initiated to {phone_number}",
+            )
+        except Exception as e:
+            logger.error(f"Pipeline call error: {e}")
+            return OutboundCallResponse(success=False, message="Pipeline call failed. Please try again.")
+
+    # -----------------------------------------------------------------
     # OPENAI PROVIDER PATH (existing Asterisk ARI flow)
     # -----------------------------------------------------------------
     call_uuid = str(uuid_lib.uuid4())
