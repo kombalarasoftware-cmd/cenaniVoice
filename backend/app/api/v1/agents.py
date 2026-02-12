@@ -256,7 +256,9 @@ async def update_agent(
         agent.voice = agent_data.voice_settings.voice
         agent.language = agent_data.voice_settings.language
         agent.timezone = agent_data.voice_settings.timezone
-        agent.speech_speed = agent_data.voice_settings.speech_speed\n    \n    # Update call settings
+        agent.speech_speed = agent_data.voice_settings.speech_speed
+    
+    # Update call settings
     if agent_data.call_settings:
         agent.max_duration = agent_data.call_settings.max_duration
         agent.silence_timeout = agent_data.call_settings.silence_timeout
