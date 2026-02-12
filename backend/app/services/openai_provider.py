@@ -201,16 +201,51 @@ class OpenAIProvider(CallProvider):
         }
 
     async def end_call(self, call_id: str) -> dict:
-        """End call via Redis signal and ARI hangup."""
+        """End call via Redis signal AND ARI channel hangup.
+
+        Two-pronged approach:
+        1. Redis signal → bridge picks it up and sends MSG_HANGUP (if bridge is running)
+        2. ARI DELETE → directly terminates the Asterisk channel (works even if
+           the customer hasn't answered yet and no bridge is running)
+        """
         results = []
 
-        # Send Redis hangup signal
+        # 1. Send Redis hangup signal (for bridge cleanup)
         if redis_client:
             try:
                 redis_client.setex(f"hangup_signal:{call_id}", 60, "1")
                 results.append("Redis hangup signal sent")
             except Exception as e:
                 logger.warning(f"Redis hangup signal error: {e}")
+
+        # 2. ARI channel hangup — terminate the SIP channel directly
+        # This is critical when the customer hasn't answered yet (no bridge running)
+        try:
+            ari_url = f"http://{ARI_HOST}:{ARI_PORT}/ari/channels"
+            auth = aiohttp.BasicAuth(ARI_USERNAME, ARI_PASSWORD)
+            async with aiohttp.ClientSession(auth=auth) as session:
+                # List active channels and find the one matching this call_id
+                async with session.get(ari_url) as resp:
+                    if resp.status == 200:
+                        channels = await resp.json()
+                        for ch in channels:
+                            ch_id = ch.get("id", "")
+                            ch_vars = ch.get("channelvars", {})
+                            # Match by VOICEAI_UUID channel variable or channel name
+                            if ch_vars.get("VOICEAI_UUID") == call_id or call_id in ch_id:
+                                delete_url = f"{ari_url}/{ch_id}"
+                                async with session.delete(
+                                    delete_url,
+                                    params={"reason_code": "location=0;cause=location=0;cause=16"}
+                                ) as del_resp:
+                                    if del_resp.status < 300:
+                                        results.append(f"ARI channel {ch_id} terminated")
+                                        logger.info(f"ARI channel {ch_id} terminated for call {call_id[:8]}")
+                                    else:
+                                        err = await del_resp.text()
+                                        logger.warning(f"ARI DELETE failed for {ch_id}: {del_resp.status} {err}")
+        except Exception as e:
+            logger.warning(f"ARI channel hangup error for {call_id[:8]}: {e}")
 
         return {"success": True, "message": "; ".join(results) if results else "Hangup signal sent"}
 

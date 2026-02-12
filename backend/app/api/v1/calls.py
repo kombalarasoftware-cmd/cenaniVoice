@@ -371,19 +371,39 @@ async def hangup_call(
             except Exception as e2:
                 logger.error(f"Ultravox DELETE also failed for call {call_id}: {e2}")
     else:
-        # OpenAI/Asterisk: set Redis hangup signal → asterisk_bridge picks it up
+        # OpenAI/xAI/Gemini+Asterisk: use provider's end_call (Redis + ARI hangup)
         try:
-            if redis_client:
-                redis_client.set(f"hangup_signal:{call.call_sid}", "1", ex=60)
-                hangup_sent = True
-                logger.info(f"Redis hangup signal set for call {call_id} (call_sid={call.call_sid})")
+            from app.services.openai_provider import OpenAIProvider
+            provider = OpenAIProvider()
+            result = await provider.end_call(call.call_sid)
+            hangup_sent = True
+            logger.info(f"OpenAI provider hangup for call {call_id}: {result}")
         except Exception as e:
-            logger.error(f"Redis hangup signal failed for call {call_id}: {e}")
+            logger.error(f"OpenAI provider hangup failed for call {call_id}: {e}")
+            # Fallback: at least set Redis signal
+            try:
+                if redis_client:
+                    redis_client.set(f"hangup_signal:{call.call_sid}", "1", ex=60)
+                    hangup_sent = True
+            except Exception:
+                pass
+
+    # Set correct SIP code based on call state at hangup time
+    # If the call was still RINGING (customer never answered), use 487 (Request Terminated)
+    # If the call was CONNECTED/TALKING (customer answered), use 200 (Normal)
+    if call.status == CallStatus.RINGING:
+        call.sip_code = 487
+        call.hangup_cause = "User Hangup (Manual)"
+    else:
+        call.sip_code = call.sip_code or 200
+        call.hangup_cause = call.hangup_cause or "User Hangup (Manual)"
 
     call.status = CallStatus.COMPLETED
     call.ended_at = datetime.utcnow()
     if call.connected_at:
         call.duration = int((call.ended_at - call.connected_at).total_seconds())
+    else:
+        call.duration = 0
     db.commit()
 
     # Broadcast call update

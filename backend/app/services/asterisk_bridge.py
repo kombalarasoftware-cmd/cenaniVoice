@@ -2037,6 +2037,8 @@ class CallBridge:
         try:
             self.writer.write(build_audiosocket_message(MSG_HANGUP))
             await self.writer.drain()
+            # Give Asterisk time to process the hangup before closing TCP
+            await asyncio.sleep(0.3)
         except Exception:
             pass
 
@@ -2075,6 +2077,8 @@ class CallBridge:
                         try:
                             self.writer.write(build_audiosocket_message(MSG_HANGUP))
                             await self.writer.drain()
+                            # Give Asterisk time to process the hangup before closing TCP
+                            await asyncio.sleep(0.3)
                         except Exception:
                             pass
 
@@ -2102,10 +2106,18 @@ class CallBridge:
         """End-of-call cleanup and post-call processing."""
         duration = (datetime.now() - self.start_time).total_seconds()
 
-        # Set default SIP code if not already set
+        # Set SIP code based on actual call state:
+        # - If no audio frames received from customer → likely no answer (480)
+        # - If audio received but very short → normal clearing
+        # - Default fallback for connected calls → 200
         if not self.sip_code:
-            self.sip_code = 200
-            self.hangup_cause = self.hangup_cause or "Normal Clearing"
+            if self.stats["audio_frames_in"] == 0 and duration < 5:
+                # No audio received and very short duration → customer never answered
+                self.sip_code = 480
+                self.hangup_cause = "No Answer"
+            else:
+                self.sip_code = 200
+                self.hangup_cause = self.hangup_cause or "Normal Clearing"
 
         logger.info(
             f"[{self.call_uuid[:8]}] 📊 Çağrı sonu: "
@@ -2624,6 +2636,10 @@ async def handle_audiosocket_connection(reader: asyncio.StreamReader, writer: as
         bridge = CallBridge(call_uuid, reader, writer)
         await bridge.start()
 
+    except asyncio.IncompleteReadError:
+        # Health check probes (Docker, load balancer) connect and disconnect
+        # without sending data — this is expected, don't log as error
+        logger.debug(f"🔍 Health check probe from {peer} (0 bytes)")
     except asyncio.TimeoutError:
         logger.error("❌ UUID timeout (5s)")
     except Exception as e:
