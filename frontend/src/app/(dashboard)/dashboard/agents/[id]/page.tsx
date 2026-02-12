@@ -1123,8 +1123,15 @@ export default function AgentEditorPage() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to save agent');
+        const errorData = await response.json();
+        const detail = errorData.detail;
+        let message = 'Failed to save agent';
+        if (typeof detail === 'string') {
+          message = detail;
+        } else if (Array.isArray(detail)) {
+          message = detail.map((d: { msg?: string; loc?: string[] }) => d.msg || JSON.stringify(d)).join(', ');
+        }
+        throw new Error(message);
       }
 
       toast.success('Agent saved successfully');
