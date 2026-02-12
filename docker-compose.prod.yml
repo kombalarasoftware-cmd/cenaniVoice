@@ -157,6 +157,8 @@ services:
       - DISTRIBUTION=1
       - BUILD=1
       - EXEC=1
+      - NODES=1
+      - PING=1
       - POST=1
       - LOG_LEVEL=warning
     volumes:
