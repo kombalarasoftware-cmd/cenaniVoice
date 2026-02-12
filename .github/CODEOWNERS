@@ -1,0 +1,15 @@
+# Default owner for everything
+* @kombalarasoftware-cmd
+
+# Backend
+/backend/ @kombalarasoftware-cmd
+/backend/alembic/ @kombalarasoftware-cmd
+
+# Frontend
+/frontend/ @kombalarasoftware-cmd
+
+# Infrastructure
+/docker-compose.yml @kombalarasoftware-cmd
+/asterisk/ @kombalarasoftware-cmd
+/nginx/ @kombalarasoftware-cmd
+/.github/ @kombalarasoftware-cmd
