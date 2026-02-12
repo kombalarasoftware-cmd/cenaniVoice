@@ -175,21 +175,41 @@ const ultravoxVoices = [
 
 const pipelineVoices = [
   // Cartesia voices (default TTS provider for pipeline)
+  // Turkish
+  { id: 'azra', name: 'Azra', description: 'TR, Female', gender: 'female' },
+  { id: 'leyla', name: 'Leyla', description: 'TR, Female', gender: 'female' },
+  { id: 'aylin', name: 'Aylin', description: 'TR, Female', gender: 'female' },
+  { id: 'emre', name: 'Emre', description: 'TR, Male', gender: 'male' },
+  { id: 'taylan', name: 'Taylan', description: 'TR, Male', gender: 'male' },
+  { id: 'murat', name: 'Murat', description: 'TR, Male', gender: 'male' },
+  // English
   { id: 'katie', name: 'Katie', description: 'EN, Female', gender: 'female' },
-  { id: 'kiefer', name: 'Kiefer', description: 'EN, Male', gender: 'male' },
   { id: 'tessa', name: 'Tessa', description: 'EN, Female', gender: 'female' },
-  { id: 'kyle', name: 'Kyle', description: 'EN, Male', gender: 'male' },
   { id: 'sarah', name: 'Sarah', description: 'EN, Female', gender: 'female' },
-  { id: 'turkish-female', name: 'Turkish Female', description: 'TR, Female', gender: 'female' },
-  { id: 'turkish-male', name: 'Turkish Male', description: 'TR, Male', gender: 'male' },
-  { id: 'german-female', name: 'German Female', description: 'DE, Female', gender: 'female' },
-  { id: 'german-male', name: 'German Male', description: 'DE, Male', gender: 'male' },
-  { id: 'french-female', name: 'French Female', description: 'FR, Female', gender: 'female' },
-  { id: 'french-male', name: 'French Male', description: 'FR, Male', gender: 'male' },
-  { id: 'spanish-female', name: 'Spanish Female', description: 'ES, Female', gender: 'female' },
-  { id: 'spanish-male', name: 'Spanish Male', description: 'ES, Male', gender: 'male' },
-  { id: 'italian-female', name: 'Italian Female', description: 'IT, Female', gender: 'female' },
-  { id: 'italian-male', name: 'Italian Male', description: 'IT, Male', gender: 'male' },
+  { id: 'mia', name: 'Mia', description: 'EN, Female', gender: 'female' },
+  { id: 'kiefer', name: 'Kiefer', description: 'EN, Male', gender: 'male' },
+  { id: 'kyle', name: 'Kyle', description: 'EN, Male', gender: 'male' },
+  { id: 'blake', name: 'Blake', description: 'EN, Male', gender: 'male' },
+  // German
+  { id: 'alina', name: 'Alina', description: 'DE, Female', gender: 'female' },
+  { id: 'viktoria', name: 'Viktoria', description: 'DE, Female', gender: 'female' },
+  { id: 'nico', name: 'Nico', description: 'DE, Male', gender: 'male' },
+  { id: 'lukas', name: 'Lukas', description: 'DE, Male', gender: 'male' },
+  // French
+  { id: 'isabelle', name: 'Isabelle', description: 'FR, Female', gender: 'female' },
+  { id: 'marie-eve', name: 'Marie-Eve', description: 'FR, Female', gender: 'female' },
+  { id: 'joris', name: 'Joris', description: 'FR, Male', gender: 'male' },
+  { id: 'marc', name: 'Marc', description: 'FR, Male', gender: 'male' },
+  // Spanish
+  { id: 'isabel-es', name: 'Isabel', description: 'ES, Female', gender: 'female' },
+  { id: 'carmen', name: 'Carmen', description: 'ES, Female', gender: 'female' },
+  { id: 'luis', name: 'Luis', description: 'ES, Male', gender: 'male' },
+  { id: 'pablo', name: 'Pablo', description: 'ES, Male', gender: 'male' },
+  // Italian
+  { id: 'alessandra', name: 'Alessandra', description: 'IT, Female', gender: 'female' },
+  { id: 'giulia', name: 'Giulia', description: 'IT, Female', gender: 'female' },
+  { id: 'matteo', name: 'Matteo', description: 'IT, Male', gender: 'male' },
+  { id: 'luca', name: 'Luca', description: 'IT, Male', gender: 'male' },
 ];
 
 const providers = [
