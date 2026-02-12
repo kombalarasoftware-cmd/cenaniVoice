@@ -254,6 +254,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
             voice: selectedVoice,
             language: selectedLanguage,
             speech_speed: 1.0,
+            ...(selectedProvider === 'pipeline' ? { pipeline_voice: selectedVoice } : {}),
           },
           call_settings: {
             max_duration: 300,

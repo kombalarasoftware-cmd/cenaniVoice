@@ -688,8 +688,16 @@ class PipelineCallHandler:
                     await self._speak(greeting)
                     self.session.greeting_sent = True
 
-            # Step 3: Main audio processing loop
-            await self._audio_loop()
+            # Step 3: Main audio processing loop + hangup signal checker
+            hangup_task = asyncio.create_task(self._check_hangup_signal())
+            try:
+                await self._audio_loop()
+            finally:
+                hangup_task.cancel()
+                try:
+                    await hangup_task
+                except (asyncio.CancelledError, Exception):
+                    pass
 
         except asyncio.CancelledError:
             logger.info(f"[{self.session.call_uuid[:8] if self.session else '?'}] Call cancelled")
@@ -715,6 +723,44 @@ class PipelineCallHandler:
                 await self.writer.wait_closed()
             except Exception:
                 pass
+
+    async def _check_hangup_signal(self):
+        """Check Redis for external hangup signal (from frontend/API).
+        When signal is received, send MSG_HANGUP to Asterisk and stop the call.
+        """
+        if not self.session:
+            return
+        try:
+            import redis.asyncio as redis_async
+            r = redis_async.from_url(REDIS_URL, decode_responses=True)
+            try:
+                while self._running:
+                    sig = await r.get(f"hangup_signal:{self.session.call_uuid}")
+                    if sig:
+                        logger.info(f"[{self.session.call_uuid[:8]}] Redis hangup signal received - forcing disconnect")
+                        await r.delete(f"hangup_signal:{self.session.call_uuid}")
+                        self._running = False
+
+                        # Send hangup to Asterisk so the SIP call is terminated
+                        try:
+                            hangup_frame = struct.pack(">BH", MSG_HANGUP, 0)
+                            self.writer.write(hangup_frame)
+                            await self.writer.drain()
+                        except Exception:
+                            pass
+
+                        # Close TCP writer to unblock _audio_loop reader
+                        try:
+                            self.writer.close()
+                        except Exception:
+                            pass
+
+                        break
+                    await asyncio.sleep(1)
+            finally:
+                await r.close()
+        except Exception as e:
+            logger.warning(f"[{self.session.call_uuid[:8]}] Hangup signal check error: {e}")
 
     async def _read_uuid(self) -> Optional[str]:
         """Read UUID from AudioSocket handshake."""

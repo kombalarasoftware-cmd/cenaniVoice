@@ -978,6 +978,7 @@ export default function AgentEditorPage() {
             language: selectedLanguage,
             timezone: selectedTimezone,
             speech_speed: speechSpeed,
+            ...(selectedProvider === 'pipeline' ? { pipeline_voice: selectedVoice } : {}),
           },
           call_settings: {
             max_duration: maxDuration,

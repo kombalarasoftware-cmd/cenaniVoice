@@ -108,6 +108,9 @@ async def create_agent(
         agent.speech_speed = agent_data.voice_settings.speech_speed
         if agent_data.voice_settings.pipeline_voice is not None:
             agent.pipeline_voice = agent_data.voice_settings.pipeline_voice
+        elif agent_data.provider == "pipeline" and agent_data.voice_settings.voice:
+            # Fallback: use voice field as pipeline_voice for pipeline provider
+            agent.pipeline_voice = agent_data.voice_settings.voice
     
     # Apply call settings
     if agent_data.call_settings:
@@ -244,6 +247,8 @@ async def update_agent(
         agent.speech_speed = agent_data.voice_settings.speech_speed
         if agent_data.voice_settings.pipeline_voice is not None:
             agent.pipeline_voice = agent_data.voice_settings.pipeline_voice
+        elif (agent_data.provider or agent.provider) == "pipeline" and agent_data.voice_settings.voice:
+            agent.pipeline_voice = agent_data.voice_settings.voice
     
     # Update call settings
     if agent_data.call_settings:
