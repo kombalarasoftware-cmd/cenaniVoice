@@ -203,28 +203,136 @@ function OutcomeBadge({ outcome }: { outcome: string | null }) {
 }
 
 // ─── SIP Code Badge ──────────────────────────────────────────────
+const SIP_CODE_MAP: Record<number, { label: string; icon: string; color: string; bg: string }> = {
+  200: { label: 'Answered', icon: '✅', color: 'text-green-500', bg: 'bg-green-500/10' },
+  180: { label: 'Ringing', icon: '📞', color: 'text-blue-500', bg: 'bg-blue-500/10' },
+  183: { label: 'Ringing', icon: '📞', color: 'text-blue-500', bg: 'bg-blue-500/10' },
+  400: { label: 'Bad Request', icon: '⚠️', color: 'text-amber-500', bg: 'bg-amber-500/10' },
+  401: { label: 'Unauthorized', icon: '🔒', color: 'text-amber-500', bg: 'bg-amber-500/10' },
+  403: { label: 'Forbidden', icon: '🚫', color: 'text-red-500', bg: 'bg-red-500/10' },
+  404: { label: 'Invalid Number', icon: '❌', color: 'text-red-500', bg: 'bg-red-500/10' },
+  408: { label: 'No Answer', icon: '📵', color: 'text-orange-500', bg: 'bg-orange-500/10' },
+  480: { label: 'Unavailable', icon: '📵', color: 'text-orange-500', bg: 'bg-orange-500/10' },
+  484: { label: 'Invalid Number', icon: '❌', color: 'text-red-500', bg: 'bg-red-500/10' },
+  486: { label: 'Busy', icon: '🔴', color: 'text-yellow-600', bg: 'bg-yellow-500/10' },
+  487: { label: 'Cancelled', icon: '🚫', color: 'text-gray-500', bg: 'bg-gray-500/10' },
+  488: { label: 'Not Acceptable', icon: '⚠️', color: 'text-amber-500', bg: 'bg-amber-500/10' },
+  500: { label: 'Server Error', icon: '💥', color: 'text-red-500', bg: 'bg-red-500/10' },
+  502: { label: 'Bad Gateway', icon: '💥', color: 'text-red-500', bg: 'bg-red-500/10' },
+  503: { label: 'Service Down', icon: '🔧', color: 'text-red-500', bg: 'bg-red-500/10' },
+  504: { label: 'Timeout', icon: '⏱️', color: 'text-orange-500', bg: 'bg-orange-500/10' },
+  600: { label: 'Busy Everywhere', icon: '🔴', color: 'text-yellow-600', bg: 'bg-yellow-500/10' },
+  603: { label: 'Declined', icon: '🚫', color: 'text-red-500', bg: 'bg-red-500/10' },
+  604: { label: 'Not Found', icon: '❌', color: 'text-red-500', bg: 'bg-red-500/10' },
+};
+
 function SipCodeBadge({ code }: { code: number | null }) {
   if (!code) return <span className="text-xs text-muted-foreground">N/A</span>;
 
+  const info = SIP_CODE_MAP[code];
+  if (info) {
+    return (
+      <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium', info.bg, info.color)}>
+        {info.icon} {info.label}
+      </span>
+    );
+  }
+
+  // Fallback for unknown codes
   let color = 'text-gray-500';
   let bg = 'bg-gray-500/10';
-
-  if (code === 200) {
-    color = 'text-green-500';
-    bg = 'bg-green-500/10';
-  } else if (code >= 400 && code < 500) {
-    color = 'text-amber-500';
-    bg = 'bg-amber-500/10';
-  } else if (code >= 500) {
-    color = 'text-red-500';
-    bg = 'bg-red-500/10';
-  }
+  let label = `Code ${code}`;
+  if (code >= 200 && code < 300) { color = 'text-green-500'; bg = 'bg-green-500/10'; label = 'Success'; }
+  else if (code >= 400 && code < 500) { color = 'text-amber-500'; bg = 'bg-amber-500/10'; label = 'Client Error'; }
+  else if (code >= 500) { color = 'text-red-500'; bg = 'bg-red-500/10'; label = 'Server Error'; }
 
   return (
     <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', bg, color)}>
-      {code}
+      {label} ({code})
     </span>
   );
+}
+
+// ─── Call Result Badge (combines SIP + AMD + hangup into one label) ──
+function CallResultBadge({ call }: { call: CallLogResponse }) {
+  // AMD: Answering machine detected
+  if (call.amd_status === 'MACHINE') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/10 text-purple-500">
+        🤖 Voicemail
+      </span>
+    );
+  }
+
+  // SIP code based result
+  if (call.sip_code) {
+    const info = SIP_CODE_MAP[call.sip_code];
+    if (info) {
+      return (
+        <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium', info.bg, info.color)}>
+          {info.icon} {info.label}
+        </span>
+      );
+    }
+  }
+
+  // Hangup cause fallback
+  if (call.hangup_cause) {
+    const cause = call.hangup_cause.toLowerCase();
+    if (cause.includes('normal')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-500">
+          ✅ Answered
+        </span>
+      );
+    }
+    if (cause.includes('busy')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500/10 text-yellow-600">
+          🔴 Busy
+        </span>
+      );
+    }
+    if (cause.includes('no answer') || cause.includes('no_answer')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-500/10 text-orange-500">
+          📵 No Answer
+        </span>
+      );
+    }
+  }
+
+  // Status fallback
+  if (call.status === 'completed' || call.status === 'talking') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-500">
+        ✅ Answered
+      </span>
+    );
+  }
+  if (call.status === 'failed') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-500">
+        ❌ Failed
+      </span>
+    );
+  }
+  if (call.status === 'no_answer') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-500/10 text-orange-500">
+        📵 No Answer
+      </span>
+    );
+  }
+  if (call.status === 'busy') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500/10 text-yellow-600">
+        🔴 Busy
+      </span>
+    );
+  }
+
+  return <span className="text-xs text-muted-foreground">—</span>;
 }
 
 // ─── Main Page ───────────────────────────────────────────────────
@@ -625,8 +733,8 @@ export default function CallLogsPage() {
                       <th className="text-left py-3 px-4 font-medium">Agent</th>
                       <th className="text-left py-3 px-4 font-medium">Campaign</th>
                       <th className="text-left py-3 px-4 font-medium">Duration</th>
+                      <th className="text-left py-3 px-4 font-medium">Result</th>
                       <th className="text-left py-3 px-4 font-medium">Status</th>
-                      <th className="text-left py-3 px-4 font-medium">Outcome</th>
                       <th className="text-left py-3 px-4 font-medium">Provider</th>
                       <th className="text-right py-3 px-4 font-medium">Cost</th>
                       <th className="text-center py-3 px-4 font-medium w-8"></th>
@@ -670,10 +778,10 @@ export default function CallLogsPage() {
                             {formatDuration(call.duration)}
                           </td>
                           <td className="py-3 px-4">
-                            <StatusBadge status={call.status} />
+                            <CallResultBadge call={call} />
                           </td>
                           <td className="py-3 px-4">
-                            <OutcomeBadge outcome={call.outcome} />
+                            <StatusBadge status={call.status} />
                           </td>
                           <td className="py-3 px-4">
                             <ProviderBadge provider={call.provider} />
