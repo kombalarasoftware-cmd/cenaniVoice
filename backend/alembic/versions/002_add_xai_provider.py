@@ -18,8 +18,10 @@ depends_on = None
 def upgrade() -> None:
     # Add 'xai' to aiprovider enum
     op.execute("ALTER TYPE aiprovider ADD VALUE IF NOT EXISTS 'xai'")
-    # Add 'grok-2-realtime' to realtimemodel enum
+    # Add 'grok-2-realtime' to realtimemodel enum (DB value)
     op.execute("ALTER TYPE realtimemodel ADD VALUE IF NOT EXISTS 'grok-2-realtime'")
+    # Add 'XAI_GROK' to realtimemodel enum (SQLAlchemy uses enum NAME)
+    op.execute("ALTER TYPE realtimemodel ADD VALUE IF NOT EXISTS 'XAI_GROK'")
 
 
 def downgrade() -> None:

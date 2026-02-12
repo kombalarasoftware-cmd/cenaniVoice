@@ -10,7 +10,7 @@ BEGIN
 END
 $$;
 
--- Add 'grok-2-realtime' to realtimemodel enum
+-- Add 'grok-2-realtime' to realtimemodel enum (the DB value)
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_enum WHERE enumlabel = 'grok-2-realtime' AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'realtimemodel')) THEN
@@ -18,6 +18,9 @@ BEGIN
     END IF;
 END
 $$;
+
+-- Add 'XAI_GROK' to realtimemodel enum (SQLAlchemy uses enum NAME, not value)
+ALTER TYPE realtimemodel ADD VALUE IF NOT EXISTS 'XAI_GROK';
 
 -- Verify
 SELECT enumlabel FROM pg_enum WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'aiprovider') ORDER BY enumsortorder;
