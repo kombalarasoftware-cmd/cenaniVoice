@@ -114,22 +114,28 @@
 
 ## Claude Code Configuration
 - **Agents** (4): security-reviewer, code-reviewer, debugger, frontend-developer — all with `memory: user`, `maxTurns`, `permissionMode`
-- **Skills** (8): review, security, test, deploy, refactor, changelog, fix-issue, interview — all with `allowed-tools` restrictions
-- **Hooks** (8 events): SessionStart, PreToolUse, PostToolUse (async), Notification (async), Stop, PreCompact, SessionEnd (async)
-- **Rules** (4): backend-python, frontend-react, security, docker-infra — path-scoped with glob patterns
-- **MCP**: context7 (library docs)
-- **Plugins** (9): GitHub, Playwright, Context7, Sentry, Slack, Figma, Pyright LSP, TypeScript LSP, Superpowers
+- **Skills** (12): review, security, test, deploy, refactor, changelog, fix-issue, interview, cascade-edit, create-pr, todo-scan, space
+- **Hooks** (11 active): SessionStart, PreToolUse (lint-check + filter-test-output), PostToolUse (python-check + ruff-check + cascade-detect), Notification, Stop (stop-check + todo-check), PreCompact, SessionEnd
+- **Rules** (8): backend-python, frontend-react, security, docker-infra, api-routes, celery-tasks, database-models, react-components
+- **MCP**: context7 (library docs, cmd /c wrapper for Windows)
+- **Plugins** (8): GitHub, Playwright, Context7, Sentry, Figma, Pyright LSP, TypeScript LSP, Superpowers
+- **Copilot Integration**: copilot-instructions.md, path-specific instructions (python, typescript), copilot-setup-steps.yml, 4 custom agents, Copilot CLI v1.2.0
+- **GitHub Config**: Secret scanning + push protection, Dependabot alerts + auto-fix, CODEOWNERS, issue templates, PR template, SECURITY.md, 9 custom labels, dependabot.yml
+- **Spaces**: `.claude/spaces/` for task-specific context (Copilot Spaces equivalent)
 - **Status line**: Custom script showing model, branch, context%, cost, lines changed
 - **File suggestion**: Custom @ autocomplete with priority extensions and skip dirs
 - **Output styles**: `engineering.md` — structured technical responses
 - **Keybindings**: Custom shortcuts (Ctrl+E editor, Ctrl+P model picker, Ctrl+Shift+T thinking, Ctrl+S stash)
-- **CI/CD**: GitHub Actions CI (tests, lint, build) + Claude Code PR Review action
+- **CI/CD**: GitHub Actions CI + Claude Code PR Review + Copilot Setup Steps
 - **Agent SDK scripts**: batch-migrate.sh, review-pr.sh, extract-api.sh
 - **DevContainer**: `.devcontainer/devcontainer.json` (Python 3.11, Node 18, PostgreSQL, Redis, gh CLI)
 - **$CLAUDE_PROJECT_DIR bug**: Does NOT expand on Windows cmd.exe — use relative paths in hook commands
 
 ## Recent Changes
-- [2026-02-11] Advanced features: Sentry/Slack/Figma plugins, PreCompact/SessionEnd hooks, interview skill, Agent SDK scripts, DevContainer
+- [2026-02-11] Copilot features adapted to Claude Code: cascade-edit, create-pr, todo-scan, space skills; ruff-check, cascade-detect, todo-check hooks; 4 granular path-scoped rules
+- [2026-02-11] GitHub Copilot integration: copilot-instructions.md, path-specific instructions, copilot-setup-steps.yml, 4 custom agents, Copilot CLI installed
+- [2026-02-11] GitHub repo hardened: secret scanning, Dependabot, CODEOWNERS, issue/PR templates, SECURITY.md, 9 labels, description + 8 topics
+- [2026-02-11] Advanced features: Sentry/Figma plugins, PreCompact/SessionEnd hooks, interview skill, Agent SDK scripts, DevContainer
 - [2026-02-11] Full Claude Code feature implementation: status line, file suggestion, output styles, keybindings, LSP plugins, GitHub Actions review
 - [2026-02-11] Claude Code 23-item gap analysis applied: agent memory, skill allowed-tools, hook system (5 events), model config
 - [2026-02-11] Comprehensive security audit + 18 code fixes applied

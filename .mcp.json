@@ -2,8 +2,8 @@
   "mcpServers": {
     "context7": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp@latest"],
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@upstash/context7-mcp@latest"],
       "description": "Library documentation lookup (FastAPI, Next.js, SQLAlchemy, Ultravox)"
     }
   }

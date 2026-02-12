@@ -70,8 +70,8 @@ nginx/            # Reverse proxy + SSL
 - `debugger` — Root cause analysis with project-specific patterns (persistent memory)
 - `frontend-developer` — Next.js/React specialist (persistent memory)
 
-## Available Skills
-- `/review` — Code review with security + performance checks
+## Available Skills (12)
+- `/review` — Code review with linter integration + security + performance checks
 - `/security` — OWASP-focused security vulnerability scan
 - `/test` — Generate comprehensive tests
 - `/deploy` — Pre-deployment readiness check
@@ -79,25 +79,45 @@ nginx/            # Reverse proxy + SSL
 - `/changelog` — Generate changelog from git history
 - `/fix-issue` — Fix a GitHub issue by number (runs in fork context)
 - `/interview` — Interview user to gather requirements before implementing
+- `/cascade-edit` — Find all related code locations after a change (Copilot NES-style)
+- `/create-pr` — Auto-generate PR with AI summary (Copilot PR Summary-style)
+- `/todo-scan` — Scan for TODO/FIXME and create GitHub issues (Copilot TODO detection-style)
+- `/space` — Load task-specific context space for focused work (Copilot Spaces-style)
+
+## Copilot Custom Agents (`.github/agents/`)
+- `backend-developer` — FastAPI/Python specialist
+- `frontend-developer` — Next.js/TypeScript specialist
+- `security-reviewer` — OWASP security audit
+- `test-writer` — pytest/Jest test generation
 
 ## Plugins & Integrations
 - **GitHub** — PR/issue management via MCP
 - **Playwright** — Browser automation and visual testing
 - **Context7** — Up-to-date library documentation
 - **Sentry** — Error monitoring integration
-- **Slack** — Task delegation from Slack
 - **Figma** — Design-to-code integration
 - **Pyright LSP** — Python type checking and code intelligence
 - **TypeScript LSP** — TypeScript type checking and code intelligence
+- **Copilot CLI** — `gh copilot suggest/explain` for terminal AI assistance
 
-## Hook Events (8 active)
+## Hook Events (11 active)
 - **SessionStart** — Environment check on startup
-- **PreToolUse** — Command validation before execution
-- **PostToolUse** — Python syntax check after file edits (async)
+- **PreToolUse** — Command validation + test output filter before execution
+- **PostToolUse** — Python syntax check + Ruff linter + Cascade edit detection (async)
 - **Notification** — Windows toast notifications (async)
-- **Stop** — Final verification before response ends
+- **Stop** — Final verification + TODO scanner before response ends
 - **PreCompact** — Preserve critical context before compaction
 - **SessionEnd** — Warn about uncommitted changes on exit (async)
+
+## Path-Scoped Rules (`.claude/rules/`)
+- `backend-python.md` — Python/FastAPI standards
+- `frontend-react.md` — React/TypeScript standards
+- `security.md` — Security rules for all code
+- `docker-infra.md` — Docker/infrastructure rules
+- `api-routes.md` — API endpoint rules (backend/api/**)
+- `celery-tasks.md` — Celery task rules (backend/tasks/**)
+- `database-models.md` — SQLAlchemy model rules (backend/models/**)
+- `react-components.md` — React component rules (frontend/components/**)
 
 ## Agent SDK Scripts
 Automation scripts in `.claude/scripts/`:
@@ -120,4 +140,4 @@ When context is compacted, preserve:
 - Language policy (English only in code)
 - Key architecture decisions
 - All @import references
-- The project rules from .claude/rules/ (backend-python, frontend-react, security, docker-infra)
+- The project rules from .claude/rules/ (8 rules: backend-python, frontend-react, security, docker-infra, api-routes, celery-tasks, database-models, react-components)

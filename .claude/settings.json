@@ -46,6 +46,12 @@
             "command": "python .claude/hooks/lint-check.py",
             "timeout": 10,
             "statusMessage": "Validating command..."
+          },
+          {
+            "type": "command",
+            "command": "python .claude/hooks/filter-test-output.py",
+            "timeout": 10,
+            "statusMessage": "Optimizing test output..."
           }
         ]
       }
@@ -59,6 +65,20 @@
             "command": "python .claude/hooks/python-check.py",
             "timeout": 15,
             "statusMessage": "Checking Python syntax...",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "python .claude/hooks/ruff-check.py",
+            "timeout": 15,
+            "statusMessage": "Running Ruff linter...",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "python .claude/hooks/cascade-detect.py",
+            "timeout": 10,
+            "statusMessage": "Scanning for cascading edits...",
             "async": true
           }
         ]
@@ -84,6 +104,12 @@
             "command": "python .claude/hooks/stop-check.py",
             "timeout": 15,
             "statusMessage": "Final verification..."
+          },
+          {
+            "type": "command",
+            "command": "python .claude/hooks/todo-check.py",
+            "timeout": 10,
+            "statusMessage": "Scanning for TODO comments..."
           }
         ]
       }

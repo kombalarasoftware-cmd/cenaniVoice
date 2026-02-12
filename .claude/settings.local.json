@@ -14,7 +14,24 @@
       "Bash(docker compose exec *)",
       "Bash(ssh *)",
       "Bash(pip install:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(gh extension:*)",
+      "Bash(gh api:*)",
+      "Bash(gh secret list:*)",
+      "Bash(gh variable list:*)",
+      "WebFetch(domain:docs.github.com)",
+      "Bash(where:*)",
+      "Bash(gh repo edit:*)",
+      "Bash(gh copilot:*)",
+      "Bash(1 <<'EOF'\n{\"security_and_analysis\":{\"secret_scanning\":{\"status\":\"enabled\"},\"secret_scanning_push_protection\":{\"status\":\"enabled\"}}}\nEOF)",
+      "Bash(gh label create:*)",
+      "WebSearch",
+      "WebFetch(domain:code.visualstudio.com)",
+      "Bash(grep:*)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "context7"
+  ]
 }
