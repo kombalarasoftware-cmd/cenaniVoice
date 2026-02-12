@@ -128,12 +128,11 @@ class AIProvider(str, enum.Enum):
     """AI voice call provider"""
     OPENAI = "openai"
     ULTRAVOX = "ultravox"
-    PIPELINE = "pipeline"
     XAI = "xai"
 
 
 class RealtimeModel(str, enum.Enum):
-    """AI Model Options (OpenAI, Ultravox, Pipeline, and xAI)"""
+    """AI Model Options (OpenAI, Ultravox, and xAI)"""
     # OpenAI models
     GPT_REALTIME = "gpt-realtime"           # Premium: $32/$64 per 1M tokens
     GPT_REALTIME_MINI = "gpt-realtime-mini"  # Economic: $10/$20 per 1M tokens
@@ -142,11 +141,6 @@ class RealtimeModel(str, enum.Enum):
     ULTRAVOX_V0_6 = "ultravox-v0.6"
     ULTRAVOX_V0_6_GEMMA3_27B = "ultravox-v0.6-gemma3-27b"
     ULTRAVOX_V0_6_LLAMA3_3_70B = "ultravox-v0.6-llama3.3-70b"
-    # Pipeline models
-    PIPELINE_CLOUD = "pipeline-cloud"            # Cloud STT + LLM + TTS (per-agent)
-    PIPELINE_QWEN_7B = "pipeline-qwen-7b"       # Legacy: Qwen 2.5 7B local
-    PIPELINE_LLAMA_8B = "pipeline-llama-8b"      # Legacy: Llama 3.1 8B local
-    PIPELINE_MISTRAL_7B = "pipeline-mistral-7b"  # Legacy: Mistral 7B local
     # xAI Grok models
     XAI_GROK = "grok-2-realtime"                 # xAI Grok voice, per-minute billing
 
@@ -185,16 +179,7 @@ class Agent(Base):
     status: Mapped[AgentStatus] = mapped_column(SQLEnum(AgentStatus), default=AgentStatus.DRAFT)
     
     # Provider selection
-    provider: Mapped[str] = mapped_column(String(20), default="openai")  # "openai", "ultravox", or "pipeline"
-
-    # Cloud pipeline provider selection (per-agent, used when provider="pipeline")
-    stt_provider: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="deepgram")  # "deepgram", "openai"
-    llm_provider: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="groq")  # "groq", "openai", "cerebras"
-    tts_provider: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="cartesia")  # "cartesia", "openai", "deepgram"
-    stt_model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # e.g. "nova-3", "gpt-4o-transcribe"
-    llm_model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # e.g. "llama-3.3-70b-versatile", "gpt-4o-mini"
-    tts_model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # e.g. "sonic-3", "tts-1"
-    tts_voice: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # e.g. "katie", "nova", "aura-2-thalia-en"
+    provider: Mapped[str] = mapped_column(String(20), default="openai")  # "openai", "ultravox", or "xai"
 
     # Model settings
     model_type: Mapped[RealtimeModel] = mapped_column(
@@ -208,7 +193,6 @@ class Agent(Base):
     # Voice settings
     voice: Mapped[str] = mapped_column(String(50), default="alloy")
     language: Mapped[str] = mapped_column(String(10), default="tr")
-    pipeline_voice: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # Piper TTS voice name
     timezone: Mapped[str] = mapped_column(String(50), default="Europe/Istanbul")
     speech_speed: Mapped[float] = mapped_column(Float, default=1.0)
     

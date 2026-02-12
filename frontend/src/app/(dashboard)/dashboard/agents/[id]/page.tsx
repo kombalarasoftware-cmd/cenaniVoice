@@ -534,15 +534,6 @@ export default function AgentEditorPage() {
   const [voiceGenderFilter, setVoiceGenderFilter] = useState<'all' | 'male' | 'female'>('all');
   const [selectedTimezone, setSelectedTimezone] = useState('Europe/Istanbul');
 
-  // Cloud Pipeline Provider settings (per-agent, when provider === 'pipeline')
-  const [sttProvider, setSttProvider] = useState('deepgram');
-  const [llmProvider, setLlmProvider] = useState('groq');
-  const [ttsProvider, setTtsProvider] = useState('cartesia');
-  const [sttModel, setSttModel] = useState('');
-  const [llmModel, setLlmModel] = useState('');
-  const [ttsModel, setTtsModel] = useState('');
-  const [ttsVoice, setTtsVoice] = useState('');
-
   const [maxDuration, setMaxDuration] = useState(300);
   const [silenceTimeout, setSilenceTimeout] = useState(10);
   const [recordCalls, setRecordCalls] = useState(true);
@@ -639,24 +630,11 @@ export default function AgentEditorPage() {
         setUninterruptible(data.greeting_uninterruptible ?? false);
         setFirstMessageDelay(data.first_message_delay ? data.first_message_delay.toString() : '');
         setSelectedProvider(data.provider || 'openai');
-        setSelectedModel(data.model_type || (data.provider === 'pipeline' ? 'pipeline-cloud' : data.provider === 'xai' ? 'grok-2-realtime' : 'gpt-realtime-mini'));
+        setSelectedModel(data.model_type || (data.provider === 'xai' ? 'grok-2-realtime' : 'gpt-realtime-mini'));
         setSelectedLanguage(data.language || 'tr');
         setSelectedTimezone(data.timezone || 'Europe/Istanbul');
 
-        // Load cloud pipeline provider settings
-        setSttProvider(data.stt_provider || 'deepgram');
-        setLlmProvider(data.llm_provider || 'groq');
-        setTtsProvider(data.tts_provider || 'cartesia');
-        setSttModel(data.stt_model || '');
-        setLlmModel(data.llm_model || '');
-        setTtsModel(data.tts_model || '');
-        const resolvedTtsVoice = data.tts_voice || data.pipeline_voice || data.voice || '';
-        setTtsVoice(resolvedTtsVoice);
-
-        // For pipeline agents, selectedVoice should reflect the TTS voice (not OpenAI voice)
-        if (data.provider === 'pipeline' && resolvedTtsVoice) {
-          setSelectedVoice(resolvedTtsVoice);
-        } else if (data.provider === 'xai') {
+        if (data.provider === 'xai') {
           setSelectedVoice(data.voice || 'Ara');
         } else {
           setSelectedVoice(data.voice || 'alloy');
@@ -882,175 +860,7 @@ export default function AgentEditorPage() {
     { id: 'Marcin-Polish', name: 'Marcin (PL, Male)', gender: 'male' },
   ];
 
-  // Cloud TTS voices for pipeline mode — organized by TTS provider
-  const cartesiaVoices = [
-    // Turkish
-    { id: 'azra', name: 'Azra (TR, Female)', gender: 'female' },
-    { id: 'leyla', name: 'Leyla (TR, Female)', gender: 'female' },
-    { id: 'aylin', name: 'Aylin (TR, Female)', gender: 'female' },
-    { id: 'zehra', name: 'Zehra (TR, Female)', gender: 'female' },
-    { id: 'emre', name: 'Emre (TR, Male)', gender: 'male' },
-    { id: 'taylan', name: 'Taylan (TR, Male)', gender: 'male' },
-    { id: 'murat', name: 'Murat (TR, Male)', gender: 'male' },
-    // English
-    { id: 'katie', name: 'Katie (EN, Female)', gender: 'female' },
-    { id: 'tessa', name: 'Tessa (EN, Female)', gender: 'female' },
-    { id: 'sarah', name: 'Sarah (EN, Female)', gender: 'female' },
-    { id: 'mia', name: 'Mia (EN, Female)', gender: 'female' },
-    { id: 'ellen', name: 'Ellen (EN, Female)', gender: 'female' },
-    { id: 'samantha', name: 'Samantha (EN, Female)', gender: 'female' },
-    { id: 'emma', name: 'Emma (EN, Female)', gender: 'female' },
-    { id: 'sophie', name: 'Sophie (EN, Female)', gender: 'female' },
-    { id: 'kiefer', name: 'Kiefer (EN, Male)', gender: 'male' },
-    { id: 'kyle', name: 'Kyle (EN, Male)', gender: 'male' },
-    { id: 'blake', name: 'Blake (EN, Male)', gender: 'male' },
-    { id: 'joey', name: 'Joey (EN, Male)', gender: 'male' },
-    { id: 'liam', name: 'Liam (EN, Male)', gender: 'male' },
-    { id: 'barry', name: 'Barry (EN, Male)', gender: 'male' },
-    // German
-    { id: 'alina', name: 'Alina (DE, Female)', gender: 'female' },
-    { id: 'viktoria', name: 'Viktoria (DE, Female)', gender: 'female' },
-    { id: 'karin', name: 'Karin (DE, Female)', gender: 'female' },
-    { id: 'lea', name: 'Lea (DE, Female)', gender: 'female' },
-    { id: 'lena', name: 'Lena (DE, Female)', gender: 'female' },
-    { id: 'lorelei', name: 'Lorelei (DE, Female)', gender: 'female' },
-    { id: 'nico', name: 'Nico (DE, Male)', gender: 'male' },
-    { id: 'lukas', name: 'Lukas (DE, Male)', gender: 'male' },
-    { id: 'andreas', name: 'Andreas (DE, Male)', gender: 'male' },
-    { id: 'thomas', name: 'Thomas (DE, Male)', gender: 'male' },
-    { id: 'sebastian', name: 'Sebastian (DE, Male)', gender: 'male' },
-    // French
-    { id: 'isabelle', name: 'Isabelle (FR, Female)', gender: 'female' },
-    { id: 'marie-eve', name: 'Marie-Eve (FR, Female)', gender: 'female' },
-    { id: 'mika', name: 'Mika (FR, Female)', gender: 'female' },
-    { id: 'manon', name: 'Manon (FR, Female)', gender: 'female' },
-    { id: 'eloise', name: 'Eloise (FR, Female)', gender: 'female' },
-    { id: 'joris', name: 'Joris (FR, Male)', gender: 'male' },
-    { id: 'marc', name: 'Marc (FR, Male)', gender: 'male' },
-    { id: 'gerard', name: 'Gerard (FR, Male)', gender: 'male' },
-    { id: 'antoine', name: 'Antoine (FR, Male)', gender: 'male' },
-    // Spanish
-    { id: 'isabel-es', name: 'Isabel (ES, Female)', gender: 'female' },
-    { id: 'carmen', name: 'Carmen (ES, Female)', gender: 'female' },
-    { id: 'paloma', name: 'Paloma (ES, Female)', gender: 'female' },
-    { id: 'elena', name: 'Elena (ES, Female)', gender: 'female' },
-    { id: 'camila-es', name: 'Camila (ES, Female)', gender: 'female' },
-    { id: 'luis', name: 'Luis (ES, Male)', gender: 'male' },
-    { id: 'pablo', name: 'Pablo (ES, Male)', gender: 'male' },
-    { id: 'hector', name: 'Hector (ES, Male)', gender: 'male' },
-    { id: 'alejandro', name: 'Alejandro (ES, Male)', gender: 'male' },
-    // Italian
-    { id: 'alessandra', name: 'Alessandra (IT, Female)', gender: 'female' },
-    { id: 'francesca', name: 'Francesca (IT, Female)', gender: 'female' },
-    { id: 'giulia', name: 'Giulia (IT, Female)', gender: 'female' },
-    { id: 'matteo', name: 'Matteo (IT, Male)', gender: 'male' },
-    { id: 'giancarlo', name: 'Giancarlo (IT, Male)', gender: 'male' },
-    { id: 'luca', name: 'Luca (IT, Male)', gender: 'male' },
-    { id: 'marco', name: 'Marco (IT, Male)', gender: 'male' },
-    // Arabic
-    { id: 'amira', name: 'Amira (AR, Female)', gender: 'female' },
-    { id: 'maryam', name: 'Maryam (AR, Female)', gender: 'female' },
-    { id: 'nour', name: 'Nour (AR, Female)', gender: 'female' },
-    { id: 'omar', name: 'Omar (AR, Male)', gender: 'male' },
-    { id: 'hassan', name: 'Hassan (AR, Male)', gender: 'male' },
-    { id: 'khalid', name: 'Khalid (AR, Male)', gender: 'male' },
-    // Russian
-    { id: 'tatiana', name: 'Tatiana (RU, Female)', gender: 'female' },
-    { id: 'irina', name: 'Irina (RU, Female)', gender: 'female' },
-    { id: 'olga', name: 'Olga (RU, Female)', gender: 'female' },
-    { id: 'dmitri', name: 'Dmitri (RU, Male)', gender: 'male' },
-    // Japanese
-    { id: 'kaori', name: 'Kaori (JA, Female)', gender: 'female' },
-    { id: 'yumiko', name: 'Yumiko (JA, Female)', gender: 'female' },
-    { id: 'aiko', name: 'Aiko (JA, Female)', gender: 'female' },
-    { id: 'daisuke', name: 'Daisuke (JA, Male)', gender: 'male' },
-    { id: 'kenji', name: 'Kenji (JA, Male)', gender: 'male' },
-    { id: 'takashi', name: 'Takashi (JA, Male)', gender: 'male' },
-    // Korean
-    { id: 'yuna', name: 'Yuna (KO, Female)', gender: 'female' },
-    { id: 'soojin', name: 'Soojin (KO, Female)', gender: 'female' },
-    { id: 'jiwoo', name: 'Jiwoo (KO, Female)', gender: 'female' },
-    { id: 'minho', name: 'Minho (KO, Male)', gender: 'male' },
-    // Chinese
-    { id: 'yue', name: 'Yue (ZH, Female)', gender: 'female' },
-    { id: 'mei', name: 'Mei (ZH, Female)', gender: 'female' },
-    { id: 'hua', name: 'Hua (ZH, Female)', gender: 'female' },
-    { id: 'kai-zh', name: 'Kai (ZH, Male)', gender: 'male' },
-    { id: 'tao', name: 'Tao (ZH, Male)', gender: 'male' },
-    { id: 'hao', name: 'Hao (ZH, Male)', gender: 'male' },
-    // Portuguese
-    { id: 'beatriz', name: 'Beatriz (PT, Female)', gender: 'female' },
-    { id: 'ana-paula', name: 'Ana Paula (PT, Female)', gender: 'female' },
-    { id: 'luana', name: 'Luana (PT, Female)', gender: 'female' },
-    { id: 'camilo', name: 'Camilo (PT, Male)', gender: 'male' },
-    { id: 'felipe', name: 'Felipe (PT, Male)', gender: 'male' },
-    // Dutch
-    { id: 'sanne', name: 'Sanne (NL, Female)', gender: 'female' },
-    { id: 'anneke', name: 'Anneke (NL, Female)', gender: 'female' },
-    { id: 'bram', name: 'Bram (NL, Male)', gender: 'male' },
-    { id: 'daan', name: 'Daan (NL, Male)', gender: 'male' },
-    // Polish
-    { id: 'kasia', name: 'Kasia (PL, Female)', gender: 'female' },
-    { id: 'katarzyna', name: 'Katarzyna (PL, Female)', gender: 'female' },
-    { id: 'tomek', name: 'Tomek (PL, Male)', gender: 'male' },
-    { id: 'jakub', name: 'Jakub (PL, Male)', gender: 'male' },
-    // Hindi
-    { id: 'aarti', name: 'Aarti (HI, Female)', gender: 'female' },
-    { id: 'neha', name: 'Neha (HI, Female)', gender: 'female' },
-    { id: 'kavita', name: 'Kavita (HI, Female)', gender: 'female' },
-    { id: 'ishan', name: 'Ishan (HI, Male)', gender: 'male' },
-    { id: 'rahul', name: 'Rahul (HI, Male)', gender: 'male' },
-    // Swedish
-    { id: 'freja', name: 'Freja (SV, Female)', gender: 'female' },
-    { id: 'ingrid', name: 'Ingrid (SV, Female)', gender: 'female' },
-    { id: 'anders', name: 'Anders (SV, Male)', gender: 'male' },
-    { id: 'erik', name: 'Erik (SV, Male)', gender: 'male' },
-  ];
-
-  const openaiTtsVoices = [
-    { id: 'alloy', name: 'Alloy (Neutral)', gender: 'female' },
-    { id: 'nova', name: 'Nova (Female)', gender: 'female' },
-    { id: 'shimmer', name: 'Shimmer (Female)', gender: 'female' },
-    { id: 'echo', name: 'Echo (Male)', gender: 'male' },
-    { id: 'onyx', name: 'Onyx (Male, Deep)', gender: 'male' },
-    { id: 'fable', name: 'Fable (Male, British)', gender: 'male' },
-    { id: 'ash', name: 'Ash (Male)', gender: 'male' },
-    { id: 'sage', name: 'Sage (Female)', gender: 'female' },
-    { id: 'coral', name: 'Coral (Female)', gender: 'female' },
-  ];
-
-  const deepgramTtsVoices = [
-    // English
-    { id: 'aura-2-thalia-en', name: 'Thalia (EN, Female)', gender: 'female' },
-    { id: 'aura-2-andromeda-en', name: 'Andromeda (EN, Female)', gender: 'female' },
-    { id: 'aura-2-apollo-en', name: 'Apollo (EN, Male)', gender: 'male' },
-    { id: 'aura-2-arcas-en', name: 'Arcas (EN, Male)', gender: 'male' },
-    { id: 'aura-2-helena-en', name: 'Helena (EN, Female)', gender: 'female' },
-    { id: 'aura-2-zeus-en', name: 'Zeus (EN, Male)', gender: 'male' },
-    // German
-    { id: 'aura-2-thalia-de', name: 'Thalia (DE, Female)', gender: 'female' },
-    { id: 'aura-2-apollo-de', name: 'Apollo (DE, Male)', gender: 'male' },
-    // French
-    { id: 'aura-2-thalia-fr', name: 'Thalia (FR, Female)', gender: 'female' },
-    { id: 'aura-2-apollo-fr', name: 'Apollo (FR, Male)', gender: 'male' },
-    // Spanish
-    { id: 'aura-2-thalia-es', name: 'Thalia (ES, Female)', gender: 'female' },
-    { id: 'aura-2-apollo-es', name: 'Apollo (ES, Male)', gender: 'male' },
-    // Italian
-    { id: 'aura-2-thalia-it', name: 'Thalia (IT, Female)', gender: 'female' },
-    { id: 'aura-2-apollo-it', name: 'Apollo (IT, Male)', gender: 'male' },
-  ];
-
-  // Get pipeline voices based on selected TTS provider
-  const getPipelineVoices = (): typeof cartesiaVoices => {
-    if (ttsProvider === 'openai') return openaiTtsVoices;
-    if (ttsProvider === 'deepgram') return deepgramTtsVoices;
-    return cartesiaVoices; // default: cartesia
-  };
-
-  const pipelineVoices = getPipelineVoices();
-
-  const allVoices = selectedProvider === 'ultravox' ? ultravoxVoices : selectedProvider === 'pipeline' ? pipelineVoices : selectedProvider === 'xai' ? xaiVoices : openaiVoices;
+  const allVoices = selectedProvider === 'ultravox' ? ultravoxVoices : selectedProvider === 'xai' ? xaiVoices : openaiVoices;
   const voices = voiceGenderFilter === 'all' ? allVoices : allVoices.filter(v => v.gender === voiceGenderFilter);
 
   const addInactivityMessage = () => {
@@ -1152,21 +962,11 @@ export default function AgentEditorPage() {
           },
           provider: selectedProvider,
           voice_settings: {
-            model_type: selectedProvider === 'pipeline' ? 'pipeline-cloud' : selectedProvider === 'xai' ? 'grok-2-realtime' : selectedModel,
+            model_type: selectedProvider === 'xai' ? 'grok-2-realtime' : selectedModel,
             voice: selectedVoice,
             language: selectedLanguage,
             timezone: selectedTimezone,
             speech_speed: speechSpeed,
-            ...(selectedProvider === 'pipeline' ? {
-              pipeline_voice: selectedVoice,
-              stt_provider: sttProvider,
-              llm_provider: llmProvider,
-              tts_provider: ttsProvider,
-              stt_model: sttModel,
-              llm_model: llmModel,
-              tts_model: ttsModel,
-              tts_voice: ttsVoice || selectedVoice,
-            } : {}),
           },
           call_settings: {
             max_duration: maxDuration,
@@ -2675,7 +2475,7 @@ A: Credit card, bank transfer, automatic payment order.
                 {/* Provider Selection */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">AI Provider</label>
-                  <div className="grid grid-cols-4 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <button
                       onClick={() => {
                         setSelectedProvider('openai');
@@ -2730,35 +2530,12 @@ A: Credit card, bank transfer, automatic payment order.
                       <p className="font-medium text-sm">Ultravox</p>
                       <p className="text-xs text-muted-foreground">Native SIP, $0.05/min flat rate</p>
                     </button>
-                    <button
-                      onClick={() => {
-                        setSelectedProvider('pipeline');
-                        setSelectedModel('cloud-pipeline');
-                        // Default to language-appropriate Cartesia voice
-                        const langVoiceMap: Record<string, string> = { tr: 'azra', en: 'katie', de: 'alina', fr: 'isabelle', es: 'isabel-es' };
-                        const defaultPipelineVoice = langVoiceMap[selectedLanguage] || 'azra';
-                        setSelectedVoice(defaultPipelineVoice);
-                        setTtsVoice(defaultPipelineVoice);
-                        setVoiceGenderFilter('all');
-                        setHasChanges(true);
-                      }}
-                      className={cn(
-                        'p-3 rounded-lg border text-left transition-all',
-                        selectedProvider === 'pipeline'
-                          ? 'border-primary-500 bg-primary-500/5'
-                          : 'border-border hover:border-primary-500/50'
-                      )}
-                    >
-                      <p className="font-medium text-sm">Pipeline (Cloud)</p>
-                      <p className="text-xs text-muted-foreground">Cloud STT + LLM + TTS, per-agent</p>
-                    </button>
                   </div>
                 </div>
 
                 {/* Basic Settings - 2 Column Grid */}
                 <div className="grid grid-cols-2 gap-4">
-                  {/* Model Selection (OpenAI / xAI / Ultravox) or hidden for Pipeline */}
-                  {selectedProvider !== 'pipeline' && (
+                  {/* Model Selection */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Model</label>
                     <select
@@ -2792,105 +2569,6 @@ A: Credit card, bank transfer, automatic payment order.
                         : 'Ultravox v0.7 is the latest model with best quality.'}
                     </p>
                   </div>
-                  )}
-
-                  {/* Cloud Pipeline: Row 1 - LLM Provider + LLM Model */}
-                  {selectedProvider === 'pipeline' && (
-                  <>
-                    {/* LLM Provider */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">LLM Provider</label>
-                      <select
-                        value={llmProvider}
-                        onChange={(e) => { setLlmProvider(e.target.value); setHasChanges(true); }}
-                        className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      >
-                        <option value="groq">Groq (Llama 3.3 70B, ultra-fast)</option>
-                        <option value="openai">OpenAI (GPT-4o-mini)</option>
-                        <option value="cerebras">Cerebras (Llama 3.3 70B)</option>
-                      </select>
-                    </div>
-
-                    {/* LLM Model */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">LLM Model</label>
-                      <select
-                        value={llmModel || ''}
-                        onChange={(e) => { setLlmModel(e.target.value); setHasChanges(true); }}
-                        className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      >
-                        {llmProvider === 'groq' && (
-                        <>
-                          <option value="">llama-3.3-70b-versatile (default)</option>
-                          <option value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile</option>
-                          <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant</option>
-                          <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B</option>
-                          <option value="qwen/qwen3-32b">Qwen 3 32B</option>
-                        </>
-                        )}
-                        {llmProvider === 'openai' && (
-                        <>
-                          <option value="">gpt-4o-mini (default)</option>
-                          <option value="gpt-4o">GPT-4o</option>
-                          <option value="gpt-4o-mini">GPT-4o Mini</option>
-                          <option value="gpt-4.1-nano">GPT-4.1 Nano</option>
-                          <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
-                        </>
-                        )}
-                        {llmProvider === 'cerebras' && (
-                        <>
-                          <option value="">llama-3.3-70b (default)</option>
-                          <option value="llama-3.3-70b">Llama 3.3 70B</option>
-                          <option value="llama3.1-8b">Llama 3.1 8B</option>
-                          <option value="qwen-3-32b">Qwen 3 32B</option>
-                        </>
-                        )}
-                      </select>
-                    </div>
-                  </>
-                  )}
-
-                  {/* Cloud Pipeline: Row 2 - STT Provider + TTS Provider */}
-                  {selectedProvider === 'pipeline' && (
-                  <>
-                    {/* STT Provider */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">STT Provider</label>
-                      <select
-                        value={sttProvider}
-                        onChange={(e) => { setSttProvider(e.target.value); setHasChanges(true); }}
-                        className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      >
-                        <option value="deepgram">Deepgram (Nova-3, fast)</option>
-                        <option value="openai">OpenAI (gpt-4o-transcribe)</option>
-                      </select>
-                    </div>
-
-                    {/* TTS Provider */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">TTS Provider</label>
-                      <select
-                        value={ttsProvider}
-                        onChange={(e) => {
-                          const newTts = e.target.value;
-                          setTtsProvider(newTts);
-                          // Reset voice when TTS provider changes
-                          // Default to language-appropriate voice when TTS provider changes
-                          const langCartesiaMap: Record<string, string> = { tr: 'azra', en: 'katie', de: 'alina', fr: 'isabelle', es: 'isabel-es' };
-                          if (newTts === 'cartesia') { const v = langCartesiaMap[selectedLanguage] || 'azra'; setSelectedVoice(v); setTtsVoice(v); }
-                          else if (newTts === 'openai') { setSelectedVoice('nova'); setTtsVoice('nova'); }
-                          else if (newTts === 'deepgram') { setSelectedVoice('aura-2-thalia-en'); setTtsVoice('aura-2-thalia-en'); }
-                          setHasChanges(true);
-                        }}
-                        className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      >
-                        <option value="cartesia">Cartesia Sonic-3 (ultra-low latency)</option>
-                        <option value="openai">OpenAI TTS (tts-1)</option>
-                        <option value="deepgram">Deepgram Aura-2</option>
-                      </select>
-                    </div>
-                  </>
-                  )}
 
                   {/* Voice Selection - Row 3 left (pairs with Language) */}
                   <div className="space-y-2">
@@ -2920,7 +2598,7 @@ A: Credit card, bank transfer, automatic payment order.
                     </div>
                     <select
                       value={selectedVoice}
-                      onChange={(e) => { setSelectedVoice(e.target.value); if (selectedProvider === 'pipeline') setTtsVoice(e.target.value); setHasChanges(true); }}
+                      onChange={(e) => { setSelectedVoice(e.target.value); setHasChanges(true); }}
                       className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
                     >
                       {voices.map((voice) => (
@@ -3318,11 +2996,7 @@ A: Credit card, bank transfer, automatic payment order.
                   agentId={agentId}
                   providerInfo={{
                     provider: selectedProvider,
-                    sttProvider: sttProvider,
-                    llmProvider: llmProvider,
-                    ttsProvider: ttsProvider,
-                    llmModel: llmModel,
-                    voice: selectedProvider === 'pipeline' ? (ttsVoice || selectedVoice) : selectedVoice,
+                    voice: selectedVoice,
                     model: selectedModel,
                   }}
                   onClose={() => setActiveTab('prompt')}

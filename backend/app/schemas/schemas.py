@@ -131,15 +131,6 @@ class VoiceSettings(BaseModel):
     language: str = "tr"
     timezone: str = "Europe/Istanbul"
     speech_speed: float = Field(default=1.0, ge=0.5, le=2.0)
-    pipeline_voice: Optional[str] = None  # Piper TTS voice (legacy)
-    # Cloud pipeline provider selection
-    stt_provider: Optional[str] = None  # "deepgram", "openai"
-    llm_provider: Optional[str] = None  # "groq", "openai", "cerebras"
-    tts_provider: Optional[str] = None  # "cartesia", "openai", "deepgram"
-    stt_model: Optional[str] = None
-    llm_model: Optional[str] = None
-    tts_model: Optional[str] = None
-    tts_voice: Optional[str] = None  # TTS voice identifier for the chosen provider
 
 
 class CallSettings(BaseModel):
@@ -392,7 +383,7 @@ class UltravoxVoiceSettings(BaseModel):
 
 class CallCost(BaseModel):
     """Unified cost response for both providers."""
-    provider: str  # "openai", "ultravox", or "pipeline"
+    provider: str  # "openai", "ultravox", or "xai"
     duration_seconds: int
     # OpenAI-specific (nullable)
     input_tokens: Optional[int] = None
@@ -405,7 +396,7 @@ class CallCost(BaseModel):
 
 
 class AgentCreate(AgentBase):
-    provider: str = "openai"  # "openai", "ultravox", or "pipeline"
+    provider: str = "openai"  # "openai", "ultravox", or "xai"
     voice_settings: Optional[VoiceSettings] = None
     call_settings: Optional[CallSettings] = None
     behavior_settings: Optional[BehaviorSettings] = None
@@ -424,7 +415,7 @@ class AgentUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     status: Optional[AgentStatus] = None
-    provider: Optional[str] = None  # "openai", "ultravox", or "pipeline"
+    provider: Optional[str] = None  # "openai", "ultravox", or "xai"
     voice_settings: Optional[VoiceSettings] = None
     call_settings: Optional[CallSettings] = None
     behavior_settings: Optional[BehaviorSettings] = None
@@ -446,11 +437,6 @@ class AgentResponse(AgentBase):
     model_type: RealtimeModel = RealtimeModel.GPT_REALTIME_MINI
     voice: str
     language: str
-    pipeline_voice: Optional[str] = None
-    # Cloud pipeline providers
-    stt_provider: Optional[str] = None
-    llm_provider: Optional[str] = None
-    tts_provider: Optional[str] = None
     total_calls: int
     successful_calls: int
     is_system: bool = False
@@ -486,13 +472,6 @@ class AgentDetailResponse(AgentResponse):
     web_sources: Optional[List[Dict[str, Any]]] = None  # Web URLs for dynamic info
     smart_features: Optional[Dict[str, Any]] = None  # Smart features
     survey_config: Optional[Dict[str, Any]] = None  # Survey configuration
-
-    # Cloud pipeline provider details
-    stt_model: Optional[str] = None
-    llm_model: Optional[str] = None
-    tts_model: Optional[str] = None
-    tts_voice: Optional[str] = None
-
     timezone: str = "Europe/Istanbul"
     speech_speed: float
     max_duration: int

@@ -58,12 +58,6 @@ class Settings(BaseSettings):
     # xAI (Grok Voice Agent)
     XAI_API_KEY: str = ""
 
-    # Cloud Pipeline API Keys
-    GROQ_API_KEY: str = ""
-    CEREBRAS_API_KEY: str = ""
-    DEEPGRAM_API_KEY: str = ""
-    CARTESIA_API_KEY: str = ""
-
     # SIP Trunk
     SIP_TRUNK_HOST: str = ""
     SIP_TRUNK_PORT: int = 5060

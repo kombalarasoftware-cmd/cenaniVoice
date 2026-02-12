@@ -397,13 +397,11 @@ export default function SettingsPage() {
                       >
                         <option value="gpt-realtime-mini">gpt-realtime-mini (OpenAI)</option>
                         <option value="gpt-realtime">gpt-realtime (OpenAI)</option>
+                        <option value="grok-2-realtime">grok-2-realtime (xAI)</option>
                         <option value="ultravox-v0.7">ultravox-v0.7 (Ultravox latest)</option>
                         <option value="ultravox-v0.6">ultravox-v0.6</option>
                         <option value="ultravox-v0.6-gemma3-27b">ultravox-v0.6-gemma3-27b</option>
                         <option value="ultravox-v0.6-llama3.3-70b">ultravox-v0.6-llama3.3-70b</option>
-                        <option value="pipeline-qwen-7b">pipeline-qwen-7b (Local)</option>
-                        <option value="pipeline-llama-8b">pipeline-llama-8b (Local)</option>
-                        <option value="pipeline-mistral-7b">pipeline-mistral-7b (Local)</option>
                       </select>
                     </div>
                   </div>

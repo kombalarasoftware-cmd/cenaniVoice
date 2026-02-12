@@ -196,7 +196,7 @@ services:
 
   # ===========================================
   # Asterisk AudioSocket Bridge (OpenAI + xAI providers)
-  # Not used when agent.provider = "ultravox" or "pipeline"
+  # Not used when agent.provider = "ultravox"
   # ===========================================
   asterisk-bridge:
     image: voiceai-backend
@@ -269,50 +269,6 @@ services:
   #     - backend
   #   networks:
   #     - voiceai-network
-
-  # ===========================================
-  # Pipeline AudioSocket Bridge (Cloud STT+LLM+TTS)
-  # Uses cloud APIs: Deepgram/OpenAI STT, Groq/OpenAI/Cerebras LLM,
-  # Cartesia/OpenAI/Deepgram TTS — selectable per agent
-  # ===========================================
-  pipeline-bridge:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    user: "1000:1000"
-    env_file:
-      - .env
-    volumes:
-      - ./backend:/app
-    environment:
-      - PIPELINE_AUDIOSOCKET_HOST=0.0.0.0
-      - PIPELINE_AUDIOSOCKET_PORT=9093
-      - MAX_CONCURRENT_CALLS=50
-      # Cloud provider API keys (from .env)
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - CEREBRAS_API_KEY=${CEREBRAS_API_KEY}
-      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
-      - CARTESIA_API_KEY=${CARTESIA_API_KEY}
-      # Default providers (can be overridden per agent)
-      - DEFAULT_STT_PROVIDER=${DEFAULT_STT_PROVIDER:-deepgram}
-      - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-groq}
-      - DEFAULT_TTS_PROVIDER=${DEFAULT_TTS_PROVIDER:-cartesia}
-    networks:
-      - voiceai-network
-    command: python -m app.services.pipeline_bridge
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.settimeout(3); s.connect(('127.0.0.1',9093)); s.close()"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '2.0'
 
 networks:
   voiceai-network:

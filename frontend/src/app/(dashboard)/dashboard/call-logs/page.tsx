@@ -127,18 +127,18 @@ function ProviderBadge({ provider }: { provider: string | null }) {
   if (!provider) return <span className="text-xs text-muted-foreground">N/A</span>;
 
   const isUltravox = provider === 'ultravox';
-  const isPipeline = provider === 'pipeline';
+  const isXai = provider === 'xai';
   return (
     <span className={cn(
       'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
-      isPipeline
+      isXai
         ? 'bg-blue-500/10 text-blue-500'
         : isUltravox
           ? 'bg-violet-500/10 text-violet-500'
           : 'bg-emerald-500/10 text-emerald-500'
     )}>
       <Cpu className="h-3 w-3" />
-      {isPipeline ? 'Pipeline' : isUltravox ? 'Ultravox' : 'OpenAI'}
+      {isXai ? 'xAI Grok' : isUltravox ? 'Ultravox' : 'OpenAI'}
     </span>
   );
 }
@@ -789,29 +789,7 @@ export default function CallLogsPage() {
                                     Cost Breakdown
                                   </h4>
 
-                                  {call.provider === 'pipeline' ? (
-                                    // Pipeline: free local processing
-                                    <div className="flex items-center gap-6 text-xs">
-                                      <div>
-                                        <span className="text-muted-foreground">Provider: </span>
-                                        <span className="font-medium text-blue-500">Pipeline (Local)</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-muted-foreground">Duration: </span>
-                                        <span className="font-medium">{call.duration ? `${call.duration}s` : '-'}</span>
-                                      </div>
-                                      {call.model_used && (
-                                        <div>
-                                          <span className="text-muted-foreground">Model: </span>
-                                          <span className="font-medium">{call.model_used}</span>
-                                        </div>
-                                      )}
-                                      <div>
-                                        <span className="text-muted-foreground">Total: </span>
-                                        <span className="font-medium font-mono text-green-500">$0.00</span>
-                                      </div>
-                                    </div>
-                                  ) : call.provider === 'ultravox' ? (
+                                  {call.provider === 'ultravox' ? (
                                     // Ultravox: minute-based billing
                                     <div className="flex items-center gap-6 text-xs">
                                       <div>

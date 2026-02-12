@@ -181,50 +181,10 @@ const ultravoxVoices = [
   { id: 'Marcin-Polish', name: 'Marcin', description: 'PL, Male', gender: 'male' },
 ];
 
-const pipelineVoices = [
-  // Cartesia voices (default TTS provider for pipeline)
-  // Turkish
-  { id: 'azra', name: 'Azra', description: 'TR, Female', gender: 'female' },
-  { id: 'leyla', name: 'Leyla', description: 'TR, Female', gender: 'female' },
-  { id: 'aylin', name: 'Aylin', description: 'TR, Female', gender: 'female' },
-  { id: 'emre', name: 'Emre', description: 'TR, Male', gender: 'male' },
-  { id: 'taylan', name: 'Taylan', description: 'TR, Male', gender: 'male' },
-  { id: 'murat', name: 'Murat', description: 'TR, Male', gender: 'male' },
-  // English
-  { id: 'katie', name: 'Katie', description: 'EN, Female', gender: 'female' },
-  { id: 'tessa', name: 'Tessa', description: 'EN, Female', gender: 'female' },
-  { id: 'sarah', name: 'Sarah', description: 'EN, Female', gender: 'female' },
-  { id: 'mia', name: 'Mia', description: 'EN, Female', gender: 'female' },
-  { id: 'kiefer', name: 'Kiefer', description: 'EN, Male', gender: 'male' },
-  { id: 'kyle', name: 'Kyle', description: 'EN, Male', gender: 'male' },
-  { id: 'blake', name: 'Blake', description: 'EN, Male', gender: 'male' },
-  // German
-  { id: 'alina', name: 'Alina', description: 'DE, Female', gender: 'female' },
-  { id: 'viktoria', name: 'Viktoria', description: 'DE, Female', gender: 'female' },
-  { id: 'nico', name: 'Nico', description: 'DE, Male', gender: 'male' },
-  { id: 'lukas', name: 'Lukas', description: 'DE, Male', gender: 'male' },
-  // French
-  { id: 'isabelle', name: 'Isabelle', description: 'FR, Female', gender: 'female' },
-  { id: 'marie-eve', name: 'Marie-Eve', description: 'FR, Female', gender: 'female' },
-  { id: 'joris', name: 'Joris', description: 'FR, Male', gender: 'male' },
-  { id: 'marc', name: 'Marc', description: 'FR, Male', gender: 'male' },
-  // Spanish
-  { id: 'isabel-es', name: 'Isabel', description: 'ES, Female', gender: 'female' },
-  { id: 'carmen', name: 'Carmen', description: 'ES, Female', gender: 'female' },
-  { id: 'luis', name: 'Luis', description: 'ES, Male', gender: 'male' },
-  { id: 'pablo', name: 'Pablo', description: 'ES, Male', gender: 'male' },
-  // Italian
-  { id: 'alessandra', name: 'Alessandra', description: 'IT, Female', gender: 'female' },
-  { id: 'giulia', name: 'Giulia', description: 'IT, Female', gender: 'female' },
-  { id: 'matteo', name: 'Matteo', description: 'IT, Male', gender: 'male' },
-  { id: 'luca', name: 'Luca', description: 'IT, Male', gender: 'male' },
-];
-
 const providers = [
   { id: 'openai', name: 'OpenAI Realtime', description: 'GPT-4o Realtime via Asterisk' },
   { id: 'xai', name: 'xAI Grok', description: 'Grok voice agent, per-min' },
   { id: 'ultravox', name: 'Ultravox', description: 'Native SIP, $0.05/min' },
-  { id: 'pipeline', name: 'Pipeline (Cloud)', description: 'Cloud STT + LLM + TTS' },
 ];
 
 export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps) {
@@ -239,7 +199,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
   const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
   const [isLoading, setIsLoading] = useState(false);
 
-  const allVoices = selectedProvider === 'ultravox' ? ultravoxVoices : selectedProvider === 'pipeline' ? pipelineVoices : selectedProvider === 'xai' ? xaiVoices : openaiVoices;
+  const allVoices = selectedProvider === 'ultravox' ? ultravoxVoices : selectedProvider === 'xai' ? xaiVoices : openaiVoices;
   const voices = genderFilter === 'all' ? allVoices : allVoices.filter(v => v.gender === genderFilter);
 
   const handleCreate = async () => {
@@ -269,17 +229,10 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
           provider: selectedProvider,
           template: selectedTemplate,
           voice_settings: {
-            model_type: selectedProvider === 'pipeline' ? 'pipeline-cloud' : selectedProvider === 'xai' ? 'grok-2-realtime' : selectedProvider === 'ultravox' ? 'ultravox-v0.7' : 'gpt-realtime-mini',
+            model_type: selectedProvider === 'xai' ? 'grok-2-realtime' : selectedProvider === 'ultravox' ? 'ultravox-v0.7' : 'gpt-realtime-mini',
             voice: selectedVoice,
             language: selectedLanguage,
             speech_speed: 1.0,
-            ...(selectedProvider === 'pipeline' ? {
-              pipeline_voice: selectedVoice,
-              tts_voice: selectedVoice,
-              stt_provider: 'deepgram',
-              llm_provider: 'groq',
-              tts_provider: 'cartesia',
-            } : {}),
           },
           call_settings: {
             max_duration: 300,
@@ -466,13 +419,13 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
                 <label className="block text-sm font-medium mb-2">
                   AI Provider
                 </label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {providers.map((p) => (
                     <button
                       key={p.id}
                       onClick={() => {
                         setSelectedProvider(p.id);
-                        setSelectedVoice(p.id === 'ultravox' ? 'Mark' : p.id === 'pipeline' ? 'azra' : p.id === 'xai' ? 'Ara' : 'alloy');
+                        setSelectedVoice(p.id === 'ultravox' ? 'Mark' : p.id === 'xai' ? 'Ara' : 'alloy');
                         setGenderFilter('all');
                       }}
                       className={cn(

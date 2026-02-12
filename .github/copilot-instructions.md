@@ -108,6 +108,22 @@ States: CLOSED then OPEN then HALF_OPEN. In-memory state resets on restart.
 | Asterisk | 5043 | SIP over TCP |
 | MinIO | 9000/9001 | Object storage |
 
+## Shell Compatibility (Windows)
+This project runs on Windows. The VS Code terminal is configured to use **Git Bash**.
+- **NEVER use bash heredoc** (`<<EOF`) syntax — it fails in PowerShell and may fail in some Git Bash contexts
+- For multi-line git commits, use the `-m` flag multiple times:
+  ```bash
+  git commit -m "feat: add new feature" -m "Detailed description here" -m "Co-Authored-By: ..."
+  ```
+- For `gh pr create`, use `--body` with a simple string (no heredoc):
+  ```bash
+  gh pr create --title "Add feature" --body "## Summary
+  - Change 1
+  - Change 2"
+  ```
+- Prefer simple single-line commands over complex piped/heredoc constructs
+- Use `git commit -F <file>` for complex commit messages (write to temp file first)
+
 ## Common Gotchas
 - SIP passwords must match between Asterisk config and database
 - AudioSocket requires raw PCM 16-bit, 16kHz, mono codec
@@ -116,3 +132,4 @@ States: CLOSED then OPEN then HALF_OPEN. In-memory state resets on restart.
 - Frontend uses relative API URLs (no hardcoded localhost)
 - Shell scripts and Docker entrypoints require LF line endings
 - pgvector extension must be enabled in PostgreSQL
+- **PowerShell does not support bash heredoc** — use Git Bash or alternative syntax (see above)

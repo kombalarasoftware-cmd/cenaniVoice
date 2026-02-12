@@ -13,7 +13,7 @@ def get_provider(provider_type: str) -> CallProvider:
     Get the appropriate call provider instance.
 
     Args:
-        provider_type: "openai", "ultravox", or "pipeline"
+        provider_type: "openai", "ultravox", or "xai"
 
     Returns:
         CallProvider instance
@@ -27,8 +27,5 @@ def get_provider(provider_type: str) -> CallProvider:
     elif provider_type == "ultravox":
         from app.services.ultravox_provider import UltravoxProvider
         return UltravoxProvider()
-    elif provider_type == "pipeline":
-        from app.services.pipeline_provider import PipelineProvider
-        return PipelineProvider()
     else:
-        raise ValueError(f"Unknown call provider: {provider_type}. Use 'openai', 'ultravox', or 'pipeline'.")
+        raise ValueError(f"Unknown call provider: {provider_type}. Use 'openai' or 'ultravox'.")

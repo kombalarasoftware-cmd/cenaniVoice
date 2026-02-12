@@ -21,10 +21,6 @@ import { useCall } from '@/components/providers/call-provider';
 
 interface ProviderInfo {
   provider: string;
-  sttProvider?: string;
-  llmProvider?: string;
-  ttsProvider?: string;
-  llmModel?: string;
   voice?: string;
   model?: string;
 }
@@ -353,32 +349,7 @@ export function LiveConsole({ agentId, providerInfo, onCallStart, onCallEnd, onC
         {/* Provider Info Badge */}
         {providerInfo && (
           <div className="px-5 py-2.5 border-t border-border bg-muted/10">
-            {providerInfo.provider === 'pipeline' ? (
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">STT</span>
-                  <span className="font-medium capitalize">{providerInfo.sttProvider || 'deepgram'}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">LLM</span>
-                  <span className="font-medium capitalize">{providerInfo.llmProvider || 'groq'}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">TTS</span>
-                  <span className="font-medium capitalize">{providerInfo.ttsProvider || 'cartesia'}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Voice</span>
-                  <span className="font-medium capitalize">{providerInfo.voice || '-'}</span>
-                </div>
-                {providerInfo.llmModel && (
-                  <div className="col-span-2 flex items-center justify-between">
-                    <span className="text-muted-foreground">Model</span>
-                    <span className="font-medium text-[10px] font-mono">{providerInfo.llmModel}</span>
-                  </div>
-                )}
-              </div>
-            ) : providerInfo.provider === 'openai' ? (
+            {providerInfo.provider === 'openai' ? (
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-muted-foreground">OpenAI Realtime</span>
                 <div className="flex items-center gap-3">
