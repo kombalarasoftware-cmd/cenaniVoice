@@ -299,12 +299,10 @@ services:
     image: rhasspy/wyoming-piper:latest
     restart: unless-stopped
     command: >
-      --piper /usr/share/piper/piper
       --voice tr_TR-dfki-medium
       --length-scale 1.0
       --noise-scale 0.667
-      --noise-w 0.8
-      --max-piper-procs 2
+      --noise-w-scale 0.8
       --data-dir /data
       --download-dir /data
     volumes:
