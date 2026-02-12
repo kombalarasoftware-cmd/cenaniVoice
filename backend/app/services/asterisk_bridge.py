@@ -1136,24 +1136,34 @@ class CallBridge:
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 logger.debug(f"[{self.call_uuid[:8]}] 🔧 TCP_NODELAY enabled")
 
+            t_connect_start = time.monotonic()
             await self._connect_openai()
+            t_connected = time.monotonic()
+            logger.info(f"[{self.call_uuid[:8]}] ⏱️ WebSocket connect: {(t_connected - t_connect_start)*1000:.0f}ms")
             
-            # Wait for initial event before configuring
-            # OpenAI sends session.created; xAI sends conversation.created
-            # Gemini: uses setup/setupComplete flow (handled in _connect_gemini)
+            # Configure session immediately after connect — don't wait for
+            # session.created (OpenAI) or conversation.created (xAI).
+            # These are informational events; the session is ready as soon as
+            # the WebSocket handshake completes.  Skipping the wait saves
+            # ~500-1000ms of round-trip latency.
+            # Gemini: setup is already done inside _connect_gemini.
             if self.provider == "gemini":
-                # Gemini connection includes setup in the connect phase
                 pass  # _connect_gemini already handles setup + setupComplete
-            elif self.provider == "xai":
-                await self._wait_for_event("conversation.created", timeout=5.0)
-                await self._configure_session()
-                await self._wait_for_event("session.updated", timeout=3.0)
             else:
-                await self._wait_for_event("session.created", timeout=5.0)
                 await self._configure_session()
+                # Wait only for session.updated to confirm settings applied.
+                # session.created / conversation.created will be consumed and skipped.
                 await self._wait_for_event("session.updated", timeout=3.0)
             
+            t_configured = time.monotonic()
+            logger.info(f"[{self.call_uuid[:8]}] ⏱️ Session config: {(t_configured - t_connected)*1000:.0f}ms")
+
             await self._trigger_greeting()
+            t_greeting = time.monotonic()
+            logger.info(f"[{self.call_uuid[:8]}] ⏱️ Total setup: {(t_greeting - t_connect_start)*1000:.0f}ms "
+                         f"(connect={((t_connected - t_connect_start)*1000):.0f} + "
+                         f"config={((t_configured - t_connected)*1000):.0f} + "
+                         f"greeting={((t_greeting - t_configured)*1000):.0f})")
 
             if self.provider == "gemini":
                 await asyncio.gather(
