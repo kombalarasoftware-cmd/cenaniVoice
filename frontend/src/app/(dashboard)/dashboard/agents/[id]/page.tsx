@@ -639,7 +639,6 @@ export default function AgentEditorPage() {
         setUninterruptible(data.greeting_uninterruptible ?? false);
         setFirstMessageDelay(data.first_message_delay ? data.first_message_delay.toString() : '');
         setSelectedProvider(data.provider || 'openai');
-        setSelectedVoice(data.voice || 'alloy');
         setSelectedModel(data.model_type || (data.provider === 'pipeline' ? 'pipeline-cloud' : 'gpt-realtime-mini'));
         setSelectedLanguage(data.language || 'tr');
         setSelectedTimezone(data.timezone || 'Europe/Istanbul');
@@ -651,7 +650,15 @@ export default function AgentEditorPage() {
         setSttModel(data.stt_model || '');
         setLlmModel(data.llm_model || '');
         setTtsModel(data.tts_model || '');
-        setTtsVoice(data.tts_voice || data.pipeline_voice || data.voice || '');
+        const resolvedTtsVoice = data.tts_voice || data.pipeline_voice || data.voice || '';
+        setTtsVoice(resolvedTtsVoice);
+
+        // For pipeline agents, selectedVoice should reflect the TTS voice (not OpenAI voice)
+        if (data.provider === 'pipeline' && resolvedTtsVoice) {
+          setSelectedVoice(resolvedTtsVoice);
+        } else {
+          setSelectedVoice(data.voice || 'alloy');
+        }
 
         setMaxDuration(data.max_duration ?? 300);
         setSilenceTimeout(data.silence_timeout ?? 10);
@@ -2699,7 +2706,11 @@ A: Credit card, bank transfer, automatic payment order.
                       onClick={() => {
                         setSelectedProvider('pipeline');
                         setSelectedModel('cloud-pipeline');
-                        setSelectedVoice('katie');
+                        // Default to language-appropriate Cartesia voice
+                        const langVoiceMap: Record<string, string> = { tr: 'azra', en: 'katie', de: 'alina', fr: 'isabelle', es: 'isabel-es' };
+                        const defaultPipelineVoice = langVoiceMap[selectedLanguage] || 'azra';
+                        setSelectedVoice(defaultPipelineVoice);
+                        setTtsVoice(defaultPipelineVoice);
                         setVoiceGenderFilter('all');
                         setHasChanges(true);
                       }}
@@ -2830,7 +2841,9 @@ A: Credit card, bank transfer, automatic payment order.
                           const newTts = e.target.value;
                           setTtsProvider(newTts);
                           // Reset voice when TTS provider changes
-                          if (newTts === 'cartesia') { setSelectedVoice('katie'); setTtsVoice('katie'); }
+                          // Default to language-appropriate voice when TTS provider changes
+                          const langCartesiaMap: Record<string, string> = { tr: 'azra', en: 'katie', de: 'alina', fr: 'isabelle', es: 'isabel-es' };
+                          if (newTts === 'cartesia') { const v = langCartesiaMap[selectedLanguage] || 'azra'; setSelectedVoice(v); setTtsVoice(v); }
                           else if (newTts === 'openai') { setSelectedVoice('nova'); setTtsVoice('nova'); }
                           else if (newTts === 'deepgram') { setSelectedVoice('aura-2-thalia-en'); setTtsVoice('aura-2-thalia-en'); }
                           setHasChanges(true);
@@ -3275,7 +3288,7 @@ A: Credit card, bank transfer, automatic payment order.
                     llmProvider: llmProvider,
                     ttsProvider: ttsProvider,
                     llmModel: llmModel,
-                    voice: selectedVoice,
+                    voice: selectedProvider === 'pipeline' ? (ttsVoice || selectedVoice) : selectedVoice,
                     model: selectedModel,
                   }}
                   onClose={() => setActiveTab('prompt')}

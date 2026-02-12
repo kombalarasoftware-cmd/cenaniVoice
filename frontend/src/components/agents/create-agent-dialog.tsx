@@ -265,6 +265,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
             speech_speed: 1.0,
             ...(selectedProvider === 'pipeline' ? {
               pipeline_voice: selectedVoice,
+              tts_voice: selectedVoice,
               stt_provider: 'deepgram',
               llm_provider: 'groq',
               tts_provider: 'cartesia',
@@ -461,7 +462,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
                       key={p.id}
                       onClick={() => {
                         setSelectedProvider(p.id);
-                        setSelectedVoice(p.id === 'ultravox' ? 'Mark' : p.id === 'pipeline' ? 'en_US-amy-medium' : 'alloy');
+                        setSelectedVoice(p.id === 'ultravox' ? 'Mark' : p.id === 'pipeline' ? 'azra' : 'alloy');
                         setGenderFilter('all');
                       }}
                       className={cn(
