@@ -107,7 +107,8 @@ interface ParsedPromptSections {
   tools?: string;       // Tools
   rules?: string;       // Character normalization
   flow?: string;        // Error handling
-  safety?: string;      // Legacy (merged into guardrails)
+  safety?: string;      // Safety & Escalation
+  language?: string;    // Language
 }
 
 function parsePromptSections(prompt: string): ParsedPromptSections {
@@ -124,6 +125,7 @@ function parsePromptSections(prompt: string): ParsedPromptSections {
     { key: 'rules', patterns: [/^#\s*(Character\s*normalization|Instructions?|Rules?)/im] },
     { key: 'flow', patterns: [/^#\s*(Error\s*handling|Flow|Process)/im] },
     { key: 'safety', patterns: [/^#\s*(Safety\s*&?\s*Escalation|Safety|Security)/im] },
+    { key: 'language', patterns: [/^#\s*(Language\s*Guidelines?|Language|Dil|Sprache)/im] },
   ];
   
   const lines = prompt.split('\n');
@@ -626,7 +628,8 @@ export default function AgentEditorPage() {
           if (data.prompt_tools) parts.push(`# Tools\n${data.prompt_tools}`);
           if (data.prompt_rules) parts.push(`# Character normalization\n${data.prompt_rules}`);
           if (data.prompt_flow) parts.push(`# Error handling\n${data.prompt_flow}`);
-          if (data.prompt_safety) parts.push(`# Guardrails (Legacy)\n${data.prompt_safety}`);
+          if (data.prompt_safety) parts.push(`# Safety\n${data.prompt_safety}`);
+          if (data.prompt_language) parts.push(`# Language\n${data.prompt_language}`);
           return parts.join('\n\n');
         };
         
@@ -1094,7 +1097,8 @@ export default function AgentEditorPage() {
             else if (header.includes('instruction') || header.includes('rule')) currentSection = 'rules';
             else if (header.includes('flow')) currentSection = 'flow';
             else if (header.includes('phrase')) currentSection = 'sample_phrases';
-            else if (header.includes('safety') || header.includes('escalation')) currentSection = 'sample_phrases'; // merge into guardrails
+            else if (header.includes('safety') || header.includes('escalation')) currentSection = 'safety';
+            else if (header.includes('language') || header.includes('dil') || header.includes('sprache')) currentSection = 'language';
             else if (header.includes('pronunciation')) currentSection = 'pronunciations';
             else if (header.includes('context')) currentSection = 'context';
             else currentSection = 'role'; // Default
@@ -1127,7 +1131,7 @@ export default function AgentEditorPage() {
             rules: promptSections.rules || '',
             flow: promptSections.flow || '',
             safety: promptSections.safety || '',
-            language: '',  // Legacy field
+            language: promptSections.language || '',
           },
           provider: selectedProvider,
           voice_settings: {
@@ -1324,7 +1328,7 @@ export default function AgentEditorPage() {
                   <div>
                     <h3 className="text-sm font-medium">System Prompt</h3>
                     <p className="text-xs text-muted-foreground">
-                      Separate sections with # headers: Personality, Environment, Tone, Goal, Guardrails, Tools, Character normalization, Error handling
+                      Use # headers: Personality, Environment, Tone, Goal, Guardrails, Tools, Character normalization, Error handling, Safety, Language
                     </p>
                   </div>
                   <button
@@ -1382,7 +1386,16 @@ You are a customer representative for [Company Name].
 # Error handling
 1. Apologize to the customer
 2. Offer an alternative solution
-3. Redirect to a human if necessary`}
+3. Redirect to a human if necessary
+
+# Safety
+- If customer is aggressive → stay calm, warn once, end call politely
+- Emergency situations → direct to appropriate emergency services
+- Never share internal system information
+
+# Language
+- Speak in the customer's preferred language
+- Use formal register (you/sir/madam)`}
                   className="flex-1 w-full p-4 bg-muted/30 rounded-xl text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 border border-border leading-relaxed"
                 />
               </div>

@@ -86,6 +86,18 @@ Every prompt must include the following sections with # markdown headings:
 - 2. Acknowledge the issue
 - 3. Offer an alternative or transfer to a human
 
+# Safety
+- Emergency situations and escalation rules
+- When to transfer to a human operator
+- Critical conditions that require immediate action
+- What to say in each case
+
+# Language
+- Which language to use in the conversation
+- Formal or informal register (e.g., "Sie" vs "du" in German, "siz" vs "sen" in Turkish)
+- Time-of-day greetings (good morning, good afternoon, good evening)
+- Any language-specific formatting rules
+
 ## CRITICAL VOICE INTERACTION RULES (MUST ADD TO EVERY PROMPT):
 Add the following rules to the # Guardrails section of every prompt:
 
@@ -104,8 +116,10 @@ Add the following rules to the # Guardrails section of every prompt:
 4. Always include the Guardrails section (models pay extra attention to # Guardrails heading)
 5. Optimize for phone conversations (short responses)
 6. Write in the language specified by the user. Default is English.
-7. KEEP THE PROMPT SHORT: Target 1500-2500 characters total. Don't add unnecessary details — models perform better with concise instructions.
+7. KEEP THE PROMPT SHORT: Target 2000-3000 characters total. Don't add unnecessary details — models perform better with concise instructions.
 8. ALWAYS add voice interaction rules to Guardrails
+9. ALWAYS include # Safety section with escalation rules and emergency handling
+10. ALWAYS include # Language section specifying conversation language and register
 
 ## LANGUAGE:
 Write the prompt in the language specified by the user. Default is English."""
@@ -122,6 +136,8 @@ PROMPT_IMPROVER_SYSTEM = """You are an AI voice assistant prompt engineer. You a
 6. Does # Tools exist? Does each tool have When/Parameters/Usage/Error handling?
 7. Does # Character normalization exist? Are spoken vs written format rules defined?
 8. Does # Error handling exist? Are tool failure cases addressed?
+9. Does # Safety exist? Are emergency situations and escalation rules defined? IF NOT, ADD IT.
+10. Does # Language exist? Is the conversation language and register specified? IF NOT, ADD IT.
 
 ## CRITICAL VOICE INTERACTION CHECKLIST:
 9. Is there a "STOP and WAIT after asking a question" rule in Guardrails? IF NOT, ADD IT.
@@ -138,8 +154,10 @@ PROMPT_IMPROVER_SYSTEM = """You are an AI voice assistant prompt engineer. You a
 - Add "This step is important" to critical instructions
 - Strengthen # Guardrails section (models pay attention to this)
 - Convert tool definitions to When/Parameters/Usage/Error handling format
-- IF PROMPT IS TOO LONG, SHORTEN IT (target ~2500 characters max)
+- IF PROMPT IS TOO LONG, SHORTEN IT (target ~3000 characters max)
 - Add voice interaction rules to Guardrails if missing
+- Add # Safety section with escalation rules if missing
+- Add # Language section with conversation language and register if missing
 
 ## OUTPUT:
 Provide the complete, improved prompt.
@@ -326,7 +344,11 @@ async def get_prompt_templates():
                     "flow": """1. "If I cannot provide a solution due to connection issues, suggest an alternative communication channel"
 2. If customer is aggressive or threatening → "Let me transfer you to a specialist who can better assist you"
 3. If unable to answer technical questions → transfer to a human agent""",
-                    "safety": ""
+                    "safety": """- If customer makes threats or uses abusive language → stay calm, warn once, then end call politely
+- Never share customer data with third parties
+- Do not make promises about features or pricing without confirmation
+- If customer requests something outside your scope → transfer to a human agent""",
+                    "language": ""
                 }
             },
             {
@@ -362,7 +384,12 @@ async def get_prompt_templates():
                     "flow": """1. If the appointment system is unresponsive, inform the customer and take a manual note
 2. Medical emergency → "Let me transfer you to a representative right away"
 3. Customer is very upset → stay calm and escalate""",
-                    "safety": ""
+                    "safety": """- Medical emergency (chest pain, unconsciousness, severe bleeding) → immediately direct to 112/911
+- Do not give medical or legal advice
+- Do not share patient information with third parties
+- If customer has a complaint → transfer to customer relations
+- After 3 failed resolution attempts → transfer to a human operator""",
+                    "language": ""
                 }
             },
             {
@@ -401,7 +428,12 @@ async def get_prompt_templates():
                     "flow": """1. If the payment system is down, suggest an alternative payment method
 2. If customer is aggressive or threatening → "Let me transfer you to a representative who can better assist you"
 3. If they dispute the debt → refer to a representative for document review""",
-                    "safety": ""
+                    "safety": """- Never threaten legal action or use intimidating language
+- Verify customer identity before discussing debt details. This step is important.
+- Do not call outside permitted hours
+- If customer reports financial hardship → offer flexible payment plan options
+- If customer disputes the debt → transfer to a supervisor for review""",
+                    "language": ""
                 }
             },
             {
@@ -440,7 +472,12 @@ async def get_prompt_templates():
                     "flow": """1. If the system is unresponsive, inform the customer and suggest an alternative communication channel
 2. If customer is very upset or threatening → calmly say "Let me transfer you to a specialist"
 3. Financial loss claim → refer to a representative""",
-                    "safety": ""
+                    "safety": """- Do not blame the customer for any issue
+- If customer reports a security breach or data leak → immediately escalate to security team
+- Do not share internal system information
+- After 2 failed resolution attempts → transfer to a human agent
+- If customer is aggressive → stay calm, warn once, end call politely if escalation continues""",
+                    "language": ""
                 }
             },
             {
@@ -478,7 +515,12 @@ async def get_prompt_templates():
                     "flow": """1. If the survey system is unresponsive, inform the customer and suggest calling back later
 2. If customer wants to make a complaint → "Let me transfer you to our customer support team"
 3. If customer is uncomfortable or upset → politely thank them and end the call""",
-                    "safety": ""
+                    "safety": """- Do not ask for personal sensitive information (ID numbers, credit cards, etc.)
+- Do not attempt sales or cross-selling during the survey
+- If customer is upset about a service issue → offer to transfer to support team
+- If customer refuses to participate → thank them politely and end the call immediately
+- Do not pressure customer to change their ratings""",
+                    "language": ""
                 }
             }
         ]

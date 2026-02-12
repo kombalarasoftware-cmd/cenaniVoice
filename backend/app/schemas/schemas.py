@@ -121,8 +121,8 @@ class PromptSections(BaseModel):
     flow: Optional[str] = Field(default=None, description="Conversation states, goals, exit criteria")
     # 9. Safety & Escalation - fallback and handoff logic
     safety: Optional[str] = Field(default=None, description="Safety rules, escalation triggers")
-    # Legacy field (merged into personality)
-    language: Optional[str] = Field(default=None, description="[Legacy] Language constraints")
+    # 10. Language - language and register guidelines
+    language: Optional[str] = Field(default=None, description="Language and register guidelines for the conversation")
 
 
 class VoiceSettings(BaseModel):
@@ -480,8 +480,8 @@ class AgentDetailResponse(AgentResponse):
     prompt_tools: Optional[str] = None  # Tools (when/how/error)
     prompt_rules: Optional[str] = None  # Character normalization
     prompt_flow: Optional[str] = None  # Error handling
-    prompt_safety: Optional[str] = None  # Legacy (merged into guardrails)
-    prompt_language: Optional[str] = None  # Legacy
+    prompt_safety: Optional[str] = None  # Safety & Escalation rules
+    prompt_language: Optional[str] = None  # Language and register guidelines
     knowledge_base: Optional[str] = None  # Static knowledge base content
     web_sources: Optional[List[Dict[str, Any]]] = None  # Web URLs for dynamic info
     smart_features: Optional[Dict[str, Any]] = None  # Smart features

@@ -203,7 +203,7 @@ async def create_agent(
         agent.prompt_rules = agent_data.prompt.rules
         agent.prompt_flow = agent_data.prompt.flow
         agent.prompt_safety = agent_data.prompt.safety
-        agent.prompt_language = agent_data.prompt.language  # Legacy field
+        agent.prompt_language = agent_data.prompt.language
     
     # Apply greeting settings
     if agent_data.greeting_settings:
@@ -356,7 +356,7 @@ async def update_agent(
         agent.prompt_rules = agent_data.prompt.rules
         agent.prompt_flow = agent_data.prompt.flow
         agent.prompt_safety = agent_data.prompt.safety
-        agent.prompt_language = agent_data.prompt.language  # Legacy field
+        agent.prompt_language = agent_data.prompt.language
     
     # Update greeting settings
     if agent_data.greeting_settings:
