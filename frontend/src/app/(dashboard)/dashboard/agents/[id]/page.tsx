@@ -637,7 +637,7 @@ export default function AgentEditorPage() {
         setFirstMessageDelay(data.first_message_delay ? data.first_message_delay.toString() : '');
         setSelectedProvider(data.provider || 'openai');
         setSelectedVoice(data.voice || 'alloy');
-        setSelectedModel(data.model_type || 'gpt-realtime-mini');
+        setSelectedModel(data.model_type || (data.provider === 'pipeline' ? 'pipeline-cloud' : 'gpt-realtime-mini'));
         setSelectedLanguage(data.language || 'tr');
         setSelectedTimezone(data.timezone || 'Europe/Istanbul');
 
@@ -1131,7 +1131,7 @@ export default function AgentEditorPage() {
           },
           provider: selectedProvider,
           voice_settings: {
-            model_type: selectedModel,
+            model_type: selectedProvider === 'pipeline' ? 'pipeline-cloud' : selectedModel,
             voice: selectedVoice,
             language: selectedLanguage,
             timezone: selectedTimezone,

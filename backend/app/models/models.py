@@ -141,10 +141,11 @@ class RealtimeModel(str, enum.Enum):
     ULTRAVOX_V0_6 = "ultravox-v0.6"
     ULTRAVOX_V0_6_GEMMA3_27B = "ultravox-v0.6-gemma3-27b"
     ULTRAVOX_V0_6_LLAMA3_3_70B = "ultravox-v0.6-llama3.3-70b"
-    # Pipeline models (local Ollama)
-    PIPELINE_QWEN_7B = "pipeline-qwen-7b"      # Qwen 2.5 7B - best multilingual
-    PIPELINE_LLAMA_8B = "pipeline-llama-8b"     # Llama 3.1 8B
-    PIPELINE_MISTRAL_7B = "pipeline-mistral-7b" # Mistral 7B
+    # Pipeline models
+    PIPELINE_CLOUD = "pipeline-cloud"            # Cloud STT + LLM + TTS (per-agent)
+    PIPELINE_QWEN_7B = "pipeline-qwen-7b"       # Legacy: Qwen 2.5 7B local
+    PIPELINE_LLAMA_8B = "pipeline-llama-8b"      # Legacy: Llama 3.1 8B local
+    PIPELINE_MISTRAL_7B = "pipeline-mistral-7b"  # Legacy: Mistral 7B local
 
 
 class TranscriptModel(str, enum.Enum):
