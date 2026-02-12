@@ -281,11 +281,11 @@ services:
     networks:
       - voiceai-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      test: ["CMD-SHELL", "cat < /dev/null > /dev/tcp/127.0.0.1/11434 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 60s
     deploy:
       resources:
         limits:
@@ -312,11 +312,11 @@ services:
     networks:
       - voiceai-network
     healthcheck:
-      test: ["CMD", "python3", "-c", "import socket; s=socket.socket(); s.settimeout(3); s.connect(('127.0.0.1',10200)); s.close()"]
+      test: ["CMD-SHELL", "cat < /dev/null > /dev/tcp/127.0.0.1/10200 || exit 1"]
       interval: 30s
       timeout: 5s
-      retries: 3
-      start_period: 30s
+      retries: 5
+      start_period: 120s
     deploy:
       resources:
         limits:
