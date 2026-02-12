@@ -30,7 +30,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /install /usr/local
 
 # Create non-root user with UID/GID 1000 (matches docker-compose user override)
-RUN groupadd -g 1000 appuser && useradd -u 1000 -g appuser -s /bin/false appuser
+RUN groupadd -g 1000 appuser && useradd -u 1000 -g appuser -m -s /bin/false appuser
+
+# Create cache directory with correct ownership for Whisper model downloads
+RUN mkdir -p /home/appuser/.cache && chown -R appuser:appuser /home/appuser
 
 # Copy application code
 COPY . .

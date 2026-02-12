@@ -560,7 +560,7 @@ class PipelineCallHandler:
             # Step 1: Read UUID from AudioSocket
             call_uuid = await self._read_uuid()
             if not call_uuid:
-                logger.error("No UUID received, closing connection")
+                logger.debug("No UUID received (likely healthcheck), closing connection")
                 return
 
             logger.info(f"[{call_uuid[:8]}] Call started")
