@@ -190,15 +190,11 @@ class PipelineProvider(CallProvider):
             "endpoint": f"PJSIP/{phone_number}@trunk",
             "extension": "s",
             "context": "ai-outbound-pipeline",
-            "priority": 1,
-            "callerId": caller_id or settings.SIP_TRUNK_CALLER_ID or "",
-            "timeout": 30,
-            "variables": {
-                f"PJSIP_HEADER(add,X-VoiceAI-UUID)": call_uuid,
-                **{f"CHANNEL({k})": v for k, v in channel_variables.items() if not k.startswith("PJSIP")},
-                **channel_variables,
-            },
+            "callerId": f'"VoiceAI" <{caller_id}>',
+            "timeout": 60,
         }
+        if channel_variables:
+            data["variables"] = channel_variables
 
         try:
             auth = aiohttp.BasicAuth(ARI_USERNAME, ARI_PASSWORD)
