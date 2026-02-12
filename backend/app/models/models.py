@@ -181,7 +181,16 @@ class Agent(Base):
     status: Mapped[AgentStatus] = mapped_column(SQLEnum(AgentStatus), default=AgentStatus.DRAFT)
     
     # Provider selection
-    provider: Mapped[str] = mapped_column(String(20), default="openai")  # "openai" or "ultravox"
+    provider: Mapped[str] = mapped_column(String(20), default="openai")  # "openai", "ultravox", or "pipeline"
+
+    # Cloud pipeline provider selection (per-agent, used when provider="pipeline")
+    stt_provider: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="deepgram")  # "deepgram", "openai"
+    llm_provider: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="groq")  # "groq", "openai", "cerebras"
+    tts_provider: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="cartesia")  # "cartesia", "openai", "deepgram"
+    stt_model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # e.g. "nova-3", "gpt-4o-transcribe"
+    llm_model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # e.g. "llama-3.3-70b-versatile", "gpt-4o-mini"
+    tts_model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # e.g. "sonic-3", "tts-1"
+    tts_voice: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # e.g. "katie", "nova", "aura-2-thalia-en"
 
     # Model settings
     model_type: Mapped[RealtimeModel] = mapped_column(

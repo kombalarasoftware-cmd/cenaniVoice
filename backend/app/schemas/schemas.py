@@ -131,7 +131,15 @@ class VoiceSettings(BaseModel):
     language: str = "tr"
     timezone: str = "Europe/Istanbul"
     speech_speed: float = Field(default=1.0, ge=0.5, le=2.0)
-    pipeline_voice: Optional[str] = None  # Piper TTS voice (e.g. "tr_TR-fahrettin-medium")
+    pipeline_voice: Optional[str] = None  # Piper TTS voice (legacy)
+    # Cloud pipeline provider selection
+    stt_provider: Optional[str] = None  # "deepgram", "openai"
+    llm_provider: Optional[str] = None  # "groq", "openai", "cerebras"
+    tts_provider: Optional[str] = None  # "cartesia", "openai", "deepgram"
+    stt_model: Optional[str] = None
+    llm_model: Optional[str] = None
+    tts_model: Optional[str] = None
+    tts_voice: Optional[str] = None  # TTS voice identifier for the chosen provider
 
 
 class CallSettings(BaseModel):
@@ -439,6 +447,10 @@ class AgentResponse(AgentBase):
     voice: str
     language: str
     pipeline_voice: Optional[str] = None
+    # Cloud pipeline providers
+    stt_provider: Optional[str] = None
+    llm_provider: Optional[str] = None
+    tts_provider: Optional[str] = None
     total_calls: int
     successful_calls: int
     is_system: bool = False
@@ -474,6 +486,12 @@ class AgentDetailResponse(AgentResponse):
     web_sources: Optional[List[Dict[str, Any]]] = None  # Web URLs for dynamic info
     smart_features: Optional[Dict[str, Any]] = None  # Smart features
     survey_config: Optional[Dict[str, Any]] = None  # Survey configuration
+
+    # Cloud pipeline provider details
+    stt_model: Optional[str] = None
+    llm_model: Optional[str] = None
+    tts_model: Optional[str] = None
+    tts_voice: Optional[str] = None
 
     timezone: str = "Europe/Istanbul"
     speech_speed: float

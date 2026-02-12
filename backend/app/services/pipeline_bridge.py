@@ -1,26 +1,28 @@
 """
-Pipeline AudioSocket Bridge - Local STT + LLM + TTS
-=====================================================
-Bridges Asterisk AudioSocket with local AI pipeline:
-  - Faster-Whisper (STT) — CPU-optimized speech recognition
-  - Ollama (LLM) — Local language model (Qwen 2.5 7B default)
-  - Piper TTS — CPU-optimized text-to-speech
+Cloud Pipeline AudioSocket Bridge
+===================================
+Bridges Asterisk AudioSocket with Cloud AI pipeline:
+  - STT: Deepgram (Nova-3), OpenAI (gpt-4o-transcribe)
+  - LLM: Groq, OpenAI (GPT-4o-mini), Cerebras — all OpenAI-compatible
+  - TTS: Cartesia (Sonic-3), OpenAI (tts-1), Deepgram (Aura-2)
 
 Architecture:
     Phone → SIP Trunk → Asterisk → AudioSocket (TCP:9093)
                                           ↕
-                                  Pipeline Bridge (this file)
+                                  Cloud Pipeline Bridge (this file)
                                     ↕        ↕         ↕
-                              Whisper    Ollama     Piper TTS
-                               (STT)     (LLM)      (TTS)
+                             Cloud STT  Cloud LLM  Cloud TTS
+                          (Deepgram/   (Groq/     (Cartesia/
+                           OpenAI)     OpenAI/     OpenAI/
+                                       Cerebras)   Deepgram)
 
 Audio Flow:
-    Asterisk (slin24 24kHz PCM16) → resample 16kHz → Whisper STT
-    Whisper text → Ollama LLM → response text
-    Response text → Piper TTS → resample 24kHz → Asterisk
+    Asterisk (slin24 24kHz PCM16) → Cloud STT (24kHz direct)
+    Transcript → Cloud LLM → response text (streaming)
+    Response text → Cloud TTS (request 24kHz) → Asterisk
 
 Requirements:
-    pip install faster-whisper httpx websockets numpy
+    pip install httpx numpy
 
 Usage:
     python -m app.services.pipeline_bridge
@@ -35,10 +37,9 @@ import uuid
 import time
 import logging
 import signal
-import socket
 import io
 import wave
-import array
+import random
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from dataclasses import dataclass, field
@@ -55,6 +56,12 @@ except ImportError:
     print("numpy required: pip install numpy")
     sys.exit(1)
 
+# Cloud provider modules
+from app.services.cloud_stt import cloud_transcribe, STT_PROVIDERS
+from app.services.cloud_llm import cloud_llm_streaming, LLM_PROVIDER_CONFIGS
+from app.services.cloud_tts import cloud_synthesize, TTS_PROVIDERS
+
+
 # ============================================================================
 # LOGGING
 # ============================================================================
@@ -62,9 +69,10 @@ except ImportError:
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("pipeline-bridge")
+
 
 # ============================================================================
 # CONFIGURATION
@@ -72,16 +80,6 @@ logger = logging.getLogger("pipeline-bridge")
 
 AUDIOSOCKET_HOST = os.environ.get("PIPELINE_AUDIOSOCKET_HOST", "0.0.0.0")
 AUDIOSOCKET_PORT = int(os.environ.get("PIPELINE_AUDIOSOCKET_PORT", "9093"))
-
-OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://ollama:11434")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b")
-
-PIPER_HOST = os.environ.get("PIPER_HOST", "piper")
-PIPER_PORT = int(os.environ.get("PIPER_PORT", "10200"))
-
-WHISPER_MODEL = os.environ.get("FASTER_WHISPER_MODEL", "base")
-WHISPER_DEVICE = os.environ.get("FASTER_WHISPER_DEVICE", "cpu")
-WHISPER_COMPUTE = os.environ.get("FASTER_WHISPER_COMPUTE", "int8")
 
 MAX_CONCURRENT_CALLS = int(os.environ.get("MAX_CONCURRENT_CALLS", "10"))
 
@@ -95,10 +93,20 @@ DB_NAME = os.environ.get("POSTGRES_DB", "voiceai")
 DB_USER = os.environ.get("POSTGRES_USER", "")
 DB_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "")
 
+# API Keys (from environment)
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY", "")
+DEEPGRAM_API_KEY = os.environ.get("DEEPGRAM_API_KEY", "")
+CARTESIA_API_KEY = os.environ.get("CARTESIA_API_KEY", "")
+
+# Default cloud providers (for filler cache and fallback)
+DEFAULT_STT_PROVIDER = os.environ.get("DEFAULT_STT_PROVIDER", "deepgram")
+DEFAULT_LLM_PROVIDER = os.environ.get("DEFAULT_LLM_PROVIDER", "groq")
+DEFAULT_TTS_PROVIDER = os.environ.get("DEFAULT_TTS_PROVIDER", "cartesia")
+
 # Audio constants
 ASTERISK_SAMPLE_RATE = 24000   # slin24 from AudioSocket
-WHISPER_SAMPLE_RATE = 16000    # Whisper expects 16kHz
-PIPER_SAMPLE_RATE = 22050      # Piper outputs 22050Hz (model dependent)
 CHUNK_DURATION_MS = 20
 
 # AudioSocket protocol constants
@@ -117,47 +125,6 @@ VAD_ENERGY_THRESHOLD = 500      # Minimum RMS energy to consider speech
 VAD_SILENCE_TIMEOUT_MS = 1200   # Silence duration to trigger end of utterance
 VAD_MIN_SPEECH_MS = 200         # Minimum speech duration to process
 
-# Piper voice mapping per language (default voice)
-PIPER_VOICES = {
-    "tr": "tr_TR-dfki-medium",
-    "de": "de_DE-thorsten-medium",
-    "en": "en_US-amy-medium",
-    "fr": "fr_FR-siwis-medium",
-    "es": "es_ES-sharvard-medium",
-    "it": "it_IT-riccardo-x_low",
-}
-
-# All available Piper voices (used for agent voice selection)
-PIPER_AVAILABLE_VOICES = {
-    # Turkish
-    "tr_TR-dfki-medium": {"lang": "tr", "gender": "male", "quality": "medium", "label": "Dfki (Male, TR)"},
-    "tr_TR-fahrettin-medium": {"lang": "tr", "gender": "male", "quality": "medium", "label": "Fahrettin (Male, TR)"},
-    "tr_TR-fettah-medium": {"lang": "tr", "gender": "male", "quality": "medium", "label": "Fettah (Male, TR)"},
-    # German
-    "de_DE-thorsten-medium": {"lang": "de", "gender": "male", "quality": "medium", "label": "Thorsten (Male, DE)"},
-    "de_DE-thorsten-high": {"lang": "de", "gender": "male", "quality": "high", "label": "Thorsten HQ (Male, DE)"},
-    "de_DE-thorsten_emotional-medium": {"lang": "de", "gender": "male", "quality": "medium", "label": "Thorsten Emotional (Male, DE)"},
-    "de_DE-eva_k-x_low": {"lang": "de", "gender": "female", "quality": "low", "label": "Eva (Female, DE)"},
-    "de_DE-kerstin-low": {"lang": "de", "gender": "female", "quality": "low", "label": "Kerstin (Female, DE)"},
-    # English
-    "en_US-amy-medium": {"lang": "en", "gender": "female", "quality": "medium", "label": "Amy (Female, EN)"},
-    "en_US-lessac-high": {"lang": "en", "gender": "male", "quality": "high", "label": "Lessac HQ (Male, EN)"},
-    "en_US-ryan-high": {"lang": "en", "gender": "male", "quality": "high", "label": "Ryan HQ (Male, EN)"},
-    "en_US-kristin-medium": {"lang": "en", "gender": "female", "quality": "medium", "label": "Kristin (Female, EN)"},
-    "en_GB-cori-high": {"lang": "en", "gender": "female", "quality": "high", "label": "Cori HQ (Female, EN-GB)"},
-    # French
-    "fr_FR-siwis-medium": {"lang": "fr", "gender": "female", "quality": "medium", "label": "Siwis (Female, FR)"},
-    "fr_FR-tom-medium": {"lang": "fr", "gender": "male", "quality": "medium", "label": "Tom (Male, FR)"},
-    "fr_FR-gilles-low": {"lang": "fr", "gender": "male", "quality": "low", "label": "Gilles (Male, FR)"},
-    # Spanish
-    "es_ES-sharvard-medium": {"lang": "es", "gender": "male", "quality": "medium", "label": "Sharvard (Male, ES)"},
-    "es_ES-davefx-medium": {"lang": "es", "gender": "male", "quality": "medium", "label": "Davefx (Male, ES)"},
-    "es_MX-claude-high": {"lang": "es", "gender": "male", "quality": "high", "label": "Claude HQ (Male, ES-MX)"},
-    # Italian
-    "it_IT-riccardo-x_low": {"lang": "it", "gender": "male", "quality": "low", "label": "Riccardo (Male, IT)"},
-    "it_IT-paola-medium": {"lang": "it", "gender": "female", "quality": "medium", "label": "Paola (Female, IT)"},
-}
-
 # Filler phrases per language (played while AI is thinking)
 FILLER_PHRASES = {
     "tr": ["Bir saniye...", "Hmm, bakıyorum...", "Anladım..."],
@@ -171,34 +138,32 @@ FILLER_PHRASES = {
 # Pre-cached filler audio (populated at startup)
 _filler_cache: Dict[str, List[bytes]] = {}  # {lang: [audio_24k, ...]}
 
+
 # ============================================================================
-# WHISPER STT - Lazy loaded singleton
+# API KEY RESOLVER
 # ============================================================================
 
-_whisper_model = None
+def get_api_key(provider: str) -> str:
+    """Resolve API key for a given provider from environment."""
+    key_map = {
+        "openai": OPENAI_API_KEY,
+        "groq": GROQ_API_KEY,
+        "cerebras": CEREBRAS_API_KEY,
+        "deepgram": DEEPGRAM_API_KEY,
+        "cartesia": CARTESIA_API_KEY,
+    }
+    return key_map.get(provider, "")
 
 
-def get_whisper_model():
-    """Lazy-load Faster-Whisper model (singleton)."""
-    global _whisper_model
-    if _whisper_model is None:
-        try:
-            from faster_whisper import WhisperModel
-            logger.info(f"Loading Faster-Whisper model: {WHISPER_MODEL} (device={WHISPER_DEVICE}, compute={WHISPER_COMPUTE})")
-            _whisper_model = WhisperModel(
-                WHISPER_MODEL,
-                device=WHISPER_DEVICE,
-                compute_type=WHISPER_COMPUTE,
-            )
-            logger.info("Faster-Whisper model loaded successfully")
-        except ImportError:
-            logger.error("faster-whisper not installed: pip install faster-whisper")
-            raise
-    return _whisper_model
+def get_tts_api_key(provider: str) -> str:
+    """Get API key for TTS provider (some share keys with STT)."""
+    if provider == "deepgram":
+        return DEEPGRAM_API_KEY
+    return get_api_key(provider)
 
 
 # ============================================================================
-# AUDIO RESAMPLING UTILITIES
+# AUDIO UTILITIES
 # ============================================================================
 
 def resample_pcm16(pcm_data: bytes, from_rate: int, to_rate: int) -> bytes:
@@ -273,7 +238,7 @@ async def save_transcript_to_redis(call_uuid: str, role: str, content: str) -> b
             message = json.dumps({
                 "role": role,
                 "content": content,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             })
             await r.lpush(transcript_key, message)
             await r.expire(transcript_key, 3600)
@@ -305,404 +270,35 @@ async def get_agent_from_db(agent_id: int) -> Optional[Dict[str, Any]]:
 
 
 # ============================================================================
-# PIPER TTS CLIENT (Wyoming Protocol) - Connection Pool + Optimized
-# ============================================================================
-
-class PiperConnectionPool:
-    """
-    Persistent connection pool for Piper Wyoming protocol.
-
-    Reuses TCP connections across synthesis calls to avoid
-    the overhead of opening/closing a connection per call (~5-10ms each).
-    """
-
-    def __init__(self, host: str, port: int, max_size: int = 4):
-        self._host = host
-        self._port = port
-        self._max_size = max_size
-        self._pool: asyncio.Queue = asyncio.Queue(maxsize=max_size)
-        self._created = 0
-        self._lock = asyncio.Lock()
-
-    async def acquire(self):
-        """Get a connection from the pool or create a new one."""
-        # Try to get an existing idle connection
-        try:
-            reader, writer = self._pool.get_nowait()
-            # Verify connection is still alive
-            if writer.is_closing():
-                self._created -= 1
-                return await self._create_new()
-            return reader, writer
-        except asyncio.QueueEmpty:
-            pass
-
-        # Create new connection if under limit
-        async with self._lock:
-            if self._created < self._max_size:
-                return await self._create_new()
-
-        # Wait for a connection to become available
-        try:
-            reader, writer = await asyncio.wait_for(self._pool.get(), timeout=5.0)
-            if writer.is_closing():
-                self._created -= 1
-                return await self._create_new()
-            return reader, writer
-        except asyncio.TimeoutError:
-            # Force create one anyway
-            return await self._create_new()
-
-    async def _create_new(self):
-        """Create a new TCP connection to Piper."""
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(self._host, self._port),
-            timeout=5.0,
-        )
-        self._created += 1
-        logger.debug(f"Piper pool: new connection (total={self._created})")
-        return reader, writer
-
-    async def release(self, reader, writer):
-        """Return a connection to the pool (or close if pool is full)."""
-        if writer.is_closing():
-            self._created -= 1
-            return
-        try:
-            self._pool.put_nowait((reader, writer))
-        except asyncio.QueueFull:
-            writer.close()
-            await writer.wait_closed()
-            self._created -= 1
-
-    async def close_all(self):
-        """Close all pooled connections."""
-        while not self._pool.empty():
-            try:
-                reader, writer = self._pool.get_nowait()
-                writer.close()
-                await writer.wait_closed()
-            except Exception:
-                pass
-        self._created = 0
-
-
-# Global connection pool (initialized once)
-_piper_pool: Optional[PiperConnectionPool] = None
-
-
-def get_piper_pool() -> PiperConnectionPool:
-    """Get or create the global Piper connection pool."""
-    global _piper_pool
-    if _piper_pool is None:
-        _piper_pool = PiperConnectionPool(PIPER_HOST, PIPER_PORT, max_size=4)
-    return _piper_pool
-
-
-async def synthesize_speech(text: str, voice: str = "tr_TR-dfki-medium") -> bytes:
-    """
-    Synthesize speech using Piper TTS via Wyoming protocol.
-
-    Uses connection pool to avoid TCP open/close overhead per call.
-
-    Wyoming protocol format per event:
-      1. event_json + newline  (contains type, data_length, payload_length)
-      2. data_json             (exactly data_length bytes, no trailing newline)
-      3. payload               (exactly payload_length bytes, only for audio-chunk)
-
-    Returns raw PCM16 audio at Piper's native sample rate (22050Hz).
-    """
-    t0 = time.monotonic()
-    pool = get_piper_pool()
-    reader = writer = None
-    reuse_conn = True
-
-    try:
-        reader, writer = await pool.acquire()
-        conn_time = (time.monotonic() - t0) * 1000
-
-        # Send synthesize event
-        event = {
-            "type": "synthesize",
-            "data": {
-                "text": text,
-                "voice": {"name": voice},
-            },
-        }
-        event_line = json.dumps(event, ensure_ascii=False) + "\n"
-        writer.write(event_line.encode("utf-8"))
-        await writer.drain()
-
-        # Read Wyoming response events
-        audio_chunks = []
-        try:
-            while True:
-                # Step 1: Read event header line (JSON + newline)
-                line = await asyncio.wait_for(reader.readline(), timeout=30.0)
-                if not line:
-                    reuse_conn = False
-                    break
-                line_str = line.decode("utf-8").strip()
-                if not line_str:
-                    continue
-
-                resp_event = json.loads(line_str)
-                event_type = resp_event.get("type", "")
-                data_length = resp_event.get("data_length", 0)
-                payload_length = resp_event.get("payload_length", 0)
-
-                # Step 2: Read data JSON (exactly data_length bytes)
-                if data_length > 0:
-                    await asyncio.wait_for(
-                        _read_exactly(reader, data_length), timeout=5.0
-                    )
-
-                # Step 3: Read payload (only for audio-chunk)
-                if event_type == "audio-chunk" and payload_length > 0:
-                    audio = await asyncio.wait_for(
-                        _read_exactly(reader, payload_length), timeout=10.0
-                    )
-                    audio_chunks.append(audio)
-                elif event_type == "audio-stop":
-                    break
-                elif event_type == "error":
-                    logger.error(f"Piper TTS error event: {resp_event}")
-                    reuse_conn = False
-                    break
-        except asyncio.TimeoutError:
-            logger.warning("Piper TTS response timeout")
-            reuse_conn = False
-
-        total_time = (time.monotonic() - t0) * 1000
-
-        if audio_chunks:
-            result = b"".join(audio_chunks)
-            # Calculate audio duration: bytes / (sample_rate * 2 bytes per sample)
-            audio_duration_ms = len(result) / (PIPER_SAMPLE_RATE * 2) * 1000
-            rtf = total_time / audio_duration_ms if audio_duration_ms > 0 else 0
-            logger.info(
-                f"Piper TTS: {len(result)} bytes ({audio_duration_ms:.0f}ms audio) "
-                f"in {total_time:.0f}ms (RTF={rtf:.2f}, conn={conn_time:.0f}ms) "
-                f"for '{text[:50]}'"
-            )
-            return result
-
-        logger.warning(f"Piper TTS returned no audio for: '{text[:80]}'")
-        return b""
-
-    except Exception as e:
-        logger.error(f"Piper TTS error: {e}")
-        reuse_conn = False
-        return b""
-
-    finally:
-        # Return connection to pool or discard
-        if reader and writer:
-            if reuse_conn and not writer.is_closing():
-                # Wyoming protocol closes connection after each synthesis
-                # so we cannot reuse — close and let pool create fresh one
-                try:
-                    writer.close()
-                    await writer.wait_closed()
-                except Exception:
-                    pass
-                pool._created -= 1
-            else:
-                try:
-                    writer.close()
-                    await writer.wait_closed()
-                except Exception:
-                    pass
-                pool._created -= 1
-
-
-async def _read_exactly(reader: asyncio.StreamReader, n: int) -> bytes:
-    """Read exactly n bytes from a StreamReader."""
-    data = b""
-    while len(data) < n:
-        chunk = await reader.read(n - len(data))
-        if not chunk:
-            break
-        data += chunk
-    return data
-
-
-async def _synthesize_speech_http(text: str, voice: str) -> bytes:
-    """Fallback: synthesize via Piper HTTP API (if available)."""
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"http://{PIPER_HOST}:{PIPER_PORT}/api/tts",
-                json={"text": text, "voice": voice},
-            )
-            if response.status_code == 200:
-                return response.content
-    except Exception as e:
-        logger.error(f"Piper HTTP fallback error: {e}")
-    return b""
-
-
-# ============================================================================
-# OLLAMA LLM CLIENT
-# ============================================================================
-
-async def generate_llm_response(
-    messages: List[Dict[str, str]],
-    model: str = None,
-    temperature: float = 0.7,
-    max_tokens: int = 300,
-) -> str:
-    """
-    Generate text response from Ollama LLM.
-
-    Uses streaming for faster time-to-first-token.
-    Returns the full response text.
-    """
-    model = model or OLLAMA_MODEL
-
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{OLLAMA_HOST}/api/chat",
-                json={
-                    "model": model,
-                    "messages": messages,
-                    "stream": False,
-                    "options": {
-                        "temperature": temperature,
-                        "num_predict": max_tokens,
-                        "top_p": 0.9,
-                    },
-                },
-            )
-            if response.status_code == 200:
-                data = response.json()
-                return data.get("message", {}).get("content", "")
-            else:
-                logger.error(f"Ollama error {response.status_code}: {response.text[:200]}")
-                return ""
-    except Exception as e:
-        logger.error(f"Ollama LLM error: {e}")
-        return ""
-
-
-async def generate_llm_response_streaming(
-    messages: List[Dict[str, str]],
-    model: str = None,
-    temperature: float = 0.7,
-    max_tokens: int = 300,
-):
-    """
-    Stream text response from Ollama LLM.
-
-    Yields text chunks as they arrive for sentence-level TTS pipelining.
-    """
-    model = model or OLLAMA_MODEL
-
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            async with client.stream(
-                "POST",
-                f"{OLLAMA_HOST}/api/chat",
-                json={
-                    "model": model,
-                    "messages": messages,
-                    "stream": True,
-                    "options": {
-                        "temperature": temperature,
-                        "num_predict": max_tokens,
-                        "top_p": 0.9,
-                    },
-                },
-            ) as response:
-                async for line in response.aiter_lines():
-                    if line.strip():
-                        try:
-                            data = json.loads(line)
-                            content = data.get("message", {}).get("content", "")
-                            if content:
-                                yield content
-                            if data.get("done", False):
-                                break
-                        except json.JSONDecodeError:
-                            continue
-    except Exception as e:
-        logger.error(f"Ollama streaming error: {e}")
-
-
-# ============================================================================
-# WHISPER STT
-# ============================================================================
-
-async def transcribe_audio(pcm_data: bytes, language: str = "tr") -> str:
-    """
-    Transcribe audio using Faster-Whisper.
-
-    Input: PCM16 mono at 16kHz
-    Output: Transcribed text
-    """
-    if len(pcm_data) < 3200:  # Less than 100ms of audio
-        return ""
-
-    # Run in executor to avoid blocking event loop
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _transcribe_sync, pcm_data, language)
-
-
-def _transcribe_sync(pcm_data: bytes, language: str) -> str:
-    """Synchronous Whisper transcription (runs in thread pool)."""
-    try:
-        model = get_whisper_model()
-
-        # Convert PCM16 to float32 normalized
-        samples = np.frombuffer(pcm_data, dtype=np.int16).astype(np.float32) / 32768.0
-
-        # Map language codes
-        whisper_lang_map = {
-            "tr": "tr",
-            "de": "de",
-            "en": "en",
-            "fr": "fr",
-            "es": "es",
-            "it": "it",
-        }
-        lang = whisper_lang_map.get(language, "tr")
-
-        segments, info = model.transcribe(
-            samples,
-            language=lang,
-            beam_size=3,
-            best_of=3,
-            vad_filter=True,
-            vad_parameters=dict(
-                min_silence_duration_ms=300,
-                speech_pad_ms=200,
-            ),
-        )
-
-        text_parts = []
-        for segment in segments:
-            text_parts.append(segment.text.strip())
-
-        return " ".join(text_parts).strip()
-
-    except Exception as e:
-        logger.error(f"Whisper transcription error: {e}")
-        return ""
-
-
-# ============================================================================
 # CALL SESSION
 # ============================================================================
 
 @dataclass
 class PipelineCallSession:
-    """Active call session state."""
+    """Active call session state with cloud provider configuration."""
     call_uuid: str
     agent_config: Dict[str, Any] = field(default_factory=dict)
     language: str = "tr"
-    voice: str = "tr_TR-dfki-medium"
-    model: str = "qwen2.5:7b"
+
+    # Cloud provider selection (per-agent configurable)
+    stt_provider: str = "deepgram"
+    llm_provider: str = "groq"
+    tts_provider: str = "cartesia"
+
+    # API keys (resolved from environment)
+    stt_api_key: str = ""
+    llm_api_key: str = ""
+    tts_api_key: str = ""
+
+    # Model selection
+    stt_model: str = ""   # Empty = use provider default
+    llm_model: str = ""   # Empty = use provider default
+    tts_model: str = ""   # Empty = use provider default
+
+    # Voice (TTS voice identifier for the chosen provider)
+    tts_voice: str = ""
+
+    # LLM settings
     temperature: float = 0.7
     system_prompt: str = ""
     conversation_history: List[Dict[str, str]] = field(default_factory=list)
@@ -729,13 +325,13 @@ class PipelineCallSession:
 
 class PipelineCallHandler:
     """
-    Handles a single call session through the local pipeline.
+    Handles a single call session through the cloud pipeline.
 
     Flow per turn:
     1. Collect audio from Asterisk (with VAD)
-    2. When silence detected → transcribe with Whisper
-    3. Send transcript to Ollama LLM
-    4. Stream LLM response → synthesize with Piper TTS
+    2. When silence detected → transcribe with Cloud STT
+    3. Send transcript to Cloud LLM (streaming)
+    4. Stream LLM response → synthesize with Cloud TTS
     5. Send TTS audio back to Asterisk
     """
 
@@ -768,13 +364,31 @@ class PipelineCallHandler:
             agent_config = await get_call_setup_from_redis(call_uuid) or {}
             language = agent_config.get("language", "tr")
 
-            # Voice selection: explicit pipeline_voice > language default
-            voice = agent_config.get("pipeline_voice", "")
-            if not voice or voice not in PIPER_AVAILABLE_VOICES:
-                voice = PIPER_VOICES.get(language, PIPER_VOICES["tr"])
+            # Step 3: Resolve cloud providers (per-agent or defaults)
+            stt_provider = agent_config.get("stt_provider", DEFAULT_STT_PROVIDER)
+            llm_provider = agent_config.get("llm_provider", DEFAULT_LLM_PROVIDER)
+            tts_provider = agent_config.get("tts_provider", DEFAULT_TTS_PROVIDER)
 
-            # Pipeline-specific model from agent config or default
-            pipeline_model = agent_config.get("pipeline_model", OLLAMA_MODEL)
+            # Resolve API keys
+            stt_api_key = get_api_key(stt_provider)
+            llm_api_key = get_api_key(llm_provider)
+            tts_api_key = get_tts_api_key(tts_provider)
+
+            # Validate API keys
+            if not stt_api_key:
+                logger.error(f"[{call_uuid[:8]}] No API key for STT provider '{stt_provider}'")
+            if not llm_api_key:
+                logger.error(f"[{call_uuid[:8]}] No API key for LLM provider '{llm_provider}'")
+            if not tts_api_key:
+                logger.error(f"[{call_uuid[:8]}] No API key for TTS provider '{tts_provider}'")
+
+            # Resolve TTS voice (from agent config or language default)
+            tts_voice = agent_config.get("tts_voice", "")
+            if not tts_voice:
+                # Use default voice for the TTS provider and language
+                provider_config = TTS_PROVIDERS.get(tts_provider, {})
+                default_voices = provider_config.get("default_voices", {})
+                tts_voice = default_voices.get(language, "")
 
             # Build system prompt
             system_prompt = agent_config.get("prompt", "")
@@ -785,11 +399,25 @@ class PipelineCallHandler:
                 call_uuid=call_uuid,
                 agent_config=agent_config,
                 language=language,
-                voice=voice,
-                model=pipeline_model,
+                stt_provider=stt_provider,
+                llm_provider=llm_provider,
+                tts_provider=tts_provider,
+                stt_api_key=stt_api_key,
+                llm_api_key=llm_api_key,
+                tts_api_key=tts_api_key,
+                stt_model=agent_config.get("stt_model", ""),
+                llm_model=agent_config.get("llm_model", ""),
+                tts_model=agent_config.get("tts_model", ""),
+                tts_voice=tts_voice,
                 temperature=agent_config.get("temperature", 0.7),
                 system_prompt=system_prompt,
                 connected_at=datetime.utcnow(),
+            )
+
+            logger.info(
+                f"[{call_uuid[:8]}] Cloud providers: "
+                f"STT={stt_provider}, LLM={llm_provider}, TTS={tts_provider} "
+                f"(voice={tts_voice}, lang={language})"
             )
 
             # Initialize conversation with system prompt
@@ -816,7 +444,7 @@ class PipelineCallHandler:
                     await self._speak(greeting)
                     self.session.greeting_sent = True
 
-            # Step 3: Main audio processing loop + hangup signal checker
+            # Step 4: Main audio processing loop + hangup signal checker
             hangup_task = asyncio.create_task(self._check_hangup_signal())
             try:
                 await self._audio_loop()
@@ -1038,17 +666,22 @@ class PipelineCallHandler:
 
     async def _play_filler(self):
         """Play a short filler audio while AI is thinking."""
-        import random
         lang = self.session.language
         cached = _filler_cache.get(lang, [])
         if not cached:
             # Generate filler on-the-fly as fallback
-            phrases = FILLER_PHRASES.get(lang, FILLER_PHRASES["tr"])
+            phrases = FILLER_PHRASES.get(lang, FILLER_PHRASES["en"])
             phrase = random.choice(phrases)
             try:
-                tts_audio = await synthesize_speech(phrase, self.session.voice)
+                tts_audio, actual_rate = await cloud_synthesize(
+                    text=phrase,
+                    provider=self.session.tts_provider,
+                    api_key=self.session.tts_api_key,
+                    language=lang,
+                    sample_rate=ASTERISK_SAMPLE_RATE,
+                )
                 if tts_audio:
-                    audio_24k = resample_pcm16(tts_audio, PIPER_SAMPLE_RATE, ASTERISK_SAMPLE_RATE)
+                    audio_24k = resample_pcm16(tts_audio, actual_rate, ASTERISK_SAMPLE_RATE)
                     await self._send_audio_frames(audio_24k)
             except Exception as e:
                 logger.debug(f"Filler TTS error: {e}")
@@ -1088,29 +721,36 @@ class PipelineCallHandler:
             self._processing = False
 
     async def _process_utterance(self, audio_data: bytes):
-        """Process a complete utterance: STT → LLM → TTS with detailed timing."""
+        """Process a complete utterance: Cloud STT → Cloud LLM → Cloud TTS with detailed timing."""
         try:
             turn_start = time.monotonic()
 
-            # Step 1: Resample 24kHz → 16kHz for Whisper
-            audio_16k = resample_pcm16(audio_data, ASTERISK_SAMPLE_RATE, WHISPER_SAMPLE_RATE)
-
-            # Step 2: Transcribe with Whisper
+            # Step 1: Transcribe with Cloud STT (send 24kHz audio directly)
             t0 = time.monotonic()
-            text = await transcribe_audio(audio_16k, self.session.language)
+            text = await cloud_transcribe(
+                pcm_data=audio_data,
+                provider=self.session.stt_provider,
+                api_key=self.session.stt_api_key,
+                language=self.session.language,
+                sample_rate=ASTERISK_SAMPLE_RATE,  # 24kHz — cloud providers handle any rate
+                model=self.session.stt_model or None,
+            )
             stt_time = (time.monotonic() - t0) * 1000
 
             if not text or len(text.strip()) < 3:
                 logger.debug(f"[{self.session.call_uuid[:8]}] Too short transcription: '{text}', skipping")
                 return
 
-            logger.info(f"[{self.session.call_uuid[:8]}] STT ({stt_time:.0f}ms): {text}")
+            logger.info(
+                f"[{self.session.call_uuid[:8]}] STT [{self.session.stt_provider}] "
+                f"({stt_time:.0f}ms): {text}"
+            )
             self.session.total_user_messages += 1
 
             # Save to Redis
             await save_transcript_to_redis(self.session.call_uuid, "user", text)
 
-            # Step 3: Add to conversation and get LLM response
+            # Step 2: Add to conversation and get Cloud LLM response
             self.session.conversation_history.append({
                 "role": "user",
                 "content": text,
@@ -1124,9 +764,11 @@ class PipelineCallHandler:
             full_response = ""
             sentence_buffer = ""
 
-            async for chunk in generate_llm_response_streaming(
+            async for chunk in cloud_llm_streaming(
                 messages=self.session.conversation_history,
-                model=self.session.model,
+                provider=self.session.llm_provider,
+                api_key=self.session.llm_api_key,
+                model=self.session.llm_model or None,
                 temperature=self.session.temperature,
                 max_tokens=300,
             ):
@@ -1146,7 +788,8 @@ class PipelineCallHandler:
                             if first_sentence_time is None:
                                 first_sentence_time = (time.monotonic() - t0) * 1000
                                 logger.info(
-                                    f"[{self.session.call_uuid[:8]}] LLM first sentence ({first_sentence_time:.0f}ms): "
+                                    f"[{self.session.call_uuid[:8]}] LLM [{self.session.llm_provider}] "
+                                    f"first sentence ({first_sentence_time:.0f}ms): "
                                     f"'{sentence[:60]}'"
                                 )
                             # Queue sentence for TTS immediately
@@ -1165,7 +808,8 @@ class PipelineCallHandler:
             total_time = (time.monotonic() - turn_start) * 1000
             logger.info(
                 f"[{self.session.call_uuid[:8]}] Turn complete: "
-                f"STT={stt_time:.0f}ms, LLM={llm_time:.0f}ms ({sentence_count} sentences), "
+                f"STT={stt_time:.0f}ms [{self.session.stt_provider}], "
+                f"LLM={llm_time:.0f}ms [{self.session.llm_provider}] ({sentence_count} sentences), "
                 f"total={total_time:.0f}ms | {full_response[:80]}..."
             )
 
@@ -1211,7 +855,7 @@ class PipelineCallHandler:
     async def _tts_synthesis_loop(self):
         """
         Background task: consume text sentences from _tts_queue,
-        synthesize with Piper, put resulting audio into _audio_queue.
+        synthesize with Cloud TTS, put resulting audio into _audio_queue.
 
         Runs concurrently with _tts_playback_loop so next sentence
         is being synthesized while current sentence is playing.
@@ -1238,23 +882,33 @@ class PipelineCallHandler:
                 continue
 
             try:
-                # Synthesize with Piper (already logs timing internally)
-                tts_audio = await synthesize_speech(sentence, self.session.voice)
+                # Synthesize with Cloud TTS — request 24kHz to match Asterisk
+                tts_audio, actual_rate = await cloud_synthesize(
+                    text=sentence,
+                    provider=self.session.tts_provider,
+                    api_key=self.session.tts_api_key,
+                    voice=self.session.tts_voice or None,
+                    language=self.session.language,
+                    model=self.session.tts_model or None,
+                    sample_rate=ASTERISK_SAMPLE_RATE,
+                )
 
                 if not tts_audio:
                     logger.warning(f"[{self.session.call_uuid[:8]}] TTS returned empty audio")
                     continue
 
-                # Resample Piper output (22050Hz) → Asterisk (24000Hz)
-                t0 = time.monotonic()
-                audio_24k = resample_pcm16(tts_audio, PIPER_SAMPLE_RATE, ASTERISK_SAMPLE_RATE)
-                resample_time = (time.monotonic() - t0) * 1000
-
-                if resample_time > 5:
-                    logger.debug(
-                        f"[{self.session.call_uuid[:8]}] Resample: {resample_time:.0f}ms "
-                        f"({len(tts_audio)}→{len(audio_24k)} bytes)"
-                    )
+                # Resample if TTS returned a different sample rate
+                if actual_rate != ASTERISK_SAMPLE_RATE:
+                    t0 = time.monotonic()
+                    audio_24k = resample_pcm16(tts_audio, actual_rate, ASTERISK_SAMPLE_RATE)
+                    resample_time = (time.monotonic() - t0) * 1000
+                    if resample_time > 5:
+                        logger.debug(
+                            f"[{self.session.call_uuid[:8]}] Resample {actual_rate}→{ASTERISK_SAMPLE_RATE}: "
+                            f"{resample_time:.0f}ms ({len(tts_audio)}→{len(audio_24k)} bytes)"
+                        )
+                else:
+                    audio_24k = tts_audio
 
                 # Put ready-to-play audio into playback queue
                 await self._audio_queue.put(audio_24k)
@@ -1361,18 +1015,39 @@ call_semaphore = asyncio.Semaphore(MAX_CONCURRENT_CALLS)
 
 
 async def _precache_filler_audio():
-    """Pre-generate filler audio for all languages at startup."""
+    """Pre-generate filler audio for all languages at startup using Cloud TTS."""
     global _filler_cache
-    logger.info("Pre-caching filler audio for all languages...")
+
+    tts_provider = DEFAULT_TTS_PROVIDER
+    tts_api_key = get_tts_api_key(tts_provider)
+
+    if not tts_api_key:
+        logger.warning(
+            f"No API key for default TTS provider '{tts_provider}', "
+            f"filler audio will be generated on-the-fly during calls"
+        )
+        return
+
+    logger.info(f"Pre-caching filler audio using {tts_provider}...")
+
+    provider_config = TTS_PROVIDERS.get(tts_provider, {})
+    default_voices = provider_config.get("default_voices", {})
 
     for lang, phrases in FILLER_PHRASES.items():
-        voice = PIPER_VOICES.get(lang, PIPER_VOICES["tr"])
+        voice = default_voices.get(lang, "")
         cached_list = []
         for phrase in phrases:
             try:
-                tts_audio = await synthesize_speech(phrase, voice)
+                tts_audio, actual_rate = await cloud_synthesize(
+                    text=phrase,
+                    provider=tts_provider,
+                    api_key=tts_api_key,
+                    voice=voice,
+                    language=lang,
+                    sample_rate=ASTERISK_SAMPLE_RATE,
+                )
                 if tts_audio and len(tts_audio) > 100:
-                    audio_24k = resample_pcm16(tts_audio, PIPER_SAMPLE_RATE, ASTERISK_SAMPLE_RATE)
+                    audio_24k = resample_pcm16(tts_audio, actual_rate, ASTERISK_SAMPLE_RATE)
                     cached_list.append(audio_24k)
                     logger.debug(f"Cached filler [{lang}]: '{phrase}' ({len(audio_24k)} bytes)")
             except Exception as e:
@@ -1384,7 +1059,10 @@ async def _precache_filler_audio():
         else:
             logger.warning(f"No filler audio cached for [{lang}]")
 
-    logger.info(f"Filler cache complete: {sum(len(v) for v in _filler_cache.values())} phrases across {len(_filler_cache)} languages")
+    logger.info(
+        f"Filler cache complete: {sum(len(v) for v in _filler_cache.values())} phrases "
+        f"across {len(_filler_cache)} languages"
+    )
 
 
 async def handle_connection(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
@@ -1401,20 +1079,32 @@ async def handle_connection(reader: asyncio.StreamReader, writer: asyncio.Stream
 
 
 async def main():
-    """Start the Pipeline AudioSocket server."""
-    logger.info(f"Pipeline Bridge starting on {AUDIOSOCKET_HOST}:{AUDIOSOCKET_PORT}")
-    logger.info(f"Ollama: {OLLAMA_HOST} model={OLLAMA_MODEL}")
-    logger.info(f"Piper: {PIPER_HOST}:{PIPER_PORT}")
-    logger.info(f"Whisper: model={WHISPER_MODEL} device={WHISPER_DEVICE} compute={WHISPER_COMPUTE}")
+    """Start the Cloud Pipeline AudioSocket server."""
+    logger.info(f"Cloud Pipeline Bridge starting on {AUDIOSOCKET_HOST}:{AUDIOSOCKET_PORT}")
+    logger.info(f"Default STT: {DEFAULT_STT_PROVIDER}")
+    logger.info(f"Default LLM: {DEFAULT_LLM_PROVIDER}")
+    logger.info(f"Default TTS: {DEFAULT_TTS_PROVIDER}")
     logger.info(f"Max concurrent calls: {MAX_CONCURRENT_CALLS}")
 
-    # Pre-load Whisper model
-    try:
-        logger.info("Pre-loading Whisper model...")
-        get_whisper_model()
-    except Exception as e:
-        logger.error(f"Failed to load Whisper model: {e}")
-        logger.info("Whisper will be loaded on first call")
+    # Log available API keys (without exposing values)
+    available_keys = []
+    for name, key in [
+        ("OpenAI", OPENAI_API_KEY),
+        ("Groq", GROQ_API_KEY),
+        ("Cerebras", CEREBRAS_API_KEY),
+        ("Deepgram", DEEPGRAM_API_KEY),
+        ("Cartesia", CARTESIA_API_KEY),
+    ]:
+        if key:
+            available_keys.append(name)
+    logger.info(f"Available API keys: {', '.join(available_keys) or 'NONE'}")
+
+    if not available_keys:
+        logger.error(
+            "No API keys configured! Set at least one of: "
+            "OPENAI_API_KEY, GROQ_API_KEY, CEREBRAS_API_KEY, "
+            "DEEPGRAM_API_KEY, CARTESIA_API_KEY"
+        )
 
     # Pre-cache filler audio for all languages
     await _precache_filler_audio()
@@ -1426,7 +1116,7 @@ async def main():
     )
 
     addrs = ", ".join(str(s.getsockname()) for s in server.sockets)
-    logger.info(f"Pipeline AudioSocket server listening on {addrs}")
+    logger.info(f"Cloud Pipeline AudioSocket server listening on {addrs}")
 
     # Graceful shutdown
     loop = asyncio.get_event_loop()
@@ -1445,7 +1135,7 @@ async def main():
     async with server:
         await stop_event.wait()
 
-    logger.info("Pipeline Bridge stopped")
+    logger.info("Cloud Pipeline Bridge stopped")
 
 
 if __name__ == "__main__":

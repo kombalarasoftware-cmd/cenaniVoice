@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     ULTRAVOX_BASE_URL: str = "https://api.ultravox.ai/api"
     ULTRAVOX_WEBHOOK_URL: str = ""  # Public URL for Ultravox webhook callbacks
 
+    # Cloud Pipeline API Keys
+    GROQ_API_KEY: str = ""
+    CEREBRAS_API_KEY: str = ""
+    DEEPGRAM_API_KEY: str = ""
+    CARTESIA_API_KEY: str = ""
+
     # SIP Trunk
     SIP_TRUNK_HOST: str = ""
     SIP_TRUNK_PORT: int = 5060

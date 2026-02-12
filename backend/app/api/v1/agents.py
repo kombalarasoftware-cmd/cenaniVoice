@@ -18,28 +18,64 @@ router = APIRouter(prefix="/agents", tags=["Agents"])
 
 @router.get("/voices/list")
 async def list_voices(
-    provider: str = Query("openai", description="Provider: 'openai', 'ultravox', or 'pipeline'"),
+    provider: str = Query("openai", description="Provider: 'openai', 'ultravox', 'pipeline', 'cartesia', 'deepgram-tts'"),
     gender: Optional[str] = Query(None, description="Filter by gender: 'male' or 'female'"),
-    language: Optional[str] = Query(None, description="Filter by language code (pipeline only): 'tr', 'de', 'en', etc."),
+    language: Optional[str] = Query(None, description="Filter by language code: 'tr', 'de', 'en', etc."),
     current_user: User = Depends(get_current_user)
 ):
-    """List available voices for the specified provider, optionally filtered by gender."""
-    if provider == "pipeline":
-        from app.services.pipeline_bridge import PIPER_AVAILABLE_VOICES
+    """List available voices for the specified provider, optionally filtered by gender/language."""
+    # Cloud TTS providers (pipeline mode)
+    if provider in ("pipeline", "cartesia"):
+        from app.services.cloud_tts import CARTESIA_VOICES
         voices = []
-        for voice_id, info in PIPER_AVAILABLE_VOICES.items():
-            if gender and info["gender"] != gender:
+        for voice_key, info in CARTESIA_VOICES.items():
+            if language and info.get("lang") != language:
                 continue
-            if language and info["lang"] != language:
+            gender_guess = "female" if "female" in voice_key.lower() or "Female" in info["label"] else "male"
+            if gender and gender_guess != gender:
                 continue
             voices.append({
-                "id": voice_id,
+                "id": voice_key,
                 "name": info["label"],
-                "gender": info["gender"],
-                "language": info["lang"],
-                "quality": info["quality"],
+                "gender": gender_guess,
+                "language": info.get("lang", "multi"),
+                "provider": "cartesia",
             })
-        return {"provider": provider, "voices": voices}
+        return {"provider": "cartesia", "voices": voices}
+
+    if provider == "openai-tts":
+        from app.services.cloud_tts import OPENAI_TTS_VOICES
+        voices = []
+        for voice_key, info in OPENAI_TTS_VOICES.items():
+            gender_guess = "female" if any(w in info["label"].lower() for w in ["female", "nova", "shimmer", "coral", "sage"]) else "male"
+            if gender and gender_guess != gender:
+                continue
+            voices.append({
+                "id": voice_key,
+                "name": info["label"],
+                "gender": gender_guess,
+                "language": info.get("lang", "multi"),
+                "provider": "openai-tts",
+            })
+        return {"provider": "openai-tts", "voices": voices}
+
+    if provider == "deepgram-tts":
+        from app.services.cloud_tts import DEEPGRAM_TTS_VOICES
+        voices = []
+        for voice_key, info in DEEPGRAM_TTS_VOICES.items():
+            if language and info.get("lang") != language:
+                continue
+            gender_guess = "female" if any(w in info["label"].lower() for w in ["female", "thalia", "andromeda", "helena"]) else "male"
+            if gender and gender_guess != gender:
+                continue
+            voices.append({
+                "id": voice_key,
+                "name": info["label"],
+                "gender": gender_guess,
+                "language": info.get("lang", "multi"),
+                "provider": "deepgram-tts",
+            })
+        return {"provider": "deepgram-tts", "voices": voices}
 
     if provider not in ("openai", "ultravox"):
         raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
@@ -111,6 +147,21 @@ async def create_agent(
         elif agent_data.provider == "pipeline" and agent_data.voice_settings.voice:
             # Fallback: use voice field as pipeline_voice for pipeline provider
             agent.pipeline_voice = agent_data.voice_settings.voice
+        # Cloud pipeline provider selection
+        if agent_data.voice_settings.stt_provider is not None:
+            agent.stt_provider = agent_data.voice_settings.stt_provider
+        if agent_data.voice_settings.llm_provider is not None:
+            agent.llm_provider = agent_data.voice_settings.llm_provider
+        if agent_data.voice_settings.tts_provider is not None:
+            agent.tts_provider = agent_data.voice_settings.tts_provider
+        if agent_data.voice_settings.stt_model is not None:
+            agent.stt_model = agent_data.voice_settings.stt_model
+        if agent_data.voice_settings.llm_model is not None:
+            agent.llm_model = agent_data.voice_settings.llm_model
+        if agent_data.voice_settings.tts_model is not None:
+            agent.tts_model = agent_data.voice_settings.tts_model
+        if agent_data.voice_settings.tts_voice is not None:
+            agent.tts_voice = agent_data.voice_settings.tts_voice
     
     # Apply call settings
     if agent_data.call_settings:
@@ -249,6 +300,21 @@ async def update_agent(
             agent.pipeline_voice = agent_data.voice_settings.pipeline_voice
         elif (agent_data.provider or agent.provider) == "pipeline" and agent_data.voice_settings.voice:
             agent.pipeline_voice = agent_data.voice_settings.voice
+        # Cloud pipeline provider selection
+        if agent_data.voice_settings.stt_provider is not None:
+            agent.stt_provider = agent_data.voice_settings.stt_provider
+        if agent_data.voice_settings.llm_provider is not None:
+            agent.llm_provider = agent_data.voice_settings.llm_provider
+        if agent_data.voice_settings.tts_provider is not None:
+            agent.tts_provider = agent_data.voice_settings.tts_provider
+        if agent_data.voice_settings.stt_model is not None:
+            agent.stt_model = agent_data.voice_settings.stt_model
+        if agent_data.voice_settings.llm_model is not None:
+            agent.llm_model = agent_data.voice_settings.llm_model
+        if agent_data.voice_settings.tts_model is not None:
+            agent.tts_model = agent_data.voice_settings.tts_model
+        if agent_data.voice_settings.tts_voice is not None:
+            agent.tts_voice = agent_data.voice_settings.tts_voice
     
     # Update call settings
     if agent_data.call_settings:

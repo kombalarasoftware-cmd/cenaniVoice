@@ -271,59 +271,9 @@ services:
   #     - voiceai-network
 
   # ===========================================
-  # Ollama - Local LLM Server
-  # ===========================================
-  ollama:
-    image: ollama/ollama:latest
-    restart: unless-stopped
-    volumes:
-      - ollama-data:/root/.ollama
-    networks:
-      - voiceai-network
-    healthcheck:
-      test: ["CMD-SHELL", "ollama list || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    deploy:
-      resources:
-        limits:
-          memory: 6G
-          cpus: '4.0'
-
-  # ===========================================
-  # Piper TTS - Local Text-to-Speech
-  # ===========================================
-  piper:
-    image: rhasspy/wyoming-piper:latest
-    restart: unless-stopped
-    command: >
-      --voice tr_TR-dfki-medium
-      --length-scale 1.0
-      --noise-scale 0.667
-      --noise-w-scale 0.8
-      --data-dir /data
-      --download-dir /data
-    volumes:
-      - piper-data:/data
-    networks:
-      - voiceai-network
-    healthcheck:
-      test: ["CMD", "python3", "-c", "import socket; s=socket.socket(); s.settimeout(3); s.connect(('127.0.0.1',10200)); s.close()"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 120s
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '4.0'
-
-  # ===========================================
-  # Pipeline AudioSocket Bridge (Local STT+LLM+TTS)
-  # Same architecture as asterisk-bridge but uses local models
+  # Pipeline AudioSocket Bridge (Cloud STT+LLM+TTS)
+  # Uses cloud APIs: Deepgram/OpenAI STT, Groq/OpenAI/Cerebras LLM,
+  # Cartesia/OpenAI/Deepgram TTS — selectable per agent
   # ===========================================
   pipeline-bridge:
     build:
@@ -334,38 +284,35 @@ services:
       - .env
     volumes:
       - ./backend:/app
-      - faster-whisper-cache:/home/appuser/.cache
     environment:
       - PIPELINE_AUDIOSOCKET_HOST=0.0.0.0
       - PIPELINE_AUDIOSOCKET_PORT=9093
-      - OLLAMA_HOST=http://ollama:11434
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
-      - PIPER_HOST=piper
-      - PIPER_PORT=10200
-      - FASTER_WHISPER_MODEL=${FASTER_WHISPER_MODEL:-base}
-      - FASTER_WHISPER_DEVICE=cpu
-      - FASTER_WHISPER_COMPUTE=int8
-      - MAX_CONCURRENT_CALLS=10
+      - MAX_CONCURRENT_CALLS=50
+      # Cloud provider API keys (from .env)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - CEREBRAS_API_KEY=${CEREBRAS_API_KEY}
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
+      - CARTESIA_API_KEY=${CARTESIA_API_KEY}
+      # Default providers (can be overridden per agent)
+      - DEFAULT_STT_PROVIDER=${DEFAULT_STT_PROVIDER:-deepgram}
+      - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-groq}
+      - DEFAULT_TTS_PROVIDER=${DEFAULT_TTS_PROVIDER:-cartesia}
     networks:
       - voiceai-network
     command: python -m app.services.pipeline_bridge
-    depends_on:
-      ollama:
-        condition: service_healthy
-      piper:
-        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.settimeout(3); s.connect(('127.0.0.1',9093)); s.close()"]
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 30s
+      start_period: 10s
     deploy:
       resources:
         limits:
-          memory: 4G
-          cpus: '4.0'
+          memory: 1G
+          cpus: '2.0'
 
 networks:
   voiceai-network:
@@ -376,6 +323,3 @@ volumes:
   redis-data:
   minio-data:
   asterisk-recordings:
-  ollama-data:
-  piper-data:
-  faster-whisper-cache:

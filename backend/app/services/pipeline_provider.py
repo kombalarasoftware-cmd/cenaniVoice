@@ -1,10 +1,10 @@
 """
 Pipeline call provider implementation.
 
-Implements the CallProvider interface using local AI pipeline:
-  - Faster-Whisper (STT)
-  - Ollama (LLM)
-  - Piper TTS
+Implements the CallProvider interface using cloud AI pipeline:
+  - STT: Deepgram, OpenAI
+  - LLM: Groq, OpenAI, Cerebras
+  - TTS: Cartesia, OpenAI, Deepgram
 
 Uses Asterisk AudioSocket (same as OpenAI provider) but connects
 to pipeline-bridge instead of asterisk-bridge.
@@ -36,49 +36,21 @@ ARI_PORT = settings.ASTERISK_ARI_PORT
 ARI_USERNAME = settings.ASTERISK_ARI_USER
 ARI_PASSWORD = settings.ASTERISK_ARI_PASSWORD
 
-# Pipeline pricing: effectively free (local resources)
-PIPELINE_RATE_PER_MINUTE = 0.00
-
-# Pipeline-specific voices (Piper TTS)
-PIPER_VOICES = {
-    "tr": "tr_TR-dfki-medium",
-    "de": "de_DE-thorsten-medium",
-    "en": "en_US-amy-medium",
-    "fr": "fr_FR-siwis-medium",
-    "es": "es_ES-sharvard-medium",
-    "it": "it_IT-riccardo-x_low",
-}
-
-# Pipeline model mapping
-PIPELINE_MODEL_MAP = {
-    "qwen2.5:7b": "qwen2.5:7b",
-    "qwen2.5:3b": "qwen2.5:3b",
-    "qwen2.5:14b": "qwen2.5:14b",
-    "llama3.1:8b": "llama3.1:8b",
-    "llama3.1:70b": "llama3.1:70b",
-    "mistral:7b": "mistral:7b",
-    "gemma2:9b": "gemma2:9b",
-    # Enum values from RealtimeModel
-    "PIPELINE_QWEN_7B": "qwen2.5:7b",
-    "PIPELINE_LLAMA_8B": "llama3.1:8b",
-    "PIPELINE_MISTRAL_7B": "mistral:7b",
-    "pipeline-qwen-7b": "qwen2.5:7b",
-    "pipeline-llama-8b": "llama3.1:8b",
-    "pipeline-mistral-7b": "mistral:7b",
-}
+# Cloud pipeline pricing (pay-per-use, estimated per minute)
+PIPELINE_RATE_PER_MINUTE = 0.005
 
 
 class PipelineProvider(CallProvider):
     """
-    Call provider using local STT + LLM + TTS pipeline.
+    Call provider using cloud STT + LLM + TTS pipeline.
 
     Uses Asterisk AudioSocket (like OpenAI provider) but routes
     to pipeline-bridge on port 9093 instead of asterisk-bridge on 9092.
 
     Flow:
-    1. Store agent config in Redis (with pipeline-specific settings)
+    1. Store agent config in Redis (with cloud provider settings)
     2. Call Asterisk ARI to originate channel in 'ai-outbound-pipeline' context
-    3. pipeline_bridge.py handles: AudioSocket ↔ Whisper ↔ Ollama ↔ Piper
+    3. pipeline_bridge.py handles: AudioSocket ↔ Cloud STT ↔ Cloud LLM ↔ Cloud TTS
     """
 
     async def initiate_call(
@@ -100,12 +72,6 @@ class PipelineProvider(CallProvider):
         }
 
         if agent:
-            # Resolve pipeline model
-            model_str = str(agent.model_type) if agent.model_type else "pipeline-qwen-7b"
-            if "RealtimeModel." in model_str:
-                model_str = model_str.split(".")[-1]
-            pipeline_model = PIPELINE_MODEL_MAP.get(model_str, "qwen2.5:7b")
-
             # Build prompt from sections (same structure as OpenAI)
             prompt_parts = []
             section_map = [
@@ -143,18 +109,21 @@ class PipelineProvider(CallProvider):
                     custom_variables=variables or {},
                 )
 
-            # Resolve Piper voice (agent-specific or language default)
+            # Resolve language
             language = agent.language or "tr"
-            piper_voice = getattr(agent, "pipeline_voice", "") or ""
-            if not piper_voice:
-                piper_voice = PIPER_VOICES.get(language, PIPER_VOICES["tr"])
+
+            # Resolve cloud pipeline provider settings (per-agent)
+            stt_provider = getattr(agent, "stt_provider", None) or "deepgram"
+            llm_provider = getattr(agent, "llm_provider", None) or "groq"
+            tts_provider = getattr(agent, "tts_provider", None) or "cartesia"
+            stt_model = getattr(agent, "stt_model", None) or ""
+            llm_model = getattr(agent, "llm_model", None) or ""
+            tts_model = getattr(agent, "tts_model", None) or ""
+            tts_voice = getattr(agent, "tts_voice", None) or ""
 
             call_setup_data = {
                 "agent_id": str(agent.id),
                 "agent_name": agent.name or "AI Agent",
-                "voice": piper_voice,
-                "pipeline_voice": piper_voice,
-                "pipeline_model": pipeline_model,
                 "language": language,
                 "prompt": full_prompt,
                 "customer_name": customer_name or "",
@@ -165,6 +134,14 @@ class PipelineProvider(CallProvider):
                 "temperature": agent.temperature or 0.7,
                 "conversation_history": conversation_history,
                 "provider": "pipeline",
+                # Cloud pipeline providers (per-agent)
+                "stt_provider": stt_provider,
+                "llm_provider": llm_provider,
+                "tts_provider": tts_provider,
+                "stt_model": stt_model,
+                "llm_model": llm_model,
+                "tts_model": tts_model,
+                "tts_voice": tts_voice,
             }
 
             if redis_client:
@@ -209,7 +186,7 @@ class PipelineProvider(CallProvider):
                         logger.info(
                             f"Pipeline call initiated: uuid={call_uuid[:8]}, "
                             f"channel={channel_id[:12] if channel_id else 'N/A'}, "
-                            f"to={phone_number}, model={pipeline_model}"
+                            f"to={phone_number}, stt={stt_provider}, llm={llm_provider}, tts={tts_provider}"
                         )
                         return {
                             "call_id": call_uuid,
@@ -283,14 +260,15 @@ class PipelineProvider(CallProvider):
         return None
 
     def calculate_cost(self, duration_seconds: int, **kwargs) -> dict:
-        """Calculate cost — pipeline runs locally, effectively free."""
+        """Calculate cost — cloud pipeline has per-minute API costs."""
         import math
         duration_minutes = math.ceil(duration_seconds / 60)
+        total_cost = round(duration_minutes * PIPELINE_RATE_PER_MINUTE, 4)
         return {
             "provider": "pipeline",
             "duration_seconds": duration_seconds,
             "duration_minutes": duration_minutes,
             "rate_per_minute": PIPELINE_RATE_PER_MINUTE,
-            "total_cost_usd": 0.0,
-            "note": "Local pipeline - no per-minute API cost",
+            "total_cost_usd": total_cost,
+            "note": "Cloud pipeline - estimated cost (STT + LLM + TTS)",
         }

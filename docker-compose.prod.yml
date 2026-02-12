@@ -48,6 +48,13 @@ services:
     volumes: !reset []
     restart: unless-stopped
 
+  # ===========================================
+  # Pipeline Bridge - Production (cloud providers)
+  # ===========================================
+  pipeline-bridge:
+    volumes: !reset []
+    restart: unless-stopped
+
   # ===========================================\n  # MinIO - Production (ports already internal in base)\n  # ===========================================\n  # minio: no overrides needed - base already has no external ports
 
   # ===========================================

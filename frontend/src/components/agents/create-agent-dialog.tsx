@@ -174,39 +174,28 @@ const ultravoxVoices = [
 ];
 
 const pipelineVoices = [
-  // Turkish
-  { id: 'tr_TR-dfki-medium', name: 'Dfki', description: 'TR, Male', gender: 'male' },
-  { id: 'tr_TR-fahrettin-medium', name: 'Fahrettin', description: 'TR, Male', gender: 'male' },
-  { id: 'tr_TR-fettah-medium', name: 'Fettah', description: 'TR, Male', gender: 'male' },
-  // English
-  { id: 'en_US-amy-medium', name: 'Amy', description: 'EN, Female', gender: 'female' },
-  { id: 'en_US-lessac-high', name: 'Lessac HQ', description: 'EN, Male, High Quality', gender: 'male' },
-  { id: 'en_US-ryan-high', name: 'Ryan HQ', description: 'EN, Male, High Quality', gender: 'male' },
-  { id: 'en_US-kristin-medium', name: 'Kristin', description: 'EN, Female', gender: 'female' },
-  { id: 'en_GB-cori-high', name: 'Cori HQ', description: 'EN-GB, Female, High Quality', gender: 'female' },
-  // German
-  { id: 'de_DE-thorsten-medium', name: 'Thorsten', description: 'DE, Male', gender: 'male' },
-  { id: 'de_DE-thorsten-high', name: 'Thorsten HQ', description: 'DE, Male, High Quality', gender: 'male' },
-  { id: 'de_DE-thorsten_emotional-medium', name: 'Thorsten Emotional', description: 'DE, Male, Expressive', gender: 'male' },
-  { id: 'de_DE-eva_k-x_low', name: 'Eva', description: 'DE, Female', gender: 'female' },
-  { id: 'de_DE-kerstin-low', name: 'Kerstin', description: 'DE, Female', gender: 'female' },
-  // French
-  { id: 'fr_FR-siwis-medium', name: 'Siwis', description: 'FR, Female', gender: 'female' },
-  { id: 'fr_FR-tom-medium', name: 'Tom', description: 'FR, Male', gender: 'male' },
-  { id: 'fr_FR-gilles-low', name: 'Gilles', description: 'FR, Male', gender: 'male' },
-  // Spanish
-  { id: 'es_ES-sharvard-medium', name: 'Sharvard', description: 'ES, Male', gender: 'male' },
-  { id: 'es_ES-davefx-medium', name: 'Davefx', description: 'ES, Male', gender: 'male' },
-  { id: 'es_MX-claude-high', name: 'Claude HQ', description: 'ES-MX, Male, High Quality', gender: 'male' },
-  // Italian
-  { id: 'it_IT-riccardo-x_low', name: 'Riccardo', description: 'IT, Male', gender: 'male' },
-  { id: 'it_IT-paola-medium', name: 'Paola', description: 'IT, Female', gender: 'female' },
+  // Cartesia voices (default TTS provider for pipeline)
+  { id: 'katie', name: 'Katie', description: 'EN, Female', gender: 'female' },
+  { id: 'kiefer', name: 'Kiefer', description: 'EN, Male', gender: 'male' },
+  { id: 'tessa', name: 'Tessa', description: 'EN, Female', gender: 'female' },
+  { id: 'kyle', name: 'Kyle', description: 'EN, Male', gender: 'male' },
+  { id: 'sarah', name: 'Sarah', description: 'EN, Female', gender: 'female' },
+  { id: 'turkish-female', name: 'Turkish Female', description: 'TR, Female', gender: 'female' },
+  { id: 'turkish-male', name: 'Turkish Male', description: 'TR, Male', gender: 'male' },
+  { id: 'german-female', name: 'German Female', description: 'DE, Female', gender: 'female' },
+  { id: 'german-male', name: 'German Male', description: 'DE, Male', gender: 'male' },
+  { id: 'french-female', name: 'French Female', description: 'FR, Female', gender: 'female' },
+  { id: 'french-male', name: 'French Male', description: 'FR, Male', gender: 'male' },
+  { id: 'spanish-female', name: 'Spanish Female', description: 'ES, Female', gender: 'female' },
+  { id: 'spanish-male', name: 'Spanish Male', description: 'ES, Male', gender: 'male' },
+  { id: 'italian-female', name: 'Italian Female', description: 'IT, Female', gender: 'female' },
+  { id: 'italian-male', name: 'Italian Male', description: 'IT, Male', gender: 'male' },
 ];
 
 const providers = [
   { id: 'openai', name: 'OpenAI Realtime', description: 'GPT-4o Realtime via Asterisk' },
   { id: 'ultravox', name: 'Ultravox', description: 'Native SIP, $0.05/min' },
-  { id: 'pipeline', name: 'Pipeline (Local)', description: 'Local STT + LLM + TTS, $0/min' },
+  { id: 'pipeline', name: 'Pipeline (Cloud)', description: 'Cloud STT + LLM + TTS' },
 ];
 
 export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps) {
@@ -254,7 +243,12 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
             voice: selectedVoice,
             language: selectedLanguage,
             speech_speed: 1.0,
-            ...(selectedProvider === 'pipeline' ? { pipeline_voice: selectedVoice } : {}),
+            ...(selectedProvider === 'pipeline' ? {
+              pipeline_voice: selectedVoice,
+              stt_provider: 'deepgram',
+              llm_provider: 'groq',
+              tts_provider: 'cartesia',
+            } : {}),
           },
           call_settings: {
             max_duration: 300,
