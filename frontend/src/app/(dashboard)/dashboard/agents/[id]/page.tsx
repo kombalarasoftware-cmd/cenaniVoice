@@ -1626,6 +1626,8 @@ A: Credit card, bank transfer, automatic payment order.
                       {[
                         { var: '{customer_name}', desc: 'Full name' },
                         { var: '{first_name}', desc: 'First name' },
+                        { var: '{addressed_name}', desc: 'Title + name (e.g. Cenani Bey, Mr Cenani)' },
+                        { var: '{customer_title}', desc: 'Localized title (Bey/Hanım, Mr/Mrs)' },
                         { var: '{company}', desc: 'Company' },
                         { var: '{amount}', desc: 'Amount' },
                         { var: '{due_date}', desc: 'Due date' },

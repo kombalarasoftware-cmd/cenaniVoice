@@ -123,6 +123,15 @@ def make_call(self, call_data: dict):
         campaign_id = call_data["campaign_id"]
         customer_data = call_data.get("customer_data", {})
 
+        # Extract customer_title from custom_data if present
+        customer_title = ""
+        if customer_data:
+            for key in ("title", "hitap", "unvan", "cinsiyet", "customer_title"):
+                val = customer_data.get(key) or customer_data.get(key.capitalize())
+                if val and str(val).strip() in ("Mr", "Mrs", "Bey", "Hanım"):
+                    customer_title = "Mr" if str(val).strip() in ("Mr", "Bey") else "Mrs"
+                    break
+
         logger.info(f"Making call {call_id} to {phone_number}")
 
         # Get agent config
@@ -185,7 +194,7 @@ def make_call(self, call_data: dict):
                 phone_number=phone_number,
                 caller_id=phone_number,
                 customer_name=customer_name or "",
-                customer_title="",
+                customer_title=customer_title,
                 conversation_history="",
                 variables={
                     "campaign_id": str(campaign_id),

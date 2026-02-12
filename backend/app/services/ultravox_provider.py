@@ -113,16 +113,17 @@ class UltravoxProvider(CallProvider):
         greeting_text = None
         greeting_message = getattr(agent, "greeting_message", "") or ""
         if greeting_message and first_speaker == "agent":
-            # Process greeting template variables
+            # Process greeting template variables with language-aware titles
             customer_data_dict = {
                 "name": customer_name,
-                "customer_title": customer_title,
+                "customer_title": customer_title,  # Raw "Mr"/"Mrs" — translated by process_greeting
                 "custom_data": (variables or {}).get("customer_data", {}),
             }
             greeting_text = process_greeting(
                 template=greeting_message,
                 customer_data=customer_data_dict,
                 agent_name=getattr(agent, "name", "AI Agent"),
+                language=language,
             )
 
         # SIP routing: Ultravox → direct SIP trunk (bypass Asterisk)

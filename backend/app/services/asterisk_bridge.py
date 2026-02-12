@@ -1116,8 +1116,9 @@ class CallBridge:
                 except Exception as e:
                     logger.error(f"[{self.call_uuid[:8]}] ❌ Agent bilgileri alınamadı: {e}")
             
-            # Customer name from ARI
+            # Customer name and title from ARI
             self.customer_name = channel_vars.get("VOICEAI_CUSTOMER_NAME")
+            self.customer_title = channel_vars.get("VOICEAI_CUSTOMER_TITLE") or self.customer_title
         
         if self.customer_name:
             logger.info(f"[{self.call_uuid[:8]}] 👤 Müşteri ismi: {self.customer_name}")
@@ -1437,18 +1438,15 @@ class CallBridge:
             from app.services.greeting_processor import process_greeting
             greeting_customer_data = {
                 "name": self.customer_name or "",
-                "customer_title": self.customer_title or "",
+                "customer_title": self.customer_title or "",  # Raw "Mr"/"Mrs"
                 "custom_data": self.customer_data,
             }
-            # Also inject title-related variables
-            if self.customer_title:
-                greeting_customer_data["customer_title"] = self._get_localized_title()
-                greeting_customer_data["addressed_name"] = self._get_addressed_name()
 
             greeting = process_greeting(
                 template=self.greeting_message,
                 customer_data=greeting_customer_data,
                 agent_name=self.agent_name,
+                language=self.agent_language or "tr",
             )
             
             greeting_instruction = f"Greet the customer by saying EXACTLY this text: '{greeting}'"
