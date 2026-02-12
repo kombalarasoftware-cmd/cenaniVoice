@@ -574,8 +574,10 @@ class PipelineCallHandler:
         self.writer = writer
         self.session: Optional[PipelineCallSession] = None
         self._running = False
+        self._processing = False  # True while STT/LLM is running
         self._tts_queue: asyncio.Queue = asyncio.Queue()
         self._interrupt_event = asyncio.Event()
+        self._process_task: Optional[asyncio.Task] = None
 
     async def handle(self):
         """Main call handling loop."""
@@ -647,6 +649,13 @@ class PipelineCallHandler:
             logger.error(f"Call handler error: {e}", exc_info=True)
         finally:
             self._running = False
+            # Cancel any in-progress processing task
+            if self._process_task and not self._process_task.done():
+                self._process_task.cancel()
+                try:
+                    await self._process_task
+                except (asyncio.CancelledError, Exception):
+                    pass
             if self.session:
                 logger.info(
                     f"[{self.session.call_uuid[:8]}] Call ended. "
@@ -737,20 +746,22 @@ class PipelineCallHandler:
                     self.reader.read(payload_len), timeout=5.0
                 )
 
-                # If AI is currently speaking, check for interruption
-                if self.session.ai_speaking:
-                    energy = rms_energy(audio_data)
-                    if energy > VAD_ENERGY_THRESHOLD * 1.5:
-                        # User is trying to speak while AI talks → interrupt
-                        self._interrupt_event.set()
-                        self.session.ai_speaking = False
-                        # Clear TTS queue
-                        while not self._tts_queue.empty():
-                            try:
-                                self._tts_queue.get_nowait()
-                            except asyncio.QueueEmpty:
-                                break
-                    continue  # Don't collect audio while AI speaks
+                # If AI is speaking or processing STT/LLM, keep reading
+                # but don't collect for VAD (keeps TCP connection alive)
+                if self.session.ai_speaking or self._processing:
+                    if self.session.ai_speaking:
+                        energy = rms_energy(audio_data)
+                        if energy > VAD_ENERGY_THRESHOLD * 2.0:
+                            # User is trying to speak while AI talks → interrupt
+                            self._interrupt_event.set()
+                            self.session.ai_speaking = False
+                            # Clear TTS queue
+                            while not self._tts_queue.empty():
+                                try:
+                                    self._tts_queue.get_nowait()
+                                except asyncio.QueueEmpty:
+                                    break
+                    continue  # Don't collect audio while AI speaks/processing
 
                 # VAD: check energy level
                 energy = rms_energy(audio_data)
@@ -780,8 +791,12 @@ class PipelineCallHandler:
                                 f"[{self.session.call_uuid[:8]}] Speech end: "
                                 f"{speech_duration_ms:.0f}ms, {len(speech_buffer)} bytes"
                             )
-                            # Process utterance
-                            await self._process_utterance(bytes(speech_buffer))
+                            # Process utterance as concurrent task
+                            # This keeps audio loop alive (prevents broken pipe)
+                            self._processing = True
+                            self._process_task = asyncio.create_task(
+                                self._process_utterance_wrapper(bytes(speech_buffer))
+                            )
 
                         is_speaking = False
                         speech_buffer = bytearray()
@@ -794,6 +809,15 @@ class PipelineCallHandler:
                 logger.info(f"[{self.session.call_uuid[:8]}] Connection lost")
                 break
 
+    async def _process_utterance_wrapper(self, audio_data: bytes):
+        """Wrapper that ensures _processing flag is reset after processing."""
+        try:
+            await self._process_utterance(audio_data)
+        except Exception as e:
+            logger.error(f"[{self.session.call_uuid[:8]}] Utterance wrapper error: {e}", exc_info=True)
+        finally:
+            self._processing = False
+
     async def _process_utterance(self, audio_data: bytes):
         """Process a complete utterance: STT → LLM → TTS."""
         try:
@@ -805,8 +829,8 @@ class PipelineCallHandler:
             text = await transcribe_audio(audio_16k, self.session.language)
             stt_time = (time.monotonic() - t0) * 1000
 
-            if not text or len(text.strip()) < 2:
-                logger.debug(f"[{self.session.call_uuid[:8]}] Empty transcription, skipping")
+            if not text or len(text.strip()) < 3:
+                logger.debug(f"[{self.session.call_uuid[:8]}] Too short transcription: '{text}', skipping")
                 return
 
             logger.info(f"[{self.session.call_uuid[:8]}] STT ({stt_time:.0f}ms): {text}")
