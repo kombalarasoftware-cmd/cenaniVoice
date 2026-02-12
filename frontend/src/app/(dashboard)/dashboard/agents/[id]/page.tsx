@@ -776,11 +776,11 @@ export default function AgentEditorPage() {
   ];
 
   const xaiVoices = [
-    { id: 'Ara', name: 'Ara ⭐', gender: 'female', description: 'Default female' },
-    { id: 'Rex', name: 'Rex', gender: 'male', description: 'Male voice' },
-    { id: 'Sal', name: 'Sal', gender: 'female', description: 'Neutral voice' },
-    { id: 'Eve', name: 'Eve', gender: 'female', description: 'Female voice' },
-    { id: 'Leo', name: 'Leo', gender: 'male', description: 'Male voice' },
+    { id: 'Ara', name: 'Ara ⭐', gender: 'female', description: 'Warm, friendly - Default' },
+    { id: 'Rex', name: 'Rex', gender: 'male', description: 'Confident, clear' },
+    { id: 'Sal', name: 'Sal', gender: 'neutral', description: 'Smooth, balanced - Neutral' },
+    { id: 'Eve', name: 'Eve', gender: 'female', description: 'Energetic, upbeat' },
+    { id: 'Leo', name: 'Leo', gender: 'male', description: 'Authoritative, strong' },
   ];
 
   const ultravoxVoices = [

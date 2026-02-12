@@ -132,6 +132,8 @@ credentials/
 secrets.json
 credentials.json
 service-account*.json
+geminiproje*.json
+*-fffed*.json
 
 # ============ Docker ============
 docker-compose.override.yml

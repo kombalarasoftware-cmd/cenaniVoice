@@ -11,6 +11,7 @@ from dataclasses import dataclass
 class VoiceGender(str, Enum):
     MALE = "male"
     FEMALE = "female"
+    NEUTRAL = "neutral"
 
 
 @dataclass
@@ -149,11 +150,11 @@ ULTRAVOX_VALID_VOICES = {v.id for v in ULTRAVOX_VOICES}
 # Source: https://docs.x.ai/developers/model-capabilities/audio/voice-agent
 # =============================================================================
 XAI_VOICES: List[VoiceDefinition] = [
-    VoiceDefinition("Ara", "Ara", VoiceGender.FEMALE, "Default female voice", "xai", recommended=True),
-    VoiceDefinition("Rex", "Rex", VoiceGender.MALE, "Male voice", "xai"),
-    VoiceDefinition("Sal", "Sal", VoiceGender.FEMALE, "Neutral voice", "xai"),
-    VoiceDefinition("Eve", "Eve", VoiceGender.FEMALE, "Female voice", "xai"),
-    VoiceDefinition("Leo", "Leo", VoiceGender.MALE, "Male voice", "xai"),
+    VoiceDefinition("Ara", "Ara", VoiceGender.FEMALE, "Warm, friendly - Default", "xai", recommended=True),
+    VoiceDefinition("Rex", "Rex", VoiceGender.MALE, "Confident, clear", "xai"),
+    VoiceDefinition("Sal", "Sal", VoiceGender.NEUTRAL, "Smooth, balanced - Neutral", "xai"),
+    VoiceDefinition("Eve", "Eve", VoiceGender.FEMALE, "Energetic, upbeat", "xai"),
+    VoiceDefinition("Leo", "Leo", VoiceGender.MALE, "Authoritative, strong", "xai"),
 ]
 
 XAI_VALID_VOICES = {v.id for v in XAI_VOICES}

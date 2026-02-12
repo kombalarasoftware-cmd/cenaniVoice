@@ -97,11 +97,11 @@ const openaiVoices = [
 ];
 
 const xaiVoices = [
-  { id: 'Ara', name: 'Ara ⭐', description: 'Default female', gender: 'female' },
-  { id: 'Rex', name: 'Rex', description: 'Male voice', gender: 'male' },
-  { id: 'Sal', name: 'Sal', description: 'Neutral voice', gender: 'female' },
-  { id: 'Eve', name: 'Eve', description: 'Female voice', gender: 'female' },
-  { id: 'Leo', name: 'Leo', description: 'Male voice', gender: 'male' },
+  { id: 'Ara', name: 'Ara ⭐', description: 'Warm, friendly - Default', gender: 'female' },
+  { id: 'Rex', name: 'Rex', description: 'Confident, clear', gender: 'male' },
+  { id: 'Sal', name: 'Sal', description: 'Smooth, balanced - Neutral', gender: 'neutral' },
+  { id: 'Eve', name: 'Eve', description: 'Energetic, upbeat', gender: 'female' },
+  { id: 'Leo', name: 'Leo', description: 'Authoritative, strong', gender: 'male' },
 ];
 
 const ultravoxVoices = [
