@@ -27,7 +27,9 @@
       "Bash(gh label create:*)",
       "WebSearch",
       "WebFetch(domain:code.visualstudio.com)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npm bin:*)",
+      "Bash(npm prefix:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

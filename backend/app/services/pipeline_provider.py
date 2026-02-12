@@ -119,7 +119,7 @@ class PipelineProvider(CallProvider):
             stt_model = getattr(agent, "stt_model", None) or ""
             llm_model = getattr(agent, "llm_model", None) or ""
             tts_model = getattr(agent, "tts_model", None) or ""
-            tts_voice = getattr(agent, "tts_voice", None) or ""
+            tts_voice = getattr(agent, "tts_voice", None) or getattr(agent, "pipeline_voice", None) or getattr(agent, "voice", None) or ""
 
             call_setup_data = {
                 "agent_id": str(agent.id),

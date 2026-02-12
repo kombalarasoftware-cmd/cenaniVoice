@@ -648,7 +648,7 @@ export default function AgentEditorPage() {
         setSttModel(data.stt_model || '');
         setLlmModel(data.llm_model || '');
         setTtsModel(data.tts_model || '');
-        setTtsVoice(data.tts_voice || '');
+        setTtsVoice(data.tts_voice || data.pipeline_voice || data.voice || '');
 
         setMaxDuration(data.max_duration ?? 300);
         setSilenceTimeout(data.silence_timeout ?? 10);
@@ -1144,7 +1144,7 @@ export default function AgentEditorPage() {
               stt_model: sttModel,
               llm_model: llmModel,
               tts_model: ttsModel,
-              tts_voice: ttsVoice,
+              tts_voice: ttsVoice || selectedVoice,
             } : {}),
           },
           call_settings: {
@@ -2817,9 +2817,9 @@ A: Credit card, bank transfer, automatic payment order.
                           const newTts = e.target.value;
                           setTtsProvider(newTts);
                           // Reset voice when TTS provider changes
-                          if (newTts === 'cartesia') setSelectedVoice('katie');
-                          else if (newTts === 'openai') setSelectedVoice('nova');
-                          else if (newTts === 'deepgram') setSelectedVoice('aura-2-thalia-en');
+                          if (newTts === 'cartesia') { setSelectedVoice('katie'); setTtsVoice('katie'); }
+                          else if (newTts === 'openai') { setSelectedVoice('nova'); setTtsVoice('nova'); }
+                          else if (newTts === 'deepgram') { setSelectedVoice('aura-2-thalia-en'); setTtsVoice('aura-2-thalia-en'); }
                           setHasChanges(true);
                         }}
                         className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -2860,7 +2860,7 @@ A: Credit card, bank transfer, automatic payment order.
                     </div>
                     <select
                       value={selectedVoice}
-                      onChange={(e) => { setSelectedVoice(e.target.value); setHasChanges(true); }}
+                      onChange={(e) => { setSelectedVoice(e.target.value); if (selectedProvider === 'pipeline') setTtsVoice(e.target.value); setHasChanges(true); }}
                       className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
                     >
                       {voices.map((voice) => (
@@ -3256,6 +3256,15 @@ A: Credit card, bank transfer, automatic payment order.
               <div className="h-full">
                 <LiveConsole
                   agentId={agentId}
+                  providerInfo={{
+                    provider: selectedProvider,
+                    sttProvider: sttProvider,
+                    llmProvider: llmProvider,
+                    ttsProvider: ttsProvider,
+                    llmModel: llmModel,
+                    voice: selectedVoice,
+                    model: selectedModel,
+                  }}
                   onClose={() => setActiveTab('prompt')}
                   className="h-full"
                 />

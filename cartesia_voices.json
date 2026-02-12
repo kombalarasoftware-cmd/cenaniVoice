@@ -1,0 +1,3680 @@
+{
+  "en": [
+    {
+      "id": "146485fd-8736-41c7-88a8-7cdd0da34d84",
+      "name": "Tim - Pal",
+      "gender": "masculine",
+      "description": "Nasal-y male for casual conversations"
+    },
+    {
+      "id": "af346552-54bf-4c2b-a4d4-9d2820f51b6c",
+      "name": "Valerie - Support Authority",
+      "gender": "feminine",
+      "description": "Authoritative mature female for frontline customer support use cases"
+    },
+    {
+      "id": "ed81fd13-2016-4a49-8fe3-c0d2761695fc",
+      "name": "Zack - Sportsman",
+      "gender": "masculine",
+      "description": "Firm, energetic male for lively announcing"
+    },
+    {
+      "id": "fb26447f-308b-471e-8b00-8e9f04284eb5",
+      "name": "Thistle - Troublemaker",
+      "gender": "gender_neutral",
+      "description": "Cheery, expressive gender neutral character for whimsical personas in entertainment content"
+    },
+    {
+      "id": "726d5ae5-055f-4c3d-8355-d9677de68937",
+      "name": "Troy - Fix It Man",
+      "gender": "masculine",
+      "description": "Strong, dependable male voice designed for trust-building in customer-facing interactions"
+    },
+    {
+      "id": "c99d36f3-5ffd-4253-803a-535c1bc9c306",
+      "name": "Griffin - Narrator",
+      "gender": "masculine",
+      "description": "Elderly male for narrations"
+    },
+    {
+      "id": "00967b2f-88a6-4a31-8153-110a92134b9f",
+      "name": "Asher - Podcaster",
+      "gender": "masculine",
+      "description": "Firm adult male for audiobooks and clear communication"
+    },
+    {
+      "id": "f4e8781b-a420-4080-81cf-576331238efa",
+      "name": "Samantha - Support Leader",
+      "gender": "feminine",
+      "description": "Firm, confident adult female for conversational support"
+    },
+    {
+      "id": "bbee10a8-4f08-4c5c-8282-e69299115055",
+      "name": "Ben - Helpful Man",
+      "gender": "masculine",
+      "description": "slightly raspy voiced middle aged man for friendly and natural conversational support"
+    },
+    {
+      "id": "5c43e078-5ba4-4e1f-9639-8d85a403f76a",
+      "name": "Carson - Scared Friendly Support",
+      "gender": "masculine",
+      "description": "Friendly young adult male for customer support conversations"
+    },
+    {
+      "id": "6adbb439-0865-468c-9e68-adbb0eb2e71c",
+      "name": "Sally - Soft Spoken Guide",
+      "gender": "feminine",
+      "description": "Gentle female for calm conversations"
+    },
+    {
+      "id": "a38e4e85-e815-43ab-acf1-907c4688dd6c",
+      "name": "Lindsey - Relaxed Rep",
+      "gender": "feminine",
+      "description": "Happy adult female with a laidback affect for casual conversations and customer support"
+    },
+    {
+      "id": "96c64eb5-a945-448f-9710-980abe7a514c",
+      "name": "Carson - Friendly Support",
+      "gender": "masculine",
+      "description": "Friendly, young adult male for customer support conversations"
+    },
+    {
+      "id": "97f4b8fb-f2fe-444b-bb9a-c109783a857a",
+      "name": "Nathan - Easy Talker",
+      "gender": "masculine",
+      "description": "Confident, firm young adult male with a slight edge for conversational use cases"
+    },
+    {
+      "id": "d3e03deb-5439-4203-add1-ca9a7501eaa7",
+      "name": "Samantha - Yelling Support Leader",
+      "gender": "feminine",
+      "description": "Firm, confident adult female for conversational support"
+    },
+    {
+      "id": "a01c369f-6d2d-4185-bc20-b32c225eab70",
+      "name": "Fiona - Witty Woman",
+      "gender": "feminine",
+      "description": "Chirpy and energetic British female voice with a bright tone, great for lively and engaging conversations"
+    },
+    {
+      "id": "3e1ed423-17e5-4773-b87c-25b031106e41",
+      "name": "Paul - Straight Talker",
+      "gender": "masculine",
+      "description": "Deep and firm male voice with a relaxed, conversational delivery"
+    },
+    {
+      "id": "40104aff-a015-4da1-9912-af950fbec99e",
+      "name": "Travis - How To Guide",
+      "gender": "masculine",
+      "description": "Firm, young male for instructional videos and customer support"
+    },
+    {
+      "id": "7ea5e9c2-b719-4dc3-b870-5ba5f14d31d8",
+      "name": "Janvi - Steady Agent",
+      "gender": "feminine",
+      "description": "Calm and neutral female voice with a slow, steady delivery, ideal for customer support scenarios"
+    },
+    {
+      "id": "1d3ba41a-96e6-44ad-aabb-9817c56caa68",
+      "name": "Mia - Agent",
+      "gender": "feminine",
+      "description": "Firm, young female for customer support and casual, natural conversation"
+    },
+    {
+      "id": "00a77add-48d5-4ef6-8157-71e5437b282d",
+      "name": "Callie - Encourager",
+      "gender": "feminine",
+      "description": "Smooth, young adult female for empathetic conversation"
+    },
+    {
+      "id": "41534e16-2966-4c6b-9670-111411def906",
+      "name": "Clarence - Newsman",
+      "gender": "masculine",
+      "description": "Firm, deep male with old time radio like acoustics for 20th century historical reenactments"
+    },
+    {
+      "id": "7fe6faca-172f-4fd9-a193-25642b8fdb07",
+      "name": "Victor - Voiceover Man",
+      "gender": "masculine",
+      "description": "Versatile, engaging adult male for professional use cases, narrations, and voiceovers"
+    },
+    {
+      "id": "7cf0e2b1-8daf-4fe4-89ad-f6039398f359",
+      "name": "Benedict - Royal Narrator",
+      "gender": "masculine",
+      "description": "Confident, firm male for narrations"
+    },
+    {
+      "id": "2a4d065a-ac91-4203-a015-eb3fc3ee3365",
+      "name": "Wes - Customer Companion",
+      "gender": "masculine",
+      "description": "Kind male for engaging with customers"
+    },
+    {
+      "id": "996a8b96-4804-46f0-8e05-3fd4ef1a87cd",
+      "name": "Darla - Resolution Agent",
+      "gender": "feminine",
+      "description": "Firm and confident female voice with a calm, supportive tone - ideal for customer support roles"
+    },
+    {
+      "id": "8d110413-2f14-44a2-8203-2104db4340e9",
+      "name": "Darren - Friendly Barritone",
+      "gender": "masculine",
+      "description": "Deep, friendly adult male for happy voiceovers"
+    },
+    {
+      "id": "f6141af3-5f94-418c-80ed-a45d450e7e2e",
+      "name": "Priya - Trusted Operator",
+      "gender": "feminine",
+      "description": "Authoritative, adult female for customer support"
+    },
+    {
+      "id": "bf991597-6c13-47e4-8411-91ec2de5c466",
+      "name": "Carol - Task Coach",
+      "gender": "feminine",
+      "description": "Authortative, mature female for giving instructions"
+    },
+    {
+      "id": "cccc21e8-5bcf-4ff0-bc7f-be4e40afc544",
+      "name": "Avery - Gaming Girl",
+      "gender": "feminine",
+      "description": "High pitched, energetic young female for animated characters and gaming and entertainment use cases"
+    },
+    {
+      "id": "e3827ec5-697a-4b7c-9704-1a23041bbc51",
+      "name": "Dottie - Sweet Gal",
+      "gender": "feminine",
+      "description": "High pitched, earnest, very young female for character narrations for children"
+    },
+    {
+      "id": "d46abd1d-2d02-43e8-819f-51fb652c1c61",
+      "name": "Grant - Friendly Support",
+      "gender": "masculine",
+      "description": "Reliable, clear male voice with neutral American accent for customer support interactions"
+    },
+    {
+      "id": "7360f116-6306-4e9a-b487-1235f35a0f21",
+      "name": "Marty - Commercial King",
+      "gender": "masculine",
+      "description": "Bold and enthusiastic male voice suited for energetic, attention-grabbing ads"
+    },
+    {
+      "id": "50d6beb4-80ea-4802-8387-6c948fe84208",
+      "name": "Alfred - Cheeky Person",
+      "gender": "masculine",
+      "description": "Playful, elderly male for media and entertainment"
+    },
+    {
+      "id": "1259b7e3-cb8a-43df-9446-30971a46b8b0",
+      "name": "Devansh - Warm Support Agent",
+      "gender": "masculine",
+      "description": "Warm, conversational Indian male adult voice for casual chats, everyday interactions, and friendly user engagement"
+    },
+    {
+      "id": "87748186-23bb-4158-a1eb-332911b0b708",
+      "name": "Alaric - Wizard",
+      "gender": "masculine",
+      "description": "Wistful, wise, elderly male for entertainment and fun characters"
+    },
+    {
+      "id": "ec58877e-44ae-4581-9078-a04225d42bd4",
+      "name": "Charles - Heroic Man",
+      "gender": "masculine",
+      "description": "Very deep, adult male for characters that embody strength and determination"
+    },
+    {
+      "id": "da4a4eff-3b7e-4846-8f70-f075ff61222c",
+      "name": "Callum - Brand Spokesperson",
+      "gender": "masculine",
+      "description": "Neutral, confident young adult male fit for voiceovers and customer interactions"
+    },
+    {
+      "id": "57dcab65-68ac-45a6-8480-6c4c52ec1cd1",
+      "name": "Kira - Trusted Confidant",
+      "gender": "feminine",
+      "description": "Emotive, young adult female for empathetic conversations"
+    },
+    {
+      "id": "761afc95-bef5-44dd-aa07-d3c678912e43",
+      "name": "Samantha - Happy Support Leader",
+      "gender": "feminine",
+      "description": "Firm, confident adult female for conversational support"
+    },
+    {
+      "id": "87bc56aa-ab01-4baa-9071-77d497064686",
+      "name": "Jordan - Chill Pal",
+      "gender": "masculine",
+      "description": "Welcoming adult male for engaging conversations"
+    },
+    {
+      "id": "5abd2130-146a-41b1-bcdb-974ea8e19f56",
+      "name": "Jo - Go to Gal",
+      "gender": "feminine",
+      "description": "Young adult female for casual conversations"
+    },
+    {
+      "id": "03496517-369a-4db1-8236-3d3ae459ddf7",
+      "name": "Calypso - ASMR Lady",
+      "gender": "feminine",
+      "description": "Soothing female for meditations and other calming use cases"
+    },
+    {
+      "id": "ab109683-f31f-40d7-b264-9ec3e26fb85e",
+      "name": "Russell - Mentor",
+      "gender": "masculine",
+      "description": "Friendly, deep mature adult male for providing instructions and guidance"
+    },
+    {
+      "id": "5c42302c-194b-4d0c-ba1a-8cb485c84ab9",
+      "name": "Mary - Nurse",
+      "gender": "feminine",
+      "description": "Mature adult female for instructional videos and empathetic conversations"
+    },
+    {
+      "id": "a167e0f3-df7e-4d52-a9c3-f949145efdab",
+      "name": "Blake - Helpful Agent",
+      "gender": "masculine",
+      "description": "Energetic adult male for engaging customer support"
+    },
+    {
+      "id": "f6ff7c0c-e396-40a9-a70b-f7607edb6937",
+      "name": "Emma - Customer Care Line",
+      "gender": "feminine",
+      "description": "Casual adult female for natural conversations and customer support"
+    },
+    {
+      "id": "0b32066b-2bcc-44b9-89ab-0223a09d1606",
+      "name": "Carson - Angry Friendly Support",
+      "gender": "masculine",
+      "description": "Friendly young adult male for customer support conversations"
+    },
+    {
+      "id": "3246e36c-ac8c-418d-83cd-4eaad5a3b887",
+      "name": "Carson - Sad Friendly Support",
+      "gender": "masculine",
+      "description": "Friendly young adult male for customer support conversations"
+    },
+    {
+      "id": "04bfd756-4fd4-42c2-9ccf-37f647c5bf54",
+      "name": "Samantha - Angry Support Leader",
+      "gender": "feminine",
+      "description": "Firm, confident adult female for conversational support"
+    },
+    {
+      "id": "607167f6-9bf2-473c-accc-ac7b3b66b30b",
+      "name": "Brenda - Host",
+      "gender": "feminine",
+      "description": "Cheerful, friendly female voice that creates a positive, helpful experience for customer interactions"
+    },
+    {
+      "id": "4af7c703-f2a9-45dd-a7fd-724cf7efc371",
+      "name": "Lila - Meditation Guide",
+      "gender": "feminine",
+      "description": "Melodic female for gentle and empathetic conversations"
+    },
+    {
+      "id": "39b376fc-488e-4d0c-8b37-e00b72059fdd",
+      "name": "Sheldon - Help Desk Man",
+      "gender": "masculine",
+      "description": "Enunciating male for customer support use cases"
+    },
+    {
+      "id": "bf0a246a-8642-498a-9950-80c35e9276b5",
+      "name": "Sophie - Teacher",
+      "gender": "feminine",
+      "description": "Mature female for natural conversations"
+    },
+    {
+      "id": "64462aed-aafc-45d4-84cd-ecb4b3763a0a",
+      "name": "Shawn - Ad Reader",
+      "gender": "masculine",
+      "description": "Upbeat male for commercials, announcements, and promotions"
+    },
+    {
+      "id": "3b554273-4299-48b9-9aaf-eefd438e3941",
+      "name": "Simi - Support Specialist",
+      "gender": "feminine",
+      "description": "Firm, young accented female for customer support use cases"
+    },
+    {
+      "id": "638efaaa-4d0c-442e-b701-3fae16aad012",
+      "name": "Sameer - Problem Solver",
+      "gender": "masculine",
+      "description": "Friendly male for customer support use cases"
+    },
+    {
+      "id": "c45bc5ec-dc68-4feb-8829-6e6b2748095d",
+      "name": "Trevor - Movieman",
+      "gender": "masculine",
+      "description": "Deep, elderly male for narrations and entertainment use cases"
+    },
+    {
+      "id": "36b42fcb-60c5-4bec-b077-cb1a00a92ec6",
+      "name": "Gordon - Pilot",
+      "gender": "masculine",
+      "description": "Male, simulating the acoustics over an intercom, for entertainment use cases"
+    },
+    {
+      "id": "8f091740-3df1-4795-8bd9-dc62d88e5131",
+      "name": "Aurora - Fairy Princess",
+      "gender": "feminine",
+      "description": "Fairy like female for character use cases in entertainment"
+    },
+    {
+      "id": "d7862948-75c3-4c7c-ae28-2959fe166f49",
+      "name": "Caspian - Oracle",
+      "gender": "masculine",
+      "description": "Echo-y, mystical male for characters with gravitas"
+    },
+    {
+      "id": "586b6832-1ca1-43ad-b974-527dc13c2532",
+      "name": "Dorian - Director",
+      "gender": "masculine",
+      "description": "Welcoming male for providing instructions and guidance"
+    },
+    {
+      "id": "694f9389-aac1-45b6-b726-9d9369183238",
+      "name": "Sarah - Mindful Woman",
+      "gender": "feminine",
+      "description": "Soothing female for meditations and calming conversations"
+    },
+    {
+      "id": "729651dc-c6c3-4ee5-97fa-350da1f88600",
+      "name": "Jake - Sidekick",
+      "gender": "masculine",
+      "description": "Friendly, young adult male for welcoming and engaging conversations"
+    },
+    {
+      "id": "820a3788-2b37-4d21-847a-b65d8a68c99a",
+      "name": "Tyler - Friendly Salesman",
+      "gender": "masculine",
+      "description": "Direct and confidence inspiring adult male for sales and friendly interpersonal conversations"
+    },
+    {
+      "id": "c9440d34-5641-427b-bbb7-80ef7462576d",
+      "name": "Joan - Messenger",
+      "gender": "feminine",
+      "description": "Young adult female for casual conversations"
+    },
+    {
+      "id": "91b4cf29-5166-44eb-8054-30d40ecc8081",
+      "name": "Tina - Customer Ally",
+      "gender": "feminine",
+      "description": "Natural, firm adult female for authentic conversation and customer support"
+    },
+    {
+      "id": "98a34ef2-2140-4c28-9c71-663dc4dd7022",
+      "name": "Clyde - Calm Narrator",
+      "gender": "masculine",
+      "description": "Gentle, measured male voice with warmth and clarity for storytelling and informative reads"
+    },
+    {
+      "id": "a0e99841-438c-4a64-b679-ae501e7d6091",
+      "name": "Greg - Supporter",
+      "gender": "masculine",
+      "description": "Neutral, deep male for conversational support"
+    },
+    {
+      "id": "a8136a0c-9642-497a-882d-8d591bdcb2fa",
+      "name": "Diane - Service Assistant",
+      "gender": "feminine",
+      "description": "Firm, mature adult female for customer support use cases"
+    },
+    {
+      "id": "ee7ea9f8-c0c1-498c-9279-764d6b56d189",
+      "name": "Oliver - Customer Chap",
+      "gender": "masculine",
+      "description": "Polite, young adult male for customer facing use cases"
+    },
+    {
+      "id": "1fc31370-81b1-4588-9c1a-f93793c6e01d",
+      "name": "Carlo - Roman Guide",
+      "gender": "masculine",
+      "description": "Inviting, young accented male for tourism use cases"
+    },
+    {
+      "id": "8985388c-1332-4ce7-8d55-789628aa3df4",
+      "name": "Robyn - Storycrafter",
+      "gender": "feminine",
+      "description": "Neutral, mature female for narrations"
+    },
+    {
+      "id": "71a7ad14-091c-4e8e-a314-022ece01c121",
+      "name": "Charlotte - Heiress",
+      "gender": "feminine",
+      "description": "Elegant, young adult female for narrations"
+    },
+    {
+      "id": "f31cc6a7-c1e8-4764-980c-60a361443dd1",
+      "name": "Olivia - Sunny Woman",
+      "gender": "feminine",
+      "description": "Friendly, happy adult female for engaging conversations"
+    },
+    {
+      "id": "0c8ed86e-6c64-40f0-b252-b773911de6bb",
+      "name": "Doris - Friend",
+      "gender": "feminine",
+      "description": "Warm and relatable female voice suited for casual, natural conversations"
+    },
+    {
+      "id": "11af83e2-23eb-452f-956e-7fee218ccb5c",
+      "name": "Ruth - Manager",
+      "gender": "feminine",
+      "description": "Firm, authoritative female for providing guidance"
+    },
+    {
+      "id": "3dcaa773-fb1a-47f7-82a4-1bf756c4e1fb",
+      "name": "Harry - Service Advisor",
+      "gender": "masculine",
+      "description": "Seasoned male for friendly conversation and customer support"
+    },
+    {
+      "id": "63ff761f-c1e8-414b-b969-d1833d1c870c",
+      "name": "Malcom - Talk Show Host",
+      "gender": "masculine",
+      "description": "Lively and experienced male voice ideal for natural, engaging conversations"
+    },
+    {
+      "id": "156fb8d2-335b-4950-9cb3-a2d33befec77",
+      "name": "Sunny - Pep Talker",
+      "gender": "feminine",
+      "description": "Upbeat female for engaging conversations"
+    },
+    {
+      "id": "565510e8-6b45-45de-8758-13588fbaec73",
+      "name": "Ray - Conversationalist",
+      "gender": "masculine",
+      "description": "Approachable male voice with a laid-back, natural delivery for everyday conversations"
+    },
+    {
+      "id": "56b87df1-594d-4135-992c-1112bb504c59",
+      "name": "Lexi - Fun Friend",
+      "gender": "feminine",
+      "description": "Cheery, young female for entertainment, media, and gaming use cases"
+    },
+    {
+      "id": "c8605446-247c-4d39-acd4-8f4c28aa363c",
+      "name": "Edith - Matriarch",
+      "gender": "feminine",
+      "description": "Elderly, confident female for narrations and wise characters"
+    },
+    {
+      "id": "f114a467-c40a-4db8-964d-aaba89cd08fa",
+      "name": "Miles - Yogi",
+      "gender": "masculine",
+      "description": "Deep, soothing mature male for providing guidance"
+    },
+    {
+      "id": "daf747c6-6bc2-4083-bd59-aa94dce23f5d",
+      "name": "Yasmin - Dialogue Anchor",
+      "gender": "feminine",
+      "description": "Firm adult female for conversational use cases"
+    },
+    {
+      "id": "248be419-c632-4f23-adf1-5324ed7dbf1d",
+      "name": "Elizabeth - Manager",
+      "gender": "feminine",
+      "description": "Enunicating young female for providing guidance and instructions"
+    },
+    {
+      "id": "bd9120b6-7761-47a6-a446-77ca49132781",
+      "name": "Owen - Tutorial Man",
+      "gender": "masculine",
+      "description": "Elevated, mature adult male for providing guidance and instruction"
+    },
+    {
+      "id": "66f5935b-af2e-4ec9-bb3e-59112e9ddc93",
+      "name": "Carson - Surprised Friendly Support",
+      "gender": "masculine",
+      "description": "Friendly young adult male for customer support conversations"
+    },
+    {
+      "id": "f9fc912e-52f0-448a-8bfa-47e9ca75f25a",
+      "name": "Marilyn - Explainer",
+      "gender": "feminine",
+      "description": "smooth and supportive young adult woman great for natural conversations and explaining"
+    },
+    {
+      "id": "2747b6cf-fa34-460c-97db-267566918881",
+      "name": "Allie - Natural Conversationalist",
+      "gender": "feminine",
+      "description": "Confident, approachable young adult woman for natural conversational support"
+    },
+    {
+      "id": "4df027cb-2920-4a1f-8c34-f21529d5c3fe",
+      "name": "Carson - Friendly Support",
+      "gender": "masculine",
+      "description": "Friendly, young adult male for customer support conversations"
+    },
+    {
+      "id": "5c9e800f-2a92-4720-969b-99c4ab8fbc87",
+      "name": "Ellen - Welcome Agent",
+      "gender": "feminine",
+      "description": "Authentic female voice with balanced warmth and clarity for both casual and support-driven contexts"
+    },
+    {
+      "id": "6a176356-ada1-4b48-b2ae-3a3fdd485680",
+      "name": "Elias - Night Warden",
+      "gender": "masculine",
+      "description": "Deep male for entertainment and gaming characters"
+    },
+    {
+      "id": "e00d0e4c-a5c8-443f-a8a3-473eb9a62355",
+      "name": "Zeke - Friendly Sidekick",
+      "gender": "masculine",
+      "description": "High pitched, friendly, young adult male for gaming and entertainment characters"
+    },
+    {
+      "id": "bfd3644b-d561-4b1c-a01f-d9af98cb67c0",
+      "name": "Matt - Goofy Friend",
+      "gender": "masculine",
+      "description": "High pitched, silly male for fun characters and entertainment use cases"
+    },
+    {
+      "id": "5e10a334-7fa5-46d4-a64b-5ae6185da3fd",
+      "name": "Samantha - Sad Support Leader",
+      "gender": "feminine",
+      "description": "Firm, confident adult female for conversational support"
+    },
+    {
+      "id": "e13cae5c-ec59-4f71-b0a6-266df3c9bb8e",
+      "name": "Lulu - Madame Mischief",
+      "gender": "feminine",
+      "description": "Squeaky, young female for media and entertainment for kids"
+    },
+    {
+      "id": "15a9cd88-84b0-4a8b-95f2-5d583b54c72e",
+      "name": "Claire - Storyteller",
+      "gender": "feminine",
+      "description": "Soothing, neutral female for narrations"
+    },
+    {
+      "id": "573e3144-a684-4e72-ac2b-9b2063a50b53",
+      "name": "Sylvia - Librarian",
+      "gender": "feminine",
+      "description": "Firm female for instructions and guidance"
+    },
+    {
+      "id": "c2ac25f9-ecc4-4f56-9095-651354df60c0",
+      "name": "Renee - Commander",
+      "gender": "feminine",
+      "description": "Firm adult female fit for broadcasts and narrations"
+    },
+    {
+      "id": "34575e71-908f-4ab6-ab54-b08c95d6597d",
+      "name": "Joey - Neighborhood Guy",
+      "gender": "masculine",
+      "description": "Casual, friendly male for natural conversations"
+    },
+    {
+      "id": "55deba52-bc73-4481-ab69-9c8831c8a7c3",
+      "name": "Camille - Friendly Expert",
+      "gender": "feminine",
+      "description": "Calm, neutral female for customer support and instructional videos"
+    },
+    {
+      "id": "21b81c14-f85b-436d-aff5-43f2e788ecf8",
+      "name": "Riley - Chill Friend",
+      "gender": "feminine",
+      "description": "Casual, young female for authentic and everyday conversations"
+    },
+    {
+      "id": "236bb1fb-dc41-4a2b-84d6-d22d2a2aaae1",
+      "name": "Franklin - Old Time Radio Host",
+      "gender": "masculine",
+      "description": "Elderly man speaking over a crackling 20th century radio for historical reenactments"
+    },
+    {
+      "id": "7e19344f-9f17-47d7-a13a-4366ad06ebf3",
+      "name": "Silas - Nighttime Narrator",
+      "gender": "masculine",
+      "description": "Gentle and steady male voice with a nurturing tone for calm conversations and serene narration"
+    },
+    {
+      "id": "d7e54830-4754-4b17-952c-bcdb7e80a2fb",
+      "name": "Mabel - Grandma",
+      "gender": "feminine",
+      "description": "Friendly, grandmotherly female for empathetic conversations"
+    },
+    {
+      "id": "9fa83ce3-c3a8-4523-accc-173904582ced",
+      "name": "Keith - Easygoing Friend",
+      "gender": "masculine",
+      "description": "Chill, young adult male for casual conversations"
+    },
+    {
+      "id": "41f3c367-e0a8-4a85-89e0-c27bae9c9b6d",
+      "name": "Liam - Guy Next Door",
+      "gender": "masculine",
+      "description": "Casual, friendly young male for authentic and engaging conversations"
+    },
+    {
+      "id": "57b6bf63-c7a1-4ffc-8e10-23bf45152dd6",
+      "name": "Rebecca - Counselor",
+      "gender": "feminine",
+      "description": "Soft-spoken, empathetic female voice suited for thoughtful, calming dialogue"
+    },
+    {
+      "id": "5619d38c-cf51-4d8e-9575-48f61a280413",
+      "name": "Mark - Promotion Lead",
+      "gender": "masculine",
+      "description": "Deep, confident male voice with strong presence - ideal for commercials, promos, and broadcast narration"
+    },
+    {
+      "id": "ee8b13e7-98af-4b15-89d1-8d402be10c94",
+      "name": "Carson - Disgusted Friendly Support",
+      "gender": "masculine",
+      "description": "Friendly young adult male for customer support conversations"
+    },
+    {
+      "id": "4f7f1324-1853-48a6-b294-4e78e8036a83",
+      "name": "Casper - Gentle Narrator",
+      "gender": "masculine",
+      "description": "Wistful, young male for emotional narrations"
+    },
+    {
+      "id": "78ab82d5-25be-4f7d-82b3-7ad64e5b85b2",
+      "name": "Savannah - Magnolia Belle",
+      "gender": "feminine",
+      "description": "Adult female for casual, authentic conservations"
+    },
+    {
+      "id": "6d287143-8db3-434a-959c-df147192da27",
+      "name": "Stacy - Mentor",
+      "gender": "feminine",
+      "description": "Mature-sounding female voice with kindness and ease, perfect for natural interactions"
+    },
+    {
+      "id": "701a96e1-7fdd-4a6c-a81e-a4a450403599",
+      "name": "Rowan - Team Leader",
+      "gender": "masculine",
+      "description": "Confident male for narrations"
+    },
+    {
+      "id": "34d923aa-c3b5-4f21-aac7-2c1f12730d4b",
+      "name": "Griffin - Excited Narrator",
+      "gender": "masculine",
+      "description": "Elderly male for narrations"
+    },
+    {
+      "id": "23e9e50a-4ea2-447b-b589-df90dbb848a2",
+      "name": "Dallas - Fireside Friend",
+      "gender": "masculine",
+      "description": "Kind male for inviting and authentic conversations"
+    },
+    {
+      "id": "f8f5f1b2-f02d-4d8e-a40d-fd850a487b3d",
+      "name": "Kiara - Joyful Woman",
+      "gender": "feminine",
+      "description": "Upbeat, enunciating Indian accented mature adult female for happy conversations"
+    },
+    {
+      "id": "5ee9feff-1265-424a-9d7f-8e4d431a12c7",
+      "name": "Ronald - Thinker",
+      "gender": "masculine",
+      "description": "Intense, deep young adult male for casual conversations"
+    },
+    {
+      "id": "32b3f3c5-7171-46aa-abe7-b598964aa793",
+      "name": "Daisy - Reading Girl",
+      "gender": "feminine",
+      "description": "Very young female for children's book narrations and young animated personas"
+    },
+    {
+      "id": "043cfc81-d69f-4bee-ae1e-7862cb358650",
+      "name": "Amelia - Instructor",
+      "gender": "feminine",
+      "description": "Strong, composed female voice suited for giving instructions with clarity and authority"
+    },
+    {
+      "id": "13524ffb-a918-499a-ae97-c98c7c4408c4",
+      "name": "Barry - Helper",
+      "gender": "masculine",
+      "description": "Inviting, friendly male for customer support and product videos"
+    },
+    {
+      "id": "1463a4e1-56a1-4b41-b257-728d56e93605",
+      "name": "Hugo - Teatime Friend",
+      "gender": "masculine",
+      "description": "Expressive, young adult male for characters and natural conversation"
+    },
+    {
+      "id": "efc5488b-5429-4e72-aaa2-570981cf47d9",
+      "name": "Lacey - Sunny Soul",
+      "gender": "feminine",
+      "description": "Cheerful and friendly female voice with bright energy that uplifts and engages listeners instantly"
+    },
+    {
+      "id": "c961b81c-a935-4c17-bfb3-ba2239de8c2f",
+      "name": "Kyle - Approachable Friend",
+      "gender": "masculine",
+      "description": "Friendly male voice with a warm, conversational tone that builds instant connection and trust"
+    },
+    {
+      "id": "cc00e582-ed66-4004-8336-0175b85c85f6",
+      "name": "Dana - Balanced Spirit",
+      "gender": "feminine",
+      "description": "Neutral female voice with clear articulation and calm tone, ideal for versatile conversational or professional use"
+    },
+    {
+      "id": "e39b9fc0-23f5-4616-962a-da99c8ccb1dc",
+      "name": "Colin - Assured Guide",
+      "gender": "masculine",
+      "description": "Confident voice with clear articulation and reassuring tone, ideal for professional and customer service use"
+    },
+    {
+      "id": "59697755-8cfb-4ccf-9da4-f2201d06b067",
+      "name": "Dominic - Sportscaster",
+      "gender": "masculine",
+      "description": "Strong voice with commanding projection and energetic tone, perfect for sports commentary and live announcements"
+    },
+    {
+      "id": "a7b8d8fa-f6e5-4908-900e-0c11d1d82519",
+      "name": "Joanie - Vibrant Speaker",
+      "gender": "feminine",
+      "description": "Upbeat matured female voice with lively warmth and confidence, perfect for natural and engaging conversations"
+    },
+    {
+      "id": "d6b0c62a-c7ff-477c-9a1f-eadd64b94360",
+      "name": "Melina - Bright Spirit",
+      "gender": "feminine",
+      "description": "Outgoing voice with lively warmth and friendly tone, perfect for casual chats and everyday conversations"
+    },
+    {
+      "id": "eef47c0d-cb49-4160-a4a0-6b97ed4c81e6",
+      "name": "Isla - Serene Flow",
+      "gender": "feminine",
+      "description": "Calm voice with gentle warmth and steady rhythm, perfect for yoga, meditation, and relaxation"
+    },
+    {
+      "id": "9329fbdb-e285-4fba-95ec-592e15f14476",
+      "name": "Rory - Maternal Vibe",
+      "gender": "feminine",
+      "description": "Motherlike female voice with a calm, nurturing tone that brings warmth and reassurance to any conversation"
+    },
+    {
+      "id": "eb649460-7e23-43bc-ad20-0a7a2749b938",
+      "name": "Kim - Cheerful Pal",
+      "gender": "feminine",
+      "description": "Friendly voice with a smooth, easygoing tone"
+    },
+    {
+      "id": "a924b0e6-9253-4711-8fc3-5cb8e0188c94",
+      "name": "Noah - Calming Presence",
+      "gender": "masculine",
+      "description": "Slow-paced voice with gentle warmth and soothing tone, perfect for ASMR and relaxation content"
+    },
+    {
+      "id": "efa653e5-314d-46ca-9f90-70ac7d6ca71e",
+      "name": "Kurt - Phone Support",
+      "gender": "masculine",
+      "description": "Engaging male voice with expressive tone and natural warmth, ideal for customer service"
+    },
+    {
+      "id": "01fd7d67-d2a0-4e4e-8c48-42611c71a926",
+      "name": "Skyler - Laidback Partner",
+      "gender": "masculine",
+      "description": "Easygoing voice with effortless tone that feels natural and approachable"
+    },
+    {
+      "id": "0a9a5903-0a30-4d2e-b6b6-891f73d4b4e0",
+      "name": "Sabrina - Casual Ally",
+      "gender": "feminine",
+      "description": "Relaxed female voice with an easy, conversational tone that feels approachable and genuine"
+    },
+    {
+      "id": "373e661a-f0ef-4e34-a09e-183184a443e6",
+      "name": "Tanner - Laidback Spirit",
+      "gender": "masculine",
+      "description": "Laidback voice with smooth tone and easy rhythm, great for conversational and approachable content"
+    },
+    {
+      "id": "b134c304-d095-4d2b-a77a-914f5e8e84e7",
+      "name": "Sterling - Monarch",
+      "gender": "masculine",
+      "description": "Deep voice with commanding presence and dignified tone, perfect for narrations and authoritative storytelling"
+    },
+    {
+      "id": "f0377496-2708-4cc9-b2f8-1b7fdb5e1a2a",
+      "name": "Elaine - Confident Guide",
+      "gender": "feminine",
+      "description": "Assured voice with calm confidence and clear tone, ideal for professional, informative, or guiding narration"
+    },
+    {
+      "id": "3af40927-948e-429b-b92d-e2158f79fb9f",
+      "name": "Cera - Lighthearted Muse",
+      "gender": "feminine",
+      "description": "Casual female voice with an easy, conversational flow that feels natural and friendly"
+    },
+    {
+      "id": "f6ce3444-478b-4ce4-982e-bcb72dffe7aa",
+      "name": "Emily - Easygoing Pal",
+      "gender": "feminine",
+      "description": "Cheerful voice with warm and welcoming tone that feels natural and easy to connect with"
+    },
+    {
+      "id": "f24ae0b7-a3d2-4dd1-89df-959bdc4ab179",
+      "name": "Ross - Reliable Partner",
+      "gender": "masculine",
+      "description": "Steady voice with balanced tone and clear delivery, ideal for customer support and service"
+    },
+    {
+      "id": "2d5b8c3a-116c-4741-acaf-ba4fa289eba2",
+      "name": "Benji - Joyful Spirit",
+      "gender": "masculine",
+      "description": "Excited and cheerful voice with bright energy and lively tone, perfect for upbeat chats and engaging content"
+    },
+    {
+      "id": "045f0292-0731-4a4c-971d-64594fc2c35a",
+      "name": "Quinn - Calm Authority",
+      "gender": "feminine",
+      "description": "Confident voice with clear articulation and poised tone, perfect for presentations and customer interactions"
+    },
+    {
+      "id": "0d2162c2-2fe9-40a7-b3c1-43eab576a64b",
+      "name": "Shelly - Warm Companion",
+      "gender": "feminine",
+      "description": "Friendly voice with a bright, approachable tone that feels natural and welcoming in any setting"
+    },
+    {
+      "id": "1628cfcd-a161-4e47-98ff-46bffa4ab290",
+      "name": "Graham - Assured Helper",
+      "gender": "masculine",
+      "description": "Confident male voice with a clear, reassuring tone, perfect for professional and customer service interactions"
+    },
+    {
+      "id": "17488b72-f815-44d8-bdd9-869971c3ec06",
+      "name": "Steven - Big Brother",
+      "gender": "masculine",
+      "description": "Conversational voice with a relaxed, natural tone that feels genuine and easy to engage with"
+    },
+    {
+      "id": "18f8d87b-0da9-4efa-b504-4580e303f7db",
+      "name": "Colby - Lively Guy",
+      "gender": "masculine",
+      "description": "Casual voice with an engaging, upbeat tone that brings energy and friendliness to any conversation"
+    },
+    {
+      "id": "19e399df-5b30-4fba-9d1d-99434f993614",
+      "name": "Edna - Graceful Veteran",
+      "gender": "feminine",
+      "description": "Matured female voice with gentle wisdom and poise, perfect for thoughtful narration and reflective dialogue"
+    },
+    {
+      "id": "1ac31ebd-9113-405b-9d80-4a4bbbeea91c",
+      "name": "Kayla - Easygoing Pal",
+      "gender": "feminine",
+      "description": "Casual female voice with a friendly, natural tone that feels effortless and engaging in conversation"
+    },
+    {
+      "id": "1cb5b8bc-77c9-4e7c-a251-da02348e2727",
+      "name": "Sean - Steady Companion",
+      "gender": "masculine",
+      "description": "Casual voice with an easy, relaxed tone that feels natural and effortlessly approachable"
+    },
+    {
+      "id": "1ce291a1-0771-4732-a3f7-8cca29bf055f",
+      "name": "Ralph - Dynamic Commentator",
+      "gender": "masculine",
+      "description": "Matured male voice with powerful projection and crisp delivery, perfect for announcements and sports commentary"
+    },
+    {
+      "id": "1f575487-6f3d-40e0-862a-814f55b5fb15",
+      "name": "Ariane - Captivating Tone",
+      "gender": "feminine",
+      "description": "Engaging voice with expressive warmth and clarity, perfect for drawing listeners into any conversation"
+    },
+    {
+      "id": "23112795-d54e-4560-9568-791a87c30201",
+      "name": "Darius - Engaging Narrator",
+      "gender": "masculine",
+      "description": "Husky matured male voice with rich texture and commanding tone, ideal for engaging story telling and narrations"
+    },
+    {
+      "id": "320f7211-3dc3-4292-89b1-3661e8cac27c",
+      "name": "Evelyn - Peaceful Whisper",
+      "gender": "feminine",
+      "description": "Calm voice with soft warmth and gentle pacing, ideal for soothing narrations and ASMR"
+    },
+    {
+      "id": "3308b492-50cc-417e-89dd-1f446c574546",
+      "name": "Tara - Confident Ally",
+      "gender": "feminine",
+      "description": "Confident voice with clear, composed tone, perfect for professional and customer service settings"
+    },
+    {
+      "id": "356f4a89-d056-4e2e-8c73-865fa4d3af0a",
+      "name": "Chandler - Easygoing Pal",
+      "gender": "masculine",
+      "description": "Casual male voice with a warm, natural tone that feels friendly and effortlessly relatable"
+    },
+    {
+      "id": "3bf35adc-bcc4-464b-b834-c90c88cf6492",
+      "name": "Spencer - Chill Gentleman",
+      "gender": "masculine",
+      "description": "Casual voice with an engaging, upbeat tone that feels friendly and effortlessly conversational"
+    },
+    {
+      "id": "48369ca9-0645-40de-9821-0d55e18a03c2",
+      "name": "Zoey - Bright Voice",
+      "gender": "feminine",
+      "description": "Upbeat female voice with lively energy and warmth, perfect for energetic and engaging conversations"
+    },
+    {
+      "id": "4b1e0bf9-53a0-4e9e-8664-ba1314dbcb38",
+      "name": "Kelly - Friendly Spirit",
+      "gender": "feminine",
+      "description": "Casual voice with a friendly, natural tone that feels easygoing and approachable"
+    },
+    {
+      "id": "4cf80313-54dc-4ca9-a17c-3e5b8f68a78c",
+      "name": "Hugh - Confident Veteran",
+      "gender": "masculine",
+      "description": "Seasoned male voice with rich character and charisma, great for lively ads and engaging conversations"
+    },
+    {
+      "id": "4d3d2e9c-14e4-4802-a8d8-bd5268a73fde",
+      "name": "Judith - Poised Strength",
+      "gender": "feminine",
+      "description": "Confident voice with clear articulation and composed tone, perfect for presentations and professional dialogue"
+    },
+    {
+      "id": "5319c0b1-3dd1-4c00-b721-bfd2ec88ef56",
+      "name": "Julian - Vibrant Voice",
+      "gender": "masculine",
+      "description": "Friendly and cheerful male voice with uplifting warmth, great for feel-good narrations and advertisements"
+    },
+    {
+      "id": "5cf0e4d9-ca2b-4fd5-81fa-89db3b645539",
+      "name": "Derrick - Professional Man",
+      "gender": "masculine",
+      "description": "No-nonsense voice with steady confidence and clear tone, ideal for customer service and tech support"
+    },
+    {
+      "id": "5fb68a42-0ed7-46fa-8a8f-ad4b332fbf6f",
+      "name": "Edward - Persuasive Promoter",
+      "gender": "masculine",
+      "description": "Confident voice with clarity and persuasive tone, perfect for advertisements and promotional content"
+    },
+    {
+      "id": "643f5eee-459d-4b41-b4fc-0b8407139be6",
+      "name": "Vicky - Businesswoman",
+      "gender": "feminine",
+      "description": "Clear and crisp voice with precise delivery and bright tone, ideal for professional and instructional content"
+    },
+    {
+      "id": "64b2a604-f0de-449f-9d90-255602357c05",
+      "name": "Elise - Helpful Voice",
+      "gender": "feminine",
+      "description": "Casual female voice with a smooth, approachable tone that feels effortless and natural in conversation"
+    },
+    {
+      "id": "6776173b-fd72-460d-89b3-d85812ee518d",
+      "name": "Jace - Cool Conversationalist",
+      "gender": "masculine",
+      "description": "Friendly and chill male voice with an easygoing tone that feels relaxed and natural"
+    },
+    {
+      "id": "69092565-1c93-4a88-9f2c-ac8cddaf9f65",
+      "name": "Janice - Engaging Tone",
+      "gender": "feminine",
+      "description": "Engaging voice with a casual, friendly tone that draws listeners in and keeps conversations lively"
+    },
+    {
+      "id": "6cb8801d-259a-4bdc-978f-b45808d58cd3",
+      "name": "Jeremy - Energetic Promoter",
+      "gender": "masculine",
+      "description": "High energy voice with clear and engaging tone, perfect for advertisements and promotions"
+    },
+    {
+      "id": "6fbca103-0f7f-4e49-97ed-49a53b4f3534",
+      "name": "Maxine - Relaxed Energy",
+      "gender": "feminine",
+      "description": "Smooth voice with a calm, laid-back tone that brings an easy sense of comfort to any conversation"
+    },
+    {
+      "id": "8634bd27-0acf-4056-b014-4fea0385ed9e",
+      "name": "Suzanne - Laidback Aunt",
+      "gender": "feminine",
+      "description": "Matured voice with a natural, conversational tone that feels warm, relatable, and approachable"
+    },
+    {
+      "id": "87a983d8-3471-4c4b-9ade-f1d10a4110ac",
+      "name": "Devin - Relaxed Spirit",
+      "gender": "masculine",
+      "description": "Laidback male voice with a smooth, easygoing tone that feels relaxed and effortlessly cool."
+    },
+    {
+      "id": "8cbfe3ab-8364-4e72-b606-93f749519c66",
+      "name": "Shane - Helpful Guide",
+      "gender": "masculine",
+      "description": "Casual male voice with clear, steady delivery that makes troubleshooting steps easy to follow and understand"
+    },
+    {
+      "id": "8d7d11ff-d985-48a2-a737-1da0b6fedc8b",
+      "name": "Ronan - Warm Buddy",
+      "gender": "masculine",
+      "description": "Friendly male voice with an easygoing tone that feels natural and inviting in any context"
+    },
+    {
+      "id": "921034a2-aace-4ef7-87b1-b9bc455c9a15",
+      "name": "Edric - Refined Mentor",
+      "gender": "masculine",
+      "description": "Matured male voice with steady pacing and clear intonation, delivering messages with poise and clarity"
+    },
+    {
+      "id": "9c8880b2-ccf9-4730-b805-cea23df247d7",
+      "name": "Conrad - Seasoned Support",
+      "gender": "masculine",
+      "description": "Mature, confident voice with composed authority and clear tone, perfect for professional or narrative use"
+    },
+    {
+      "id": "a892d232-f705-40d7-bc8d-e368b295ec2a",
+      "name": "Harlan - Vintage Tone",
+      "gender": "masculine",
+      "description": "Deep male voice with classic resonance and smooth authority, reminiscent of an old radio announcer"
+    },
+    {
+      "id": "aef96ff9-4578-4b5d-9744-7fb347cbe4d4",
+      "name": "Holly - Joyful Presence",
+      "gender": "feminine",
+      "description": "Cheerful voice with bright warmth and friendly energy, perfect for engaging conversations and upbeat content"
+    },
+    {
+      "id": "afb19d1b-4044-4f34-a962-f4aef640a002",
+      "name": "Zander - Energetic Announcer",
+      "gender": "masculine",
+      "description": "Enthusiastic voice with energetic delivery and bold tone, perfect for advertisements and high-energy narrations"
+    },
+    {
+      "id": "b2222537-1561-4425-8c3c-e1aca96ad853",
+      "name": "Dylan - Chill Companion",
+      "gender": "masculine",
+      "description": "Casual male voice with an easy, conversational tone that feels friendly and down-to-earth"
+    },
+    {
+      "id": "b56c6aac-f35f-46f7-9361-e8f078cec72e",
+      "name": "Tabitha - Smooth Energy",
+      "gender": "feminine",
+      "description": "Smooth voice with easy warmth and relaxed tone, perfect for casual conversations"
+    },
+    {
+      "id": "b9cf5ec3-eaa4-46a5-a5b2-b0d0f22395a2",
+      "name": "Caleb - Seasoned Pro",
+      "gender": "masculine",
+      "description": "Confident male voice with authoritative clarity, perfect for delivering expert insights and professional guidance"
+    },
+    {
+      "id": "bbc5d060-50e1-45a3-87ff-191b8cea3092",
+      "name": "Jett - Helpful Pal",
+      "gender": "masculine",
+      "description": "Casual male voice with an easygoing rhythm and friendly tone that feels natural and relatable"
+    },
+    {
+      "id": "c0f43c66-9f21-4034-b485-8f1d3340d759",
+      "name": "Clarkson - Executive Tone",
+      "gender": "masculine",
+      "description": "Businesslike voice with confident tone and professional delivery, perfect for corporate and formal settings"
+    },
+    {
+      "id": "c58bda25-abd5-4c72-97a2-4dbe049b368d",
+      "name": "Garrett - Enthusiastic Pal",
+      "gender": "masculine",
+      "description": "Upbeat voice with bright energy and confident tone, perfect for lively conversations and engaging content"
+    },
+    {
+      "id": "c78dd7ae-6692-4c44-a2a2-834e365afe60",
+      "name": "Clark - Trustworthy Expert",
+      "gender": "masculine",
+      "description": "Approachable male voice with a confident, knowledgeable tone ideal for customer service and support"
+    },
+    {
+      "id": "ca31ce53-ebf6-4e51-b87d-2f65d5d1f7f8",
+      "name": "Vivian - Fierce Narrator",
+      "gender": "feminine",
+      "description": "Voice with rich emotion and expressive depth, perfect for dramatic readings and heartfelt narratio"
+    },
+    {
+      "id": "ca566b43-944e-4474-b494-7d9f0695f307",
+      "name": "Celine - Soothing Presence",
+      "gender": "feminine",
+      "description": "Relaxed voice with smooth tone and gentle warmth, ideal for calm conversations and easy listening"
+    },
+    {
+      "id": "cb6a8744-41b0-4cdc-b643-fabeb545c6a9",
+      "name": "Laurel - Caring Sister",
+      "gender": "feminine",
+      "description": "Warm voice with gentle empathy and clarity, perfect for heartfelt conversations and customer support"
+    },
+    {
+      "id": "cec7cae1-ac8b-4a59-9eac-ec48366f37ae",
+      "name": "Haley - Engaging Friend",
+      "gender": "feminine",
+      "description": "Casual female voice with a relaxed, friendly tone that feels natural and easy to engage with"
+    },
+    {
+      "id": "d6905573-8e91-4e32-b103-fd4d1205cd87",
+      "name": "Mindy - Spirited Ally",
+      "gender": "feminine",
+      "description": "Enthusiastic female voice with bright energy and cheerful tone, great for lively conversations and upbeat content"
+    },
+    {
+      "id": "d709a7e8-9495-4247-aef0-01b3207d11bf",
+      "name": "Donny - Steady Presence",
+      "gender": "masculine",
+      "description": "Neutral male voice with balanced tone and clarity, adaptable for a wide range of casual speaking contexts"
+    },
+    {
+      "id": "db69127a-dbaf-4fa9-b425-2fe67680c348",
+      "name": "Clint - Rugged Actor",
+      "gender": "masculine",
+      "description": "Raspy voice with rugged tone, perfect for voice acting and dramatic narration"
+    },
+    {
+      "id": "dbfa416f-d5c3-4006-854b-235ef6bdf4fd",
+      "name": "Damon - Commanding Narrator",
+      "gender": "masculine",
+      "description": "Deep and serious male voice with steady gravitas, ideal for documentaries and impactful storytelling"
+    },
+    {
+      "id": "df872fcd-da17-4b01-a49f-a80d7aaee95e",
+      "name": "Cameron - Chill Companion",
+      "gender": "masculine",
+      "description": "Laidback voice with a natural, conversational tone that feels friendly and easy to engage with"
+    },
+    {
+      "id": "ea7c252f-6cb1-45f5-8be9-b4f6ac282242",
+      "name": "Logan - Approachable Friend",
+      "gender": "masculine",
+      "description": "Casual voice with an easy, conversational tone that feels natural and approachable"
+    },
+    {
+      "id": "ea93f57f-7c71-4d79-aeaa-0a39b150f6ca",
+      "name": "Diana - Gentle Mom",
+      "gender": "feminine",
+      "description": "Matured voice with a casual, friendly tone that feels warm, relatable, and easy to connect with"
+    },
+    {
+      "id": "fdf6303b-4cfa-4f8e-b7ae-acb398984cf9",
+      "name": "Harley - Comforting Voice",
+      "gender": "masculine",
+      "description": "Casual voice with a relaxed, natural tone that feels approachable and genuine"
+    },
+    {
+      "id": "26403c37-80c1-4a1a-8692-540551ca2ae5",
+      "name": "Marian - Poised Narrator",
+      "gender": "feminine",
+      "description": "Matured female voice with calm authority and smooth pacing, perfect for narrations and storytelling"
+    },
+    {
+      "id": "41468051-3a85-4b68-92ad-64add250d369",
+      "name": "Cory - Relaxed Voice",
+      "gender": "masculine",
+      "description": "Casual male voice with a friendly, easygoing tone that feels natural and approachable"
+    },
+    {
+      "id": "5cad89c9-d88a-4832-89fb-55f2f16d13d3",
+      "name": "Brandon - Confident Guy",
+      "gender": "masculine",
+      "description": "Confident voice with strong clarity and composed tone, perfect for persuasive and professional delivery"
+    },
+    {
+      "id": "b7d50908-b17c-442d-ad8d-810c63997ed9",
+      "name": "Sierra - California Girl",
+      "gender": "feminine",
+      "description": "Slow, chill young adult female for casual conversations"
+    },
+    {
+      "id": "8d8ce8c9-44a4-46c4-b10f-9a927b99a853",
+      "name": "Connie - Candid Conversationalist",
+      "gender": "feminine",
+      "description": "Natural, cheery young adult female for authentic conversations"
+    },
+    {
+      "id": "90c896fa-aaa1-41af-a612-5267636440a3",
+      "name": "Dean - Laidback Pal",
+      "gender": "masculine",
+      "description": "Casual male voice with a relaxed, natural tone that feels easy to listen to and effortlessly genuine"
+    },
+    {
+      "id": "f4a3a8e4-694c-4c45-9ca0-27caf97901b5",
+      "name": "Gavin - Friendly Vibe",
+      "gender": "masculine",
+      "description": "Casual male voice with a relaxed, conversational tone that feels approachable and genuine"
+    },
+    {
+      "id": "0834f3df-e650-4766-a20c-5a93a43aa6e3",
+      "name": "Leo - Genuine Companion",
+      "gender": "masculine",
+      "description": "Friendly and approachable male voice that brings warmth and ease to any interaction"
+    },
+    {
+      "id": "083de431-6b5c-4b18-a2dc-264eafa205f2",
+      "name": "Diana - Animated Narrator",
+      "gender": "feminine",
+      "description": "Chirpy matured female voice with expressive warmth and lively cadence, perfect for engaging storytelling"
+    },
+    {
+      "id": "49808e4c-998a-40a8-b2ea-8ac8e8ce779e",
+      "name": "Marvin - Steady Ally",
+      "gender": "masculine",
+      "description": "Deep, comforting voice with calm authority and warmth, perfect for reassuring and professional customer service"
+    },
+    {
+      "id": "3d9b50f9-10c5-4026-9ae1-c4a698f67fc5",
+      "name": "Marjorie - Encouraging Aunt",
+      "gender": "feminine",
+      "description": "Encouraging matured voice with warm reassurance and steady tone, perfect for motivational and supportive messages"
+    },
+    {
+      "id": "9301949d-b7cd-40d9-a246-5a4430992d6b",
+      "name": "Marcus - Reliable Guy",
+      "gender": "masculine",
+      "description": "Composed voice with approachable warmth, perfect for customer service and support"
+    },
+    {
+      "id": "050f5a7a-9d2b-4b76-84e3-2d056a0a3eb0",
+      "name": "Kelsey - Ball of energy",
+      "gender": "feminine",
+      "description": "Upbeat voice with lively energy and friendly warmth, perfect for energetic and engaging conversations"
+    },
+    {
+      "id": "3ccc4544-84f7-45e3-ae57-5c52b5a1fac6",
+      "name": "Aiden - Yogi",
+      "gender": "masculine",
+      "description": "Soothing voice with calm depth and gentle pacing, perfect for peaceful narrations and relaxation content"
+    },
+    {
+      "id": "3d83e30f-c31b-4f26-b442-7075feafa53a",
+      "name": "Wade - Southern Soul",
+      "gender": "masculine",
+      "description": "Country-sounding male voice with a warm drawl and genuine charm, perfect for friendly storytelling"
+    },
+    {
+      "id": "3f38cbe2-ce6a-4051-b5dc-2b2ee20b9bc1",
+      "name": "Sasha - Cool Friend",
+      "gender": "feminine",
+      "description": "Chill female voice with a smooth, laid-back tone that brings ease and calm to any conversation"
+    },
+    {
+      "id": "63927f41-9616-4ac2-89cf-f3afa346e0ef",
+      "name": "Selene - Soothing Aura",
+      "gender": "feminine",
+      "description": "Relaxing and calm voice with gentle flow and serene tone, ideal for meditation and mindfulness content"
+    },
+    {
+      "id": "6fccb471-26f7-4f7a-93dd-542935db6c20",
+      "name": "Wesley - Chill Flow",
+      "gender": "masculine",
+      "description": "Casual voice with a relaxed, friendly tone that feels natural and easy to listen to"
+    },
+    {
+      "id": "74f42072-6245-4fe2-b5dc-3dc9b56fdbd0",
+      "name": "Regis - News Anchor",
+      "gender": "masculine",
+      "description": "Authoritative voice with polished clarity and balanced tone, perfect for news delivery and formal announcements"
+    },
+    {
+      "id": "7a8ae0b6-504a-49af-92d3-4e7e2eb84ca1",
+      "name": "Eliott - Positive Spirit",
+      "gender": "masculine",
+      "description": "Approachable and cheerful voice with bright warmth that instantly connects and uplifts listeners"
+    },
+    {
+      "id": "80c81aee-b6ad-4d12-9af8-a9c79c2e141d",
+      "name": "Aina - Meditation Guru",
+      "gender": "feminine",
+      "description": "Calm voice with soothing balance and gentle rhythm, ideal for meditation, mindfulness, and relaxation"
+    },
+    {
+      "id": "86600680-b836-41e1-9916-8475728dcc14",
+      "name": "Tiffany - Dynamic Presence",
+      "gender": "feminine",
+      "description": "Engaging voice with lively clarity and confident warmth, ideal for keeping listeners interested and connected"
+    },
+    {
+      "id": "87041166-c212-4838-9028-05d7437df750",
+      "name": "Aubrey - Easygoing Pal",
+      "gender": "feminine",
+      "description": "Warm voice with a relaxed, natural tone that feels friendly and effortlessly relatable"
+    },
+    {
+      "id": "b58b6b46-1a27-46ba-8648-bc203a5d394e",
+      "name": "Mason - Calm Vibe",
+      "gender": "masculine",
+      "description": "Chill voice with a smooth, conversational tone that feels relaxed and genuine"
+    },
+    {
+      "id": "b5c1bab5-f036-481f-9295-4db6f06f6443",
+      "name": "Jamie - Comforting Presence",
+      "gender": "feminine",
+      "description": "Casual voice with a warm, friendly tone that feels like chatting with a close friend"
+    },
+    {
+      "id": "e4d5f4c4-6601-4779-bee1-b3c14d629dc6",
+      "name": "Jillian - Happy Spirit",
+      "gender": "feminine",
+      "description": "Cheerful voice with lively warmth and friendly tone, perfect for upbeat conversations"
+    },
+    {
+      "id": "e5a6cd18-d552-4192-9533-82a08cac8f23",
+      "name": "Patricia - Veteran Support",
+      "gender": "feminine",
+      "description": "Matured voice with lively warmth and enthusiasm, perfect for engaging and energetic customer service"
+    },
+    {
+      "id": "f688c0a6-dddd-48ba-8246-c099d494a162",
+      "name": "Romeo - Calm Narrator",
+      "gender": "masculine",
+      "description": "Relaxing voice with smooth depth and calm pacing, perfect for storytelling and immersive narrations"
+    },
+    {
+      "id": "66c6b81c-ddb7-4892-bdd5-19b5a7be38e7",
+      "name": "Dorothy -  Easy Charm",
+      "gender": "feminine",
+      "description": "Casual female voice with a relaxed and natural tone, perfect for everyday conversations and relatable content"
+    },
+    {
+      "id": "999df508-4de5-40a7-8bd3-8c12f678c284",
+      "name": "Layla - Casual Friend",
+      "gender": "feminine",
+      "description": "Chill voice with a smooth, easygoing tone that feels relaxed and effortlessly cool"
+    },
+    {
+      "id": "829ccd10-f8b3-43cd-b8a0-4aeaa81f3b30",
+      "name": "Linda - Conversational Guide",
+      "gender": "feminine",
+      "description": "Clear, confident mature female for conversational use cases"
+    },
+    {
+      "id": "c7c790c5-2bf4-47e4-bc83-5f43e61f3803",
+      "name": "Reese - Warm Companion",
+      "gender": "feminine",
+      "description": "Casual, friendly female voice with a bright and welcoming tone suited for everyday conversations."
+    },
+    {
+      "id": "4c2dcd38-5608-45ca-8f11-51c88208d01c",
+      "name": "Orin - Velvet Gentleman",
+      "gender": "masculine",
+      "description": "Deep, silky male voice that delivers authority and allure, perfect for impactful ads and promos"
+    },
+    {
+      "id": "8a1b8af0-c4f6-423f-a268-5507fd4aefdf",
+      "name": "Denise - Professional Woman",
+      "gender": "feminine",
+      "description": "Professional female voice with confident clarity and polished tone, ideal for corporate and business settings"
+    },
+    {
+      "id": "ed82c17b-4704-4d34-be43-5d19065acdf1",
+      "name": "Carl - Steady Storyteller",
+      "gender": "masculine",
+      "description": "Matured male voice with calm depth and measured pacing, perfect for narrations and documentaries"
+    },
+    {
+      "id": "c1b9a03e-747f-40ad-8e7b-18caf8aaac0b",
+      "name": "Lira - Tranquil Voice",
+      "gender": "feminine",
+      "description": "Soothing female voice with gentle warmth, ideal for calm narrations and ASMR"
+    },
+    {
+      "id": "cbaf8084-f009-4838-a096-07ee2e6612b1",
+      "name": "Maya - Easygoing Ally",
+      "gender": "feminine",
+      "description": "Friendly, casual female voice with clear articulation, ideal for natural conversations and customer support"
+    },
+    {
+      "id": "3f04e815-3260-4f50-8fd9-af9c657be4c2",
+      "name": "Arvin - Reliable Guide",
+      "gender": "masculine",
+      "description": "Clear, steady male voice that communicates instructions and troubleshooting steps with confidence and ease"
+    },
+    {
+      "id": "d2c66146-c1c8-4c3a-9870-38e5a6b72442",
+      "name": "Lawson - Suave Storyteller",
+      "gender": "masculine",
+      "description": "Charming matured male voice with smooth delivery and refined tone, perfect for narrations and advertisements"
+    },
+    {
+      "id": "f4c1a0b2-669d-403f-b440-4b34b34856aa",
+      "name": "Nora - Calm Companion",
+      "gender": "feminine",
+      "description": "Balanced, neutral female voice that sounds natural and approachable for everyday conversations"
+    },
+    {
+      "id": "ec1e269e-9ca0-402f-8a18-58e0e022355a",
+      "name": "Ariana - Kind Friend",
+      "gender": "feminine",
+      "description": "Friendly and approachable female voice with a warm, welcoming tone that builds instant connection"
+    },
+    {
+      "id": "a2364c9d-1fe3-4553-9eff-100c4fe5ffc8",
+      "name": "Marge - Seasoned Grace",
+      "gender": "feminine",
+      "description": "Wise matured voice with expressive warmth and character, perfect for storytelling and entertainment"
+    },
+    {
+      "id": "cd6256ef-2b2a-41f6-a8d8-c1307af5061f",
+      "name": "Preston - Relatable Pal",
+      "gender": "masculine",
+      "description": "Confident voice with expressive tone and charismatic delivery, great for engaging conversations"
+    },
+    {
+      "id": "2948c301-9211-4112-8f36-4c3fc836ef12",
+      "name": "Bryce - Clear Explainer",
+      "gender": "masculine",
+      "description": "Confident voice with clear enunciation and strong delivery, ideal for professional and instructional use"
+    },
+    {
+      "id": "dcc82bcd-647e-4478-955f-8232d5122f8b",
+      "name": "Melanie - Lively Spirit",
+      "gender": "feminine",
+      "description": "Enthusiastic voice with bright, engaging energy that brings excitement to any conversation"
+    },
+    {
+      "id": "39d518b7-fd0b-4676-9b8b-29d64ff31e12",
+      "name": "Aarav - Old Time Storyteller",
+      "gender": "masculine",
+      "description": "Warm adult male voice with a slight Indian accent and a vintage tone for nostalgic storytelling, retro-style media, and historical narration"
+    },
+    {
+      "id": "42b39f37-515f-4eee-8546-73e841679c1d",
+      "name": "James - Navigator",
+      "gender": "masculine",
+      "description": "Very deep, authoritative male for providing guidance and instruction"
+    },
+    {
+      "id": "fbf7d2ec-ebea-49f2-8889-a482b9b0a7ed",
+      "name": "Wade 2.0 - Southern Soul",
+      "gender": "masculine",
+      "description": "Country-sounding male voice with a warm drawl and genuine charm, perfect for friendly storytelling"
+    },
+    {
+      "id": "4fb26a05-57de-4d21-855a-f51adae44f38",
+      "name": "Barry 2.0 - Helper",
+      "gender": "masculine",
+      "description": "Inviting, friendly male for customer support and product videos"
+    },
+    {
+      "id": "228fca29-3a0a-435c-8728-5cb483251068",
+      "name": "Kiefer - Assured Tone",
+      "gender": "masculine",
+      "description": "Confident voice with strong clarity and composed delivery, ideal for presentations and customer interactions"
+    },
+    {
+      "id": "79f8b5fb-2cc8-479a-80df-29f7a7cf1a3e",
+      "name": "Theo - Modern Narrator",
+      "gender": "masculine",
+      "description": "Steady, enunciating, confident young male for narrations"
+    },
+    {
+      "id": "2a17e905-8f14-4db7-9b9d-9223a8e3f278",
+      "name": "Jane - Digital Guide",
+      "gender": "feminine",
+      "description": "A crisp, modern voice with a friendly, intelligent tone \u2014 great for virtual-assistant tasks, guidance, and simple conversational prompts."
+    },
+    {
+      "id": "3c7dfd17-3fa8-47aa-aacc-6313fe025442",
+      "name": "Evelyn - Digital Assistante",
+      "gender": "feminine",
+      "description": "A clear, neutral, and precise female voice with a smooth digital polish - perfect for virtual-assistant style responses, instructions, and general interactions."
+    },
+    {
+      "id": "6ccbfb76-1fc6-48f7-b71d-91ac6298247b",
+      "name": "Tessa - Kind Companion",
+      "gender": "feminine",
+      "description": "Friendly female voice with a warm, conversational tone that feels like chatting with a close friend"
+    },
+    {
+      "id": "e07c00bc-4134-4eae-9ea4-1a55fb45746b",
+      "name": "Brooke - Big Sister",
+      "gender": "feminine",
+      "description": "Approachable adult female for casual conversations"
+    },
+    {
+      "id": "f786b574-daa5-4673-aa0c-cbe3e8534c02",
+      "name": "Katie - Friendly Fixer",
+      "gender": "feminine",
+      "description": "Enunciating young adult female for conversational support use cases"
+    },
+    {
+      "id": "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",
+      "name": "Jacqueline - Reassuring Agent",
+      "gender": "feminine",
+      "description": "Confident, young adult female for empathic customer support"
+    },
+    {
+      "id": "e8e5fffb-252c-436d-b842-8879b84445b6",
+      "name": "Cathy - Coworker",
+      "gender": "feminine",
+      "description": "Nice, young adult female for casual conversations"
+    },
+    {
+      "id": "86e30c1d-714b-4074-a1f2-1cb6b552fb49",
+      "name": "Carson - Curious Conversationalist",
+      "gender": "masculine",
+      "description": "Friendly young adult male for customer support conversations"
+    },
+    {
+      "id": "87286a8d-7ea7-4235-a41a-dd9fa6630feb",
+      "name": "Henry - Plainspoken Guy",
+      "gender": "masculine",
+      "description": "A relaxed, youthful male voice with a monotone, matter-of-fact attitude - ideal for casual, straightforward conversations."
+    },
+    {
+      "id": "f9836c6e-a0bd-460e-9d3c-f7299fa60f94",
+      "name": "Caroline - Southern Guide",
+      "gender": "feminine",
+      "description": "Friendly, inviting, slow young adult female for conversation support"
+    },
+    {
+      "id": "a5136bf9-224c-4d76-b823-52bd5efcffcc",
+      "name": "Jameson - Easygoing Support",
+      "gender": "masculine",
+      "description": "Friendly, laid-back male voice for customer support and onboarding"
+    },
+    {
+      "id": "58fbaf73-d7de-4e82-a6b3-118180e7057c",
+      "name": "Janet - Sunny Speaker",
+      "gender": "feminine",
+      "description": "Bright, warm female voice for guidance, narration, and supportive interactions"
+    },
+    {
+      "id": "489b647b-5662-408f-8c95-82e26ef8d29e",
+      "name": "Kate - Practical Voice",
+      "gender": "feminine",
+      "description": "Direct, no-nonsense female voice for instructions and clear explanations"
+    },
+    {
+      "id": "4703c250-66e4-4682-a223-0a60acafcfc0",
+      "name": "Levi - Steady Spokesman",
+      "gender": "masculine",
+      "description": "Strong, confident voice for customer service, newscasting, and reliable narration"
+    },
+    {
+      "id": "dda51133-5d43-4a3b-84e6-e68c13f60cba",
+      "name": "Lily - Casual Pal",
+      "gender": "feminine",
+      "description": "Relaxed, casual voice for friendly, everyday conversations"
+    },
+    {
+      "id": "3faa81ae-d3d8-4ab1-9e44-e50e46d33c30",
+      "name": "Jasper - Service Specialist",
+      "gender": "masculine",
+      "description": "Warm, expressive voice for customer support and sales conversations"
+    },
+    {
+      "id": "0ad65e7f-006c-47cf-bd31-52279d487913",
+      "name": "Rupert - Caring Dad",
+      "gender": "masculine",
+      "description": "Warm, mature voice for caring, reassuring conversations"
+    },
+    {
+      "id": "47c38ca4-5f35-497b-b1a3-415245fb35e1",
+      "name": "Daniel - Modern Assistant",
+      "gender": "masculine",
+      "description": "Clear, crisp male voice for digital assistants and system interactions"
+    },
+    {
+      "id": "a33f7a4c-100f-41cf-a1fd-5822e8fc253f",
+      "name": "Lauren - Lively Narrator",
+      "gender": "feminine",
+      "description": "Expressive female voice for narration, storytelling, and creative content"
+    },
+    {
+      "id": "da69d796-4603-4419-8a95-293bfc5679eb",
+      "name": "David - Greeter",
+      "gender": "masculine",
+      "description": "Engaging adult male for advertising and upbeat conversations"
+    },
+    {
+      "id": "02fe5732-a072-4767-83e3-a91d41d274ca",
+      "name": "Madison - Best Friend",
+      "gender": "feminine",
+      "description": "Enthusiastic, young adult female for emotive discussions"
+    },
+    {
+      "id": "7b2c0a2e-3dd3-4a44-b16b-26ecd8134279",
+      "name": "Luke - Broadway Voice",
+      "gender": "masculine",
+      "description": "Seasoned male voice for casual, authentic conversations"
+    },
+    {
+      "id": "9fb269e7-70fe-4cbe-aa3f-28bdb67e3e84",
+      "name": "Steve - Baritone",
+      "gender": "masculine",
+      "description": "Deep, firm adult male for narrations and voiceovers"
+    },
+    {
+      "id": "57c63422-d911-4666-815b-0c332e4d7d6a",
+      "name": "Lori - Cheerleader",
+      "gender": "feminine",
+      "description": "Female with clear enunciation for upbeat, emotive conversations"
+    },
+    {
+      "id": "61001bc6-9064-40a4-b8b2-29178e0fa558",
+      "name": "Luke - Angry Broadway Voice",
+      "gender": "masculine",
+      "description": "Seasoned male voice for casual, authentic conversations"
+    },
+    {
+      "id": "6b622a1d-906f-44af-b60c-7bef365bf124",
+      "name": "David - Happy Greeter",
+      "gender": "masculine",
+      "description": "Engaging adult male for advertising and upbeat conversations"
+    },
+    {
+      "id": "6fd4f468-0345-4f41-81d0-3f48ebc295e0",
+      "name": "Steve - Surprised Baritone",
+      "gender": "masculine",
+      "description": "Deep, firm adult male for narrations and voiceovers"
+    },
+    {
+      "id": "83e45f18-fac4-40db-a43b-03257883b437",
+      "name": "Kenneth - Happy Friendly Rep",
+      "gender": "masculine",
+      "description": "Well-paced male voice with clear enunciation, great for approachable and informative conversations"
+    },
+    {
+      "id": "134838f5-ce7e-4876-ac32-6367b99daf83",
+      "name": "Madison - Best Friend",
+      "gender": "feminine",
+      "description": "Enthusiastic, young adult female for emotive discussions"
+    },
+    {
+      "id": "64875a07-f57e-4a70-b702-4e3fb25efeda",
+      "name": "Kenneth - Scared Friendly Rep",
+      "gender": "masculine",
+      "description": "Well-paced male voice with clear enunciation, great for approachable and informative conversations"
+    },
+    {
+      "id": "b08c966e-2146-4592-99eb-3171a714a43c",
+      "name": "David - Curious Greeter",
+      "gender": "masculine",
+      "description": "Engaging adult male for advertising and upbeat conversations"
+    },
+    {
+      "id": "a5def41e-2e73-433f-92f7-5f1d99fef05d",
+      "name": "Madison - Surprised Best Friend",
+      "gender": "feminine",
+      "description": "Enthusiastic, young adult female for emotive discussions"
+    },
+    {
+      "id": "f80e7298-93f5-46d0-86f2-b8f29cfc88bd",
+      "name": "Claudia - Welcoming Lady",
+      "gender": "feminine",
+      "description": "Friendly, calm young adult female for casual conversations"
+    },
+    {
+      "id": "414da90b-16b3-4e88-86f5-3c3945e8fa4b",
+      "name": "Lori - Disgusted Cheerleader",
+      "gender": "feminine",
+      "description": "Female with clear enunciation for upbeat, emotive conversations"
+    },
+    {
+      "id": "876c39e1-9ecd-42cd-b0c1-8b3906f0be19",
+      "name": "Kenneth - Disgusted Friendly Rep",
+      "gender": "masculine",
+      "description": "Well-paced male voice with clear enunciation, great for approachable and informative conversations"
+    },
+    {
+      "id": "725d43d6-1196-480e-bd87-728ae5eff9e1",
+      "name": "Luke - Surprised Broadway Voice",
+      "gender": "masculine",
+      "description": "Seasoned male voice for casual, authentic conversations"
+    },
+    {
+      "id": "f96dc0b1-7900-4894-a339-81fb46d515a7",
+      "name": "Steve - Disgusted Baritone",
+      "gender": "masculine",
+      "description": "Deep, firm adult male for narrations and voiceovers"
+    },
+    {
+      "id": "c2da2a3e-b0d6-46bf-a09a-68562617a50a",
+      "name": "Lori - Surprised Cheerleader",
+      "gender": "feminine",
+      "description": "Female with clear enunciation for upbeat, emotive conversations"
+    },
+    {
+      "id": "ba0add52-783c-4ec0-8b9c-7a6b60f99d1c",
+      "name": "Lori - Curious Cheerleader",
+      "gender": "feminine",
+      "description": "Female with clear enunciation for upbeat, emotive conversations"
+    },
+    {
+      "id": "fb78f09f-f998-4061-ad51-d71f90388f0e",
+      "name": "Lori - Scared Cheerleader",
+      "gender": "feminine",
+      "description": "Female with clear enunciation for upbeat, emotive conversations"
+    },
+    {
+      "id": "3d79b1fd-daaa-439c-bff3-903dc18e7684",
+      "name": "Luke - Happy Broadway Voice",
+      "gender": "masculine",
+      "description": "Seasoned male voice for casual, authentic conversations"
+    },
+    {
+      "id": "62305e79-9d39-4643-b003-5e0b096fe4f4",
+      "name": "Madison - Happy Best Friend",
+      "gender": "feminine",
+      "description": "Enthusiastic young adult female for emotive discussions"
+    },
+    {
+      "id": "30236d07-62d0-4c63-abf7-df46aa45e473",
+      "name": "Madison - Scared Best Friend",
+      "gender": "feminine",
+      "description": "Enthusiastic, young adult female for emotive discussions"
+    },
+    {
+      "id": "63426c82-a0c9-4f23-a175-50eb64c95ec1",
+      "name": "Luke - Scared Broadway Voice",
+      "gender": "masculine",
+      "description": "Seasoned male voice for casual, authentic conversations"
+    },
+    {
+      "id": "2d01710c-7c77-4cf1-b0d0-5902a25f6e17",
+      "name": "Lori - Sad Cheerleader",
+      "gender": "feminine",
+      "description": "Female with clear enunciation for upbeat, emotive conversations"
+    },
+    {
+      "id": "5cc54223-ec0c-4c50-87e9-b9947264e1f4",
+      "name": "Lori - Cheerleader",
+      "gender": "feminine",
+      "description": "Female with clear enunciation for upbeat, emotive conversations"
+    },
+    {
+      "id": "80713a53-e484-4f69-9852-7891096016ac",
+      "name": "Steve - Sad Baritone",
+      "gender": "masculine",
+      "description": "Deep, firm adult male for narrations and voiceovers"
+    },
+    {
+      "id": "5c7b66c2-3b58-464d-8a12-093410a269c5",
+      "name": "Luke - Sad Broadway Voice",
+      "gender": "masculine",
+      "description": "Seasoned male voice for casual, authentic conversations"
+    },
+    {
+      "id": "abe7dee1-6051-43d3-9a9f-1ac1312497a7",
+      "name": "Kenneth - Surprised Friendly Rep",
+      "gender": "masculine",
+      "description": "Well-paced male voice with clear enunciation, great for approachable and informative conversations"
+    },
+    {
+      "id": "27c12970-3efb-4f39-a78a-2fbb7bddc941",
+      "name": "Madison - Sad Best Friend",
+      "gender": "feminine",
+      "description": "Enthusiastic young adult female for emotive discussions"
+    },
+    {
+      "id": "adde00e9-c98f-42ae-a94d-fc9f92f11c76",
+      "name": "Steve - Happy Baritone",
+      "gender": "masculine",
+      "description": "Deep, firm adult male for narrations and voiceovers"
+    },
+    {
+      "id": "8843adfb-77d3-455a-86f9-de0651555ec6",
+      "name": "Lori - Happy Cheerleader",
+      "gender": "feminine",
+      "description": "Female with clear enunciation for upbeat, emotive conversations"
+    },
+    {
+      "id": "8e14933d-ecd7-402b-9505-795130d69b35",
+      "name": "Luke - Broadway Voice",
+      "gender": "masculine",
+      "description": "Seasoned male voice for casual, authentic conversations"
+    },
+    {
+      "id": "aa086107-101b-4182-a628-c51186d74166",
+      "name": "Kenneth - Angry Friendly Rep",
+      "gender": "masculine",
+      "description": "Well-paced male voice with clear enunciation, great for approachable and informative conversations"
+    },
+    {
+      "id": "79b8126f-c5d9-4a73-8585-ba5e1a077ed6",
+      "name": "Luke - Disgusted Broadway Voice",
+      "gender": "masculine",
+      "description": "Seasoned male voice for casual, authentic conversations"
+    },
+    {
+      "id": "10d17ae0-8f64-472a-be00-f00a98c729e0",
+      "name": "David - Surprised Greeter",
+      "gender": "masculine",
+      "description": "Engaging adult male for advertising and upbeat conversations"
+    },
+    {
+      "id": "cf14fdcd-24a0-4d63-958a-c784f33d8e7c",
+      "name": "Kenneth - Curious Friendly Rep",
+      "gender": "masculine",
+      "description": "Well-paced male voice with clear enunciation, great for approachable and informative conversations"
+    },
+    {
+      "id": "5993c2c9-5d59-403e-b459-946c8b302086",
+      "name": "Madison - Disgusted Best Friend",
+      "gender": "feminine",
+      "description": "Enthusiastic young adult female for emotive discussions"
+    },
+    {
+      "id": "98c87826-dba2-44f4-b123-4c7e3c8a2647",
+      "name": "Madison - Curious Best Friend",
+      "gender": "feminine",
+      "description": "Enthusiastic, young adult female for emotive discussions"
+    },
+    {
+      "id": "fd098a10-ba9e-445e-b144-be2a9f3dac02",
+      "name": "David - Angry Greeter",
+      "gender": "masculine",
+      "description": "Engaging adult male for advertising and upbeat conversations"
+    },
+    {
+      "id": "c1c65fc2-528a-4dde-a2c4-f822785c2704",
+      "name": "Steve - Curious Baritone",
+      "gender": "masculine",
+      "description": "Deep, firm adult male for narrations and voiceovers"
+    },
+    {
+      "id": "cb605424-d682-48e9-94db-34cc567cf1c6",
+      "name": "Kenneth - Sad Friendly Rep",
+      "gender": "masculine",
+      "description": "Well-paced male voice with clear enunciation, great for approachable and informative conversations"
+    },
+    {
+      "id": "b1ce5126-4d08-42c3-adef-d3eb39e90c7a",
+      "name": "Steve - Scared Baritone",
+      "gender": "masculine",
+      "description": "Deep, firm adult male for narrations and voiceovers"
+    },
+    {
+      "id": "a3a4fe2a-d402-41d1-be7d-28f71eda755f",
+      "name": "David - Scared Greeter",
+      "gender": "masculine",
+      "description": "Engaging adult male for advertising and upbeat conversations"
+    },
+    {
+      "id": "9d2b4a7f-7ced-4fb8-b570-9ce21fb931c8",
+      "name": "David - Disgusted Greeter",
+      "gender": "masculine",
+      "description": "Engaging adult male for advertising and upbeat conversations"
+    },
+    {
+      "id": "7c8ba972-4960-4c43-bea0-8178e2205696",
+      "name": "Steve - Angry Baritone",
+      "gender": "masculine",
+      "description": "Deep, firm adult male for narrations and voiceovers"
+    },
+    {
+      "id": "911b8b22-887f-4caf-bf87-85d834c08708",
+      "name": "Kenneth - Friendly Rep",
+      "gender": "masculine",
+      "description": "Well-paced male voice with clear enunciation, great for approachable and informative conversations"
+    },
+    {
+      "id": "c4e848dc-d4fd-4bc8-90ea-8525563ec0e5",
+      "name": "David - Sad Greeter",
+      "gender": "masculine",
+      "description": "Engaging adult male for advertising and upbeat conversations"
+    },
+    {
+      "id": "1242fb95-7ddd-44ac-8a05-9e8a22a6137d",
+      "name": "Cindy - Receptionist",
+      "gender": "feminine",
+      "description": "Smooth, welcoming adult female for frontline customer interactions"
+    },
+    {
+      "id": "01eaafa9-308a-4276-a017-6ab0cf061b1f",
+      "name": "Clara - Instructor",
+      "gender": "feminine",
+      "description": "Middle-aged American female voice with a clear tone and precise enunciation for instructions, customer support, and professional presentations"
+    },
+    {
+      "id": "03b1c65d-4b7f-4c09-91a8-e2f6f78cb2c9",
+      "name": "Molly - Upbeat Conversationalist",
+      "gender": "feminine",
+      "description": "Bright and cheerful American-accented female voice for upbeat conversations, advertisements, and lively interactions"
+    },
+    {
+      "id": "09ed0318-2f4a-41b1-abe5-d11da7537c31",
+      "name": "Daphne - Excited Woman",
+      "gender": "feminine",
+      "description": "Expressive and upbeat American-accented female voice with an exciting tone for ads, presentations, and lively storytelling"
+    },
+    {
+      "id": "0d42f0f6-c019-4082-b250-1c16133d1c82",
+      "name": "Howard - Approachable Man",
+      "gender": "masculine",
+      "description": "Male adult voice with a clear, approachable tone and steady delivery"
+    },
+    {
+      "id": "1b4ea5fb-b1c0-43ee-a7be-4e315878c2b1",
+      "name": "Monica - Emotive Voice",
+      "gender": "feminine",
+      "description": "English female adult voice with rich emotional range and expressive delivery"
+    },
+    {
+      "id": "2f22b9bc-b0eb-4cb6-b5ae-0c099a0fdfad",
+      "name": "Scott - Sportscaster",
+      "gender": "masculine",
+      "description": "Energetic American adult male voice with the excitement of a sportscaster for live commentary, sports content, and high-energy announcements"
+    },
+    {
+      "id": "3d808d23-cb09-4c39-8afd-528e209cba4f",
+      "name": "Brent - Steady Conversationalist",
+      "gender": "masculine",
+      "description": "English male adult voice with a calm, steady, and composed delivery"
+    },
+    {
+      "id": "3ef78ba6-9aaa-46a2-b5b5-f9ded76a2370",
+      "name": "Serena - Laidback Girl",
+      "gender": "feminine",
+      "description": "Female adult voice with a relaxed, easygoing tone and laid-back delivery"
+    },
+    {
+      "id": "46788d8e-cdf9-4d5c-9125-094eb2e4d44c",
+      "name": "Brittany - Intense Performer",
+      "gender": "feminine",
+      "description": "Strong and aggressive American-accented female voice for intense dialogue, dramatic roles, or high-energy commercials"
+    },
+    {
+      "id": "4e41a434-85fc-4614-b203-af79ba44d473",
+      "name": "Sienna - Encourager",
+      "gender": "feminine",
+      "description": "Soft-spoken American-accented female voice with a motivating and reassuring tone for guidance, support, and uplifting conversations"
+    },
+    {
+      "id": "710feaa3-b550-42f3-b3eb-6f37f2a7cc0a",
+      "name": "Tanner - Upbeat Assistant",
+      "gender": "masculine",
+      "description": "English male adult voice with an upbeat and energetic tone"
+    },
+    {
+      "id": "79bfcec0-720c-41f2-a33a-f12383e9627f",
+      "name": "Wang - Guide",
+      "gender": "masculine",
+      "description": "Clear and firm adult male voice with an authoritative tone for customer support, giving instructions and professional communication"
+    },
+    {
+      "id": "7edf9efb-58fc-46ba-a648-3a00a86b111b",
+      "name": "Elliott - Reflective Storyteller",
+      "gender": "masculine",
+      "description": "English male adult voice with a soft, melancholic tone and a questioning inflection for storytelling and emotional dialogue"
+    },
+    {
+      "id": "8918ddfe-2ad4-4cc8-a573-e020ca13f3f5",
+      "name": "Erin - Joyful Guide",
+      "gender": "feminine",
+      "description": "Cheerful and optimistic adult female voice for upbeat conversations, advertisements, and positive customer interactions"
+    },
+    {
+      "id": "9287676d-f0cc-423f-ac03-3b3c7242f091",
+      "name": "Allen - Modern Voice",
+      "gender": "masculine",
+      "description": "Confident young adult male voice with a neutral American accent for presentations, ads, and engaging everyday conversations"
+    },
+    {
+      "id": "92c41dd4-04aa-45de-8504-a92b40cb8818",
+      "name": "Connor - Grateful Person",
+      "gender": "masculine",
+      "description": "Expressive American adult male voice with a grateful yet firm tone for speeches, storytelling, and professional communication"
+    },
+    {
+      "id": "9a0894a9-28f0-436e-9a1d-e92bccbce4dd",
+      "name": "Albert - Firm Guide",
+      "gender": "masculine",
+      "description": "English male adult voice with a firm and authoritative tone for providing clear instructions and guidance"
+    },
+    {
+      "id": "a7a59115-2425-4192-844c-1e98ec7d6877",
+      "name": "Amber - Warm Support Agent",
+      "gender": "feminine",
+      "description": "English female adult voice with a cheerful yet deeper tone, striking a balance of warmth and authority for customer service use"
+    },
+    {
+      "id": "c63361f8-d142-4c62-8da7-8f8149d973d6",
+      "name": "Krishna - Friendly Pal",
+      "gender": "masculine",
+      "description": "Easygoing adult male voice with a slight Indian accent for casual conversations, approachable dialogue, and friendly interactions"
+    },
+    {
+      "id": "e2d08065-b658-466b-ad52-cef8ee21d307",
+      "name": "Natasha - Upbeat Guide",
+      "gender": "feminine",
+      "description": "English female adult voice with a lively, upbeat tone for energetic conversations"
+    },
+    {
+      "id": "e2d48e7b-cd73-4c4c-bc1e-f232580e8709",
+      "name": "Adrian - Explorer",
+      "gender": "masculine",
+      "description": "Deep American adult male voice with a curious and engaging tone for explorations, documentaries, and storytelling"
+    },
+    {
+      "id": "efd255c7-f030-43d3-b5d8-c7b72063be70",
+      "name": "Todd - Matter of Fact Salesman",
+      "gender": "masculine",
+      "description": "English male adult voice with a direct, matter-of-fact delivery"
+    },
+    {
+      "id": "f39d8500-0d9b-4b8b-a080-38f5188f5892",
+      "name": "Jewel - Commercial Announcer",
+      "gender": "feminine",
+      "description": "Smooth, confident, and engaging female voice for advertising, promos, and high-impact brand messaging"
+    },
+    {
+      "id": "f762e181-ddc7-486e-9a48-636bd7e229d4",
+      "name": "Chloe - Persuasive Lady",
+      "gender": "feminine",
+      "description": "English female adult voice with a confident and persuasive tone, able to influence and engage listeners with clarity and conviction"
+    }
+  ],
+  "ko": [
+    {
+      "id": "29e5f8b4-b953-4160-848f-40fae182235b",
+      "name": "Mimi - Show Stopper",
+      "gender": "feminine",
+      "description": "Cheery, young female for entertainment and content"
+    },
+    {
+      "id": "663afeec-d082-4ab5-827e-2e41bf73a25b",
+      "name": "Jaechul - Disciplined Woman",
+      "gender": "feminine",
+      "description": "Serious female for formal conversation"
+    },
+    {
+      "id": "af6beeea-d732-40b6-8292-73af0035b740",
+      "name": "Byungtae - Enforcer",
+      "gender": "masculine",
+      "description": "Authoritative male for providing instructions"
+    },
+    {
+      "id": "cac92886-4b7c-4bc1-a524-e0f79c0381be",
+      "name": "Yuna - Kind Unnie",
+      "gender": "feminine",
+      "description": "Cheerful voice with a bright yet gentle tone, perfect for empathetic and friendly customer support"
+    },
+    {
+      "id": "cd6c48a9-774b-4397-98b4-9948c0a790f0",
+      "name": "Soojin - Helpful Tone",
+      "gender": "feminine",
+      "description": "Casual voice with a natural, friendly tone that feels relaxed and approachable in conversation"
+    },
+    {
+      "id": "f7755efb-1848-4321-aa22-5e5be5d32486",
+      "name": "Ryeowook - Easygoing Pal",
+      "gender": "masculine",
+      "description": "Relaxed voice with calm, natural pacing, ideal for easygoing everyday conversations"
+    },
+    {
+      "id": "537a82ae-4926-4bfb-9aec-aff0b80a12a5",
+      "name": "Minho - Friendly Spirit",
+      "gender": "masculine",
+      "description": "Laidback voice with a smooth, approachable tone that feels friendly and natural in conversation"
+    },
+    {
+      "id": "304fdbd8-65e6-40d6-ab78-f9d18b9efdf9",
+      "name": "Jihyun - Anchorwoman",
+      "gender": "feminine",
+      "description": "Relaxing female for narrations and announcements"
+    },
+    {
+      "id": "15628352-2ede-4f1b-89e6-ceda0c983fbc",
+      "name": "Jiwoo - Service Specialist",
+      "gender": "feminine",
+      "description": "Professional and polite adult female voice for customer service, support, and clear communication"
+    }
+  ],
+  "zh": [
+    {
+      "id": "eda5bbff-1ff1-4886-8ef1-4e69a77640a0",
+      "name": "Kai - Commercial Man",
+      "gender": "masculine",
+      "description": "Deep, friendly adult male for commercials and advertising"
+    },
+    {
+      "id": "e90c6678-f0d3-4767-9883-5d0ecf5894a8",
+      "name": "Yue - Gentle Woman",
+      "gender": "feminine",
+      "description": "Kind adult female for empathetic conversations"
+    },
+    {
+      "id": "f9a4b3a6-b44b-469f-90e3-c8e19bd30e99",
+      "name": "Shuwen - Precision Guide",
+      "gender": "feminine",
+      "description": "Neutral, firm female for providing guidance and instruction"
+    },
+    {
+      "id": "c59c247b-6aa9-4ab6-91f9-9eabea7dc69e",
+      "name": "Tao - Lecturer",
+      "gender": "masculine",
+      "description": "Friendly young adult male for presentations and educational content"
+    },
+    {
+      "id": "653b9445-ae0c-4312-a3ce-375504cff31e",
+      "name": "Liu - Plain Talker",
+      "gender": "masculine",
+      "description": "Casual, neutral adult man for conversational support use cases"
+    },
+    {
+      "id": "bf32f849-7bc9-4b91-8c62-954588efcc30",
+      "name": "Lan - Instructor",
+      "gender": "feminine",
+      "description": "Firm, neutral adult woman for providing guidance and instruction"
+    },
+    {
+      "id": "7a5d4663-88ae-47b7-808e-8f9b9ee4127b",
+      "name": "Hua - Sunny Support",
+      "gender": "feminine",
+      "description": "Upbeat, happy young adult woman for engaging conversations and conversational support"
+    },
+    {
+      "id": "0b904166-a29f-4d2e-bb20-41ca302f98e9",
+      "name": "Fei - Broadcast Narrator",
+      "gender": "feminine",
+      "description": "Cheery, confident adult woman for narrations and announcements"
+    },
+    {
+      "id": "a53c3509-ec3f-425c-a223-977f5f7424dd",
+      "name": "Mei - Expressive Assistant",
+      "gender": "feminine",
+      "description": "Expressive adult female voice with a lively and engaging tone for storytelling, advertisements, and animated dialogue"
+    },
+    {
+      "id": "16212f18-4955-4be9-a6cd-2196ce2c11d1",
+      "name": "Hao - Friendly Guy",
+      "gender": "masculine",
+      "description": "Warm and friendly adult male voice for approachable conversations, customer support, and casual dialogue"
+    }
+  ],
+  "sv": [
+    {
+      "id": "6c6b05bf-ae5f-4013-82ab-7348e99ffdb2",
+      "name": "Freja - Nordic Reader",
+      "gender": "feminine",
+      "description": "Expressive female for clear communication"
+    },
+    {
+      "id": "38a146c3-69d7-40ad-aada-76d5a2621758",
+      "name": "Anders - Nordic Baritone",
+      "gender": "masculine",
+      "description": "Deep male for historical narrations"
+    },
+    {
+      "id": "f852eb8d-a177-48cd-bf63-7e4dcab61a36",
+      "name": "Ingrid - Peaceful Guide",
+      "gender": "feminine",
+      "description": "Serene female for relaxing narrations"
+    },
+    {
+      "id": "0caedb75-417f-4e36-9b64-c21354cb94c8",
+      "name": "Cees - Nordic Narrator",
+      "gender": "masculine",
+      "description": "Enunciating male for smooth conversations"
+    },
+    {
+      "id": "00510a15-4216-4fdc-a0ab-05d74cd9f795",
+      "name": "Elina - Clear Presenter Woman",
+      "gender": "feminine",
+      "description": "Firm and professional adult female voice for news delivery, announcements, and formal presentations"
+    },
+    {
+      "id": "32a806e8-894e-41ad-a4d5-6d9154d7b1e6",
+      "name": "Erik - Social Speaker",
+      "gender": "masculine",
+      "description": "Relaxed and approachable adult male voice for casual conversations and natural everyday dialogue"
+    }
+  ],
+  "ru": [
+    {
+      "id": "064b17af-d36b-4bfb-b003-be07dba1b649",
+      "name": "Tatiana - Friendly Storyteller",
+      "gender": "feminine",
+      "description": "Friendly female for audiobooks and clear communication"
+    },
+    {
+      "id": "642014de-c0e3-4133-adc0-36b5309c23e6",
+      "name": "Irina - Poetic Voice",
+      "gender": "feminine",
+      "description": "Graceful female for narrations and audiobooks"
+    },
+    {
+      "id": "779673f3-895f-4935-b6b5-b031dc78b319",
+      "name": "Natalya - Soothing Guide",
+      "gender": "feminine",
+      "description": "Serene female for relaxing audio"
+    },
+    {
+      "id": "888b7df4-e165-4852-bfec-0ab2b96aaa46",
+      "name": "Dmitri - Gentle Voice",
+      "gender": "masculine",
+      "description": "Approachable adult male voice with a relaxed tone for casual chats and everyday conversations"
+    },
+    {
+      "id": "9ed9f7e7-3ef6-4773-9dd3-ffcb479ca1f0",
+      "name": "Olga - Confident Saleswoman",
+      "gender": "feminine",
+      "description": "Upbeat and confident adult female voice for presentations and engaging customer interactions"
+    }
+  ],
+  "pl": [
+    {
+      "id": "82a7fc13-2927-4e42-9b8a-bb1f9e506521",
+      "name": "Tomek - Casual Companion",
+      "gender": "masculine",
+      "description": "Energetic male for casual conversations"
+    },
+    {
+      "id": "2a3503b2-b6b6-4534-a224-e8c0679cec4a",
+      "name": "Jakub - Gentle Guide",
+      "gender": "masculine",
+      "description": "Clear male for narrations"
+    },
+    {
+      "id": "4ef93bb3-682a-46e6-b881-8e157b6b4388",
+      "name": "Wojciech - Documentarian",
+      "gender": "masculine",
+      "description": "Deep male for narrations and documentary media"
+    },
+    {
+      "id": "3d335974-4c4a-400a-84dc-ebf4b73aada6",
+      "name": "Piotr - Corporate Lead",
+      "gender": "masculine",
+      "description": "Confident male for providing instructions"
+    },
+    {
+      "id": "575a5d29-1fdc-4d4e-9afa-5a9a71759864",
+      "name": "Katarzyna - Melodic Storyteller",
+      "gender": "feminine",
+      "description": "Melodic female for storytelling"
+    },
+    {
+      "id": "dcf62f33-7cff-4f20-85b2-2efaa68cbc32",
+      "name": "Zofia - Audiobook Muse",
+      "gender": "feminine",
+      "description": "Expressive female for clear communication"
+    },
+    {
+      "id": "ea7b5eee-39d9-40b0-b241-1910cbca9c62",
+      "name": "Kasia - Natural Conversationalist",
+      "gender": "feminine",
+      "description": "Approachable adult female voice with a natural and casual tone for everyday conversations and friendly dialogue"
+    },
+    {
+      "id": "887149a8-4616-42ad-b2ce-c3819176f45d",
+      "name": "Andrzej - Elder Voice",
+      "gender": "masculine",
+      "description": "Wise-sounding elderly male voice with a calm and casual tone for storytelling, guidance, and everyday conversations"
+    }
+  ],
+  "tr": [
+    {
+      "id": "fa7bfcdc-603c-4bf1-a600-a371400d2f8c",
+      "name": "Leyla - Story Companion",
+      "gender": "feminine",
+      "description": "Expressive female for conversational support"
+    },
+    {
+      "id": "39f753ef-b0eb-41cd-aa53-2f3c284f948f",
+      "name": "Emre - Calming Speaker",
+      "gender": "masculine",
+      "description": "Soothing male for calming dialogue"
+    },
+    {
+      "id": "c1cfee3d-532d-47f8-8dd2-8e5b2b66bf1d",
+      "name": "Taylan - Expressive Voice",
+      "gender": "masculine",
+      "description": "Versatile articulate male for storytelling"
+    },
+    {
+      "id": "bb2347fe-69e9-4810-873f-ffd759fe8420",
+      "name": "Aylin - Warm Guide",
+      "gender": "feminine",
+      "description": "Friendly female for narrations and explainer videos"
+    },
+    {
+      "id": "5a31e4fb-f823-4359-aa91-82c0ae9a991c",
+      "name": "Murat - Anatolian Storyteller",
+      "gender": "masculine",
+      "description": "Deep male for narrations and audiobooks"
+    },
+    {
+      "id": "0f95596c-09c4-4418-99fe-5c107e0713c0",
+      "name": "Azra - Service Specialist",
+      "gender": "feminine",
+      "description": "Firm and clear adult voice with a professional tone for instructions, customer service, and formal communication"
+    },
+    {
+      "id": "91e91d74-8eb4-43cd-97d3-7466c21db00d",
+      "name": "Zehra - Friendly Companion",
+      "gender": "masculine",
+      "description": "Relaxed adult male voice with a natural and approachable tone for casual chats and everyday conversations"
+    }
+  ],
+  "pt": [
+    {
+      "id": "5063f45b-d9e0-4095-b056-8f3ee055d411",
+      "name": "Camilo - Supporter",
+      "gender": "masculine",
+      "description": "Soothing, warm male for feel good conversations"
+    },
+    {
+      "id": "a37639f0-2f0a-4de4-9942-875a187af878",
+      "name": "Felipe - Casual Talker",
+      "gender": "masculine",
+      "description": "Relaxed, conversational male for reassuring conversation"
+    },
+    {
+      "id": "d4b44b9a-82bc-4b65-b456-763fce4c52f9",
+      "name": "Beatriz - Support Guide",
+      "gender": "feminine",
+      "description": "Friendly, natural female for engaging conversation"
+    },
+    {
+      "id": "6a16c1f4-462b-44de-998d-ccdaa4125a0a",
+      "name": "Hidalgo - Anchorperson",
+      "gender": "masculine",
+      "description": "Lively, confident male for announcements"
+    },
+    {
+      "id": "700d1ee3-a641-4018-ba6e-899dcadc9e2b",
+      "name": "Luana - Public Speaker",
+      "gender": "feminine",
+      "description": "Pleasant, clear female for casual conversation"
+    },
+    {
+      "id": "1cf751f6-8749-43ab-98bd-230dd633abdb",
+      "name": "Ana Paula - Marketer",
+      "gender": "feminine",
+      "description": "Warm, friendly female for natural, informal dialogue"
+    },
+    {
+      "id": "f39bf583-3b3d-402f-9ffb-6179d9ec3e35",
+      "name": "Isabel - Confident Woman",
+      "gender": "feminine",
+      "description": "Confident, clear, and firm adult female voice for giving instructions, guidance, and professional communication"
+    },
+    {
+      "id": "fbee0e7d-a83a-4082-bad1-13c70f86da4e",
+      "name": "Diogo - Promotion Lead",
+      "gender": "masculine",
+      "description": "Strong and expressive adult male voice for narrations, commercials, and persuasive communication"
+    },
+    {
+      "id": "6a360542-a117-4ed5-9e09-e8bf9b05eabb",
+      "name": "Tiago - Narration Expert",
+      "gender": "masculine",
+      "description": "Calm, clear male for narrations"
+    }
+  ],
+  "de": [
+    {
+      "id": "38aabb6a-f52b-4fb0-a3d1-988518f4dc06",
+      "name": "Alina - Engaging Assistant",
+      "gender": "feminine",
+      "description": "Warm female for phone systems, virtual assistants, and customer service"
+    },
+    {
+      "id": "afa425cf-5489-4a09-8a3f-d3cb1f82150d",
+      "name": "Nico - Friendly Agent",
+      "gender": "masculine",
+      "description": "Casual male for phone calls and conversational agents"
+    },
+    {
+      "id": "3f4ade23-6eb4-4279-ab05-6a144947c4d5",
+      "name": "Karin - Companion",
+      "gender": "feminine",
+      "description": "Friendly female for casual conversations"
+    },
+    {
+      "id": "1ade29fc-6b82-4607-9e70-361720139b12",
+      "name": "Lea - Breezy Voice",
+      "gender": "feminine",
+      "description": "Smooth female for casual conversations"
+    },
+    {
+      "id": "11c61307-4f9e-4db8-ac3b-bfa5f2a731ce",
+      "name": "Serafina - Serene Storyteller",
+      "gender": "feminine",
+      "description": "Deep female for calming conversations and storytelling narrations"
+    },
+    {
+      "id": "4ab1ff51-476d-42bb-8019-4d315f7c0c05",
+      "name": "Lena - Muse",
+      "gender": "feminine",
+      "description": "Cool German female for clear communication and audiobooks"
+    },
+    {
+      "id": "db229dfe-f5de-4be4-91fd-7b077c158578",
+      "name": "Andreas - Recorder",
+      "gender": "masculine",
+      "description": "Smooth male for story narration"
+    },
+    {
+      "id": "e00dd3df-19e7-4cd4-827a-7ff6687b6954",
+      "name": "Lukas - Professional",
+      "gender": "masculine",
+      "description": "Confident male for phone systems and customer support"
+    },
+    {
+      "id": "6d4b1416-8d54-4d94-a788-8a802c086544",
+      "name": "Sabine - Firm Newscaster",
+      "gender": "feminine",
+      "description": "Soft yet commanding adult female voice for customer support, clear communication, and giving instructions"
+    },
+    {
+      "id": "2be00b67-d53f-4eb5-89e7-96c224d56fbc",
+      "name": "Dieter - Commercial Man",
+      "gender": "masculine",
+      "description": "Loud and expressive adult male voice for storytelling, commercials, and energetic announcements"
+    },
+    {
+      "id": "43a317e9-f1b9-45bf-bbdb-1d4a52e46f0d",
+      "name": "Emi",
+      "gender": "feminine",
+      "description": "Calm neutral adult female great for customer support"
+    },
+    {
+      "id": "42f14755-88c3-4124-aae3-5cc3a9618e8f",
+      "name": "Jan",
+      "gender": "masculine",
+      "description": "Clear adult male great for providing guidance and instruction"
+    },
+    {
+      "id": "ac197a78-cec7-4c50-93e5-93bdc1910b11",
+      "name": "Jennifer",
+      "gender": "feminine",
+      "description": "Approachable adult female great for conversational support"
+    },
+    {
+      "id": "adc919b3-6ebf-47fd-8a46-27c5169d6d94",
+      "name": "Leni - Daymaker",
+      "gender": "feminine",
+      "description": "Bright, cheerful voice with clear articulation and natural enthusiasm, ideal for upbeat narration, onboarding, and lifestyle content."
+    },
+    {
+      "id": "24c61c42-b538-468e-a9ad-16c7a032c9cb",
+      "name": "Klaus - Archivist",
+      "gender": "masculine",
+      "description": "Deep, grounded male voice for narration, storytelling, and impactful brand content."
+    },
+    {
+      "id": "3264ada2-4a79-4666-badc-49e2267be692",
+      "name": "Christian",
+      "gender": "masculine",
+      "description": "High energy adult male great for engaging and emotive conversations"
+    },
+    {
+      "id": "de07efe3-b309-418b-bdca-42827223efd2",
+      "name": "Rena",
+      "gender": "feminine",
+      "description": "Emotive, energetic young adult female great for engaging conversations "
+    },
+    {
+      "id": "d42fc8d7-efdd-44df-bb2e-a6e093601917",
+      "name": "Oskar - Steady Advisor",
+      "gender": "masculine",
+      "description": "Seasoned and composed voice with a calm and confident tone, ideal for guidance and thoughtful narration"
+    },
+    {
+      "id": "f6f315e4-4fb3-4440-92ea-2edb01f9bf1b",
+      "name": "Hermann - Businessman",
+      "gender": "masculine",
+      "description": "Warm, confident, and approachable voice, perfect for customer support and business conversations"
+    },
+    {
+      "id": "0b66a153-548f-4f2c-b734-09a13b0bd163",
+      "name": "Lorelei - Helpful Guide",
+      "gender": "feminine",
+      "description": "Calm and clearly enunciated voice, ideal for informative narration, mindfulness, and instructional content."
+    },
+    {
+      "id": "b9de4a89-2257-424b-94c2-db18ba68c81a",
+      "name": "Viktoria - Phone Conversationalist",
+      "gender": "feminine",
+      "description": "Clear and smooth female for phone conversations"
+    },
+    {
+      "id": "384b625b-da5d-49e8-a76d-a2855d4f31eb",
+      "name": "Thomas - Anchor",
+      "gender": "masculine",
+      "description": "Earnest male for conversations and customer support"
+    },
+    {
+      "id": "b7187e84-fe22-4344-ba4a-bc013fcb533e",
+      "name": "Sebastian - Orator",
+      "gender": "masculine",
+      "description": "Warm male for audiobooks and clear communication"
+    },
+    {
+      "id": "758a5cff-af0b-4bdf-84bd-4c1b5525c249",
+      "name": "Leander",
+      "gender": "masculine",
+      "description": "Warm and approachable voice, ideal for lifestyle content, social media, and casual explainers."
+    },
+    {
+      "id": "b629d743-2b5a-4ffd-b5bb-9de9b969a690",
+      "name": "Sibylle",
+      "gender": "feminine",
+      "description": "Clear and confident voice, ideal for announcements and customer support"
+    },
+    {
+      "id": "dff81230-ff75-49a4-af44-f6b2f43500d8",
+      "name": "Jonas",
+      "gender": "masculine",
+      "description": "Casual male voice thats warm, friendly, and conversational"
+    }
+  ],
+  "ja": [
+    {
+      "id": "e8a863c6-22c7-4671-86ca-91cacffc038d",
+      "name": "Daisuke - Businessman",
+      "gender": "masculine",
+      "description": "Business-like, clear male for professional use cases"
+    },
+    {
+      "id": "a759ecc5-ac21-487e-88c7-288bdfe76999",
+      "name": "Daichi - Baritone Narrator",
+      "gender": "masculine",
+      "description": "Low pitched, intense male with a mysterious and brooding tone for villains, anti-heroes, and enigmatic characters"
+    },
+    {
+      "id": "44863732-e415-4084-8ba1-deabe34ce3d2",
+      "name": "Kaori - Friendly Narrator",
+      "gender": "feminine",
+      "description": "Upbeat, positive, and gentle female for commercials and audiobooks"
+    },
+    {
+      "id": "0cd0cde2-3b93-42b5-bcb9-f214a591aa29",
+      "name": "Sayuri - Peppy Colleague",
+      "gender": "feminine",
+      "description": "Clear and bright female with a gentle tone of politeness and a naturally inquisitive cadence for dialogue, narration, or assistant-style roles"
+    },
+    {
+      "id": "97e7d7a9-dfaa-4758-a936-f5f844ac34cc",
+      "name": "Fuji - Positive Colleague",
+      "gender": "masculine",
+      "description": "Positive and gentle male for conversational settings"
+    },
+    {
+      "id": "06950fa3-534d-46b3-93bb-f852770ea0b5",
+      "name": "Takeshi - Hero",
+      "gender": "masculine",
+      "description": "Smooth, expressive male with a warm mid-range and dynamic emotional range for dramatic storytelling"
+    },
+    {
+      "id": "446f922f-c43a-4aad-9a8b-ad2af568e882",
+      "name": "Akira - Professional Colleague",
+      "gender": "masculine",
+      "description": "Clear and professional male for news announcements and business conversations"
+    },
+    {
+      "id": "c7eafe22-8b71-40cd-850b-c5a3bbd8f8d2",
+      "name": "Emi - Soft-Spoken Friend",
+      "gender": "feminine",
+      "description": "Soft and delicate female with a gentle, timid tone for female game characters and children's book narrations"
+    },
+    {
+      "id": "6b92f628-be90-497c-8f4c-3b035002df71",
+      "name": "Kenji - Calm Man",
+      "gender": "masculine",
+      "description": "Calm, deep male for news narration and formal customer service"
+    },
+    {
+      "id": "9e7ef2cf-b69c-46ac-9e35-bbfd73ba82af",
+      "name": "Ren - High-Energy Character",
+      "gender": "masculine",
+      "description": "Bold and lively male with high energy for fictional characters, dynamic narration, and expressive dialogue"
+    },
+    {
+      "id": "b8e1169c-f16a-4064-a6e0-95054169e553",
+      "name": "Takashi - Professional Conversationalist",
+      "gender": "masculine",
+      "description": "Serious adult male voice with a steady but approachable tone for casual conversations and professional dialogue"
+    },
+    {
+      "id": "31c55968-a9f4-4115-8831-3a16952179c8",
+      "name": "Ayumi - Sales Guide",
+      "gender": "feminine",
+      "description": "Upbeat and enthusiastic adult female voice for sales, promotions, and engaging customer interactions"
+    },
+    {
+      "id": "9436e723-612d-4114-aeb0-fa00d4d639bf",
+      "name": "Katsuya - Promo Host",
+      "gender": "masculine",
+      "description": "Lively confident male for advertising and announcing"
+    },
+    {
+      "id": "49e02441-83ea-4c77-bda8-79fdd7f07e92",
+      "name": "Tohru - Career Coach",
+      "gender": "masculine",
+      "description": "Young professional male for providing guidance and instruction"
+    },
+    {
+      "id": "63d6f469-8c2c-489d-b53f-d36f0bbdcd4b",
+      "name": "Ayako",
+      "gender": "feminine",
+      "description": "Friendly and calm adult female for providing instructions and conversational support"
+    },
+    {
+      "id": "2b568345-1d48-4047-b25f-7baccf842eb0",
+      "name": "Yumiko - Friendly Agent",
+      "gender": "feminine",
+      "description": "Friendly, professional and upbeat woman for casual conversations"
+    },
+    {
+      "id": "59d4fd2f-f5eb-4410-8105-58db7661144f",
+      "name": "Yuki - Calm Woman",
+      "gender": "feminine",
+      "description": "Calm, more serious female for news narration and formal customer service"
+    },
+    {
+      "id": "498e7f37-7fa3-4e2c-b8e2-8b6e9276f956",
+      "name": "Aiko - Calming Voice",
+      "gender": "feminine",
+      "description": "Calm and composed voice for clear, conversational interactions"
+    }
+  ],
+  "es": [
+    {
+      "id": "c0c374aa-09be-42d9-9828-4d2d7df86962",
+      "name": "Isabel - Teacher",
+      "gender": "feminine",
+      "description": "Smooth and approachable female with a gentle Castilian accent for guidance and teaching"
+    },
+    {
+      "id": "b5aa8098-49ef-475d-89b0-c9262ecf33fd",
+      "name": "Luis - News Caster",
+      "gender": "masculine",
+      "description": "Clear and distinctive male with a refined Castilian accent for clear communication"
+    },
+    {
+      "id": "d4db5fb9-f44b-4bd1-85fa-192e0f0d75f9",
+      "name": "Paloma - Clear Presenter Woman",
+      "gender": "feminine",
+      "description": "Clear and professional adult woman for reports, public speaking and customer assistance"
+    },
+    {
+      "id": "b042270c-d46f-4d4f-8fb0-7dd7c5fe5615",
+      "name": "Hector - Tour Leader",
+      "gender": "masculine",
+      "description": "Energetic and captivating male with a bright Castilian accent for providing instructions"
+    },
+    {
+      "id": "846fa30b-6e1a-49b9-b7df-6be47092a09a",
+      "name": "Pablo - Clear Storyteller",
+      "gender": "masculine",
+      "description": "Smooth and captivating male with a Castilian accent for conversational AI and interactions"
+    },
+    {
+      "id": "5ef98b2a-68d2-4a35-ac52-632a2d288ea6",
+      "name": "Gabriel - Serious Old Man",
+      "gender": "masculine",
+      "description": "Serious, elderly Spanish man for slow and insightful stories"
+    },
+    {
+      "id": "cefcb124-080b-4655-b31f-932f3ee743de",
+      "name": "Elena - Narrator",
+      "gender": "feminine",
+      "description": "Smooth and grounded female with a soft Castilian accent for podcasts and meditation"
+    },
+    {
+      "id": "79743797-2087-422f-8dc7-86f9efca85f1",
+      "name": "Fran - Confident Young Professional",
+      "gender": "masculine",
+      "description": "Confident and engaging male for conversational AI and phone interactions"
+    },
+    {
+      "id": "2695b6b5-5543-4be1-96d9-3967fb5e7fec",
+      "name": "Agustin - Clear Storyteller",
+      "gender": "masculine",
+      "description": "Intentional, clear adult for concise reports or storytelling"
+    },
+    {
+      "id": "727f663b-0e90-4031-90f2-558b7334425b",
+      "name": "Carmen - Friendly Neighbor",
+      "gender": "feminine",
+      "description": "Natural adult female voice for casual conversations and everyday interactions"
+    },
+    {
+      "id": "e9f0368b-3662-4a01-b037-e13ca5203c74",
+      "name": "Javier - Gentle Advisor",
+      "gender": "feminine",
+      "description": "Approachable adult male voice for casual conversations and natural dialogue"
+    },
+    {
+      "id": "30212483-5c20-479c-8121-f93cd24e30a6",
+      "name": "Camila",
+      "gender": "feminine",
+      "description": "Lively voice for relaxed, casual conversations and light support."
+    },
+    {
+      "id": "9ebc775b-c579-4c31-b37c-2306cbe9cc91",
+      "name": "Carlos",
+      "gender": "masculine",
+      "description": "Warm, lively young adult male voice for expressive narrations and upbeat advertising."
+    },
+    {
+      "id": "d3793b7b-4996-409c-9d59-96dd09f47717",
+      "name": "Renata - Cheerful Conversationalist",
+      "gender": "feminine",
+      "description": "Lively and upbeat matured voice, ideal for ads and narrations"
+    },
+    {
+      "id": "fb936dd1-66ea-43a0-86bd-18a6203dcda2",
+      "name": "Rosa - Optimist Mother",
+      "gender": "feminine",
+      "description": "Happy, approachable middle-aged female voice for cheerful narration and casual conversations."
+    },
+    {
+      "id": "ad8eee76-d702-4a1f-a1bd-7596755ae4c9",
+      "name": "Valeria - Cheerful Promoter",
+      "gender": "feminine",
+      "description": "Expressive and upbeat young adult female voice for energetic commercials, entertainment, and lifestyle content."
+    },
+    {
+      "id": "399002e9-7f7d-42d4-a6a8-9b91bd809b9d",
+      "name": "Diego - Hype Guy",
+      "gender": "masculine",
+      "description": "Lively young adult male voice for energetic, natural-sounding conversations and product-forward moments."
+    },
+    {
+      "id": "bef2ba57-5c10-433b-b215-3bef35110a81",
+      "name": "Camila - Happy Conversationalist",
+      "gender": "feminine",
+      "description": "Lively voice for relaxed, casual conversations and light support."
+    },
+    {
+      "id": "b503f001-80b8-49d3-8666-8d7700fc5ca2",
+      "name": "Liliana - Doting Mother",
+      "gender": "feminine",
+      "description": "Gentle, motherly middle-aged female voice for nurturing conversations, wellness guidance, and emotionally supportive experiences."
+    },
+    {
+      "id": "3a35daa1-ba81-451c-9b21-59332e9db2f3",
+      "name": "Alejandro - Calm Mentor",
+      "gender": "masculine",
+      "description": "Warm voice with a rich tone and calm cadence, ideal for reflective narration, heartfelt campaigns, and cultural storytelling."
+    },
+    {
+      "id": "7b001dff-b8b2-4da7-92e4-5c794798effa",
+      "name": "Jorge - Regular Guy",
+      "gender": "masculine",
+      "description": "Seasoned, relaxed voice with a warm tone, ideal for casual narration and conversational support."
+    },
+    {
+      "id": "948196a7-fe02-417b-9b6d-c45ee0803565",
+      "name": "Manuel - Newsman",
+      "gender": "masculine",
+      "description": "Clear, mature male voice with a steady tone and authoritative presence, ideal for narrations, news-style delivery, and formal announcements."
+    },
+    {
+      "id": "5c5ad5e7-1020-476b-8b91-fdcbe9cc313c",
+      "name": "Daniela - Relaxed Woman",
+      "gender": "feminine",
+      "description": "Calm and trusting Mexican accented female for natural conversations and efficient assistance"
+    },
+    {
+      "id": "02aeee94-c02b-456e-be7a-659672acf82d",
+      "name": "Benito - Digital Voice",
+      "gender": "masculine",
+      "description": "Consistent voice for clear, conversational exchanges"
+    },
+    {
+      "id": "15d0c2e2-8d29-44c3-be23-d585d5f154a1",
+      "name": "Pedro - Formal Speaker",
+      "gender": "masculine",
+      "description": "Formal and steady Mexican adult for clear and concise exchanges of information"
+    },
+    {
+      "id": "ae823354-f9be-4aef-8543-f569644136b4",
+      "name": "Mariana - Nurturing Guide",
+      "gender": "feminine",
+      "description": "Motherly voice with a calm, nurturing tone"
+    },
+    {
+      "id": "7c1ecd2d-1c83-4d5d-a25c-b3820a274a2e",
+      "name": "Jeronimo - Empathetic Advisor",
+      "gender": "masculine",
+      "description": "Friendly, emotionally aware voice for trust-based customer interactions"
+    },
+    {
+      "id": "dbaa1a0d-e004-442d-866f-5431b18d8d54",
+      "name": "Guadalupe - Wise Storyteller",
+      "gender": "feminine",
+      "description": "Character-rich voice for storytelling and dramatic narration"
+    },
+    {
+      "id": "ccfea4bf-b3f4-421e-87ed-dd05dae01431",
+      "name": "Alondra - Reassuring Sister",
+      "gender": "feminine",
+      "description": "Warm, friendly voice with a supportive, big-sister tone"
+    },
+    {
+      "id": "c68a8bd0-f99e-4e7f-915d-a097da6d024c",
+      "name": "Juanita - Helpful Companion",
+      "gender": "feminine",
+      "description": "Friendly, reassuring voice for customer support and assistance"
+    },
+    {
+      "id": "f4d6bb07-f876-4464-ba70-cd48d8701890",
+      "name": "Adriana - Bright Entertainer",
+      "gender": "feminine",
+      "description": "Bright, expressive voice for promotional and entertainment use"
+    },
+    {
+      "id": "b0689631-eee7-4a6c-bb86-195f1d267c2e",
+      "name": "Emilio - Friendly Optimist",
+      "gender": "masculine",
+      "description": "Upbeat voice with a friendly tone for positive customer service interactions"
+    },
+    {
+      "id": "162e0f37-8504-474c-bb33-c606c01890dc",
+      "name": "Catalina - Neighborly Guide",
+      "gender": "feminine",
+      "description": "Natural, approachable for everyday conversations"
+    },
+    {
+      "id": "e361b786-2768-4308-9369-a09793d4dd73",
+      "name": "Paola - Expressive Performer",
+      "gender": "feminine",
+      "description": "Bold and lively voice for expressive performances and engaging content"
+    }
+  ],
+  "hi": [
+    {
+      "id": "9cebb910-d4b7-4a4a-85a4-12c79137724c",
+      "name": "Aarti - Conversationalist",
+      "gender": "feminine",
+      "description": "Indian accented female for relatable dialogue"
+    },
+    {
+      "id": "fd2ada67-c2d9-4afe-b474-6386b87d8fc3",
+      "name": "Ishan - Ally",
+      "gender": "masculine",
+      "description": "Conversational male for Hinglish sales and customer support"
+    },
+    {
+      "id": "be79f378-47fe-4f9c-b92b-f02cefa62ccf",
+      "name": "Sunil - Official Announcer",
+      "gender": "masculine",
+      "description": "Deep male for serious conversations"
+    },
+    {
+      "id": "bdab08ad-4137-4548-b9db-6142854c7525",
+      "name": "Imran - Hindi Film Actor",
+      "gender": "masculine",
+      "description": "Bollywood male artist for serious roles"
+    },
+    {
+      "id": "9b953e7b-86a8-42f0-b625-1434fb15392b",
+      "name": "Neeraj - Tour Guide",
+      "gender": "masculine",
+      "description": "Deep male for excellent storytelling and providing instructions"
+    },
+    {
+      "id": "f91ab3e6-5071-4e15-b016-cde6f2bcd222",
+      "name": "Aadhya - Soother",
+      "gender": "feminine",
+      "description": "Slow female voice for casual conversation"
+    },
+    {
+      "id": "7f423809-0011-4658-ba48-a411f5e516ba",
+      "name": "Ashwin - Warm Narrator",
+      "gender": "masculine",
+      "description": "Warm and authoritative Hindi male for narrating stories, audiobooks, and documentaries"
+    },
+    {
+      "id": "209d9a43-03eb-40d8-a7b7-51a6d54c052f",
+      "name": "Anita - Meditation Guide",
+      "gender": "feminine",
+      "description": "Soft-spoken adult female voice for casual conversations, meditation, and calming dialogue"
+    },
+    {
+      "id": "393dd459-f8d8-4c3e-a86b-ec43a1113d0b",
+      "name": "Rahul - Calm Office Guy",
+      "gender": "masculine",
+      "description": "Approachable adult male voice for casual conversations and everyday interactions"
+    },
+    {
+      "id": "28ca2041-5dda-42df-8123-f58ea9c3da00",
+      "name": "Palak - Presenter",
+      "gender": "feminine",
+      "description": "Friendly female with a slight English accent for teaching use cases"
+    },
+    {
+      "id": "95d51f79-c397-46f9-b49a-23763d3eaa2d",
+      "name": "Arushi - Hinglish Speaker",
+      "gender": "feminine",
+      "description": "Hinglish female for bilingual content"
+    },
+    {
+      "id": "20e68f5c-08e5-42d0-8e9b-6e716fd1ae66",
+      "name": "Vivek - Composed Voice",
+      "gender": "masculine",
+      "description": "Low-pitched, grounded male voice for formal communication"
+    },
+    {
+      "id": "bec003e2-3cb3-429c-8468-206a393c67ad",
+      "name": "Parvati - Friendly Supporter",
+      "gender": "feminine",
+      "description": "Friendly female for customer support use cases"
+    },
+    {
+      "id": "faf0731e-dfb9-4cfc-8119-259a79b27e12",
+      "name": "Riya - College Roommate",
+      "gender": "feminine",
+      "description": "Friendly woman for playful conversations"
+    },
+    {
+      "id": "6303e5fb-a0a7-48f9-bb1a-dd42c216dc5d",
+      "name": "Sagar - Helpful Friend",
+      "gender": "masculine",
+      "description": "Energetic adult male for engaging customer support and conversations"
+    },
+    {
+      "id": "55e2a153-c61e-4784-85c8-e954cb22fe29",
+      "name": "Sanjay - Clear Speaker",
+      "gender": "masculine",
+      "description": "Formal male voice with clear pronunciation for professional narration and announcements"
+    },
+    {
+      "id": "47f3bbb1-e98f-4e0c-92c5-5f0325e1e206",
+      "name": "Neha - Virtual Assistant",
+      "gender": "feminine",
+      "description": "Clear, composed female voice for virtual assistants and system prompts"
+    },
+    {
+      "id": "adf97b9d-905c-41de-9fe9-afb387116d06",
+      "name": "Vikas - Approachable Voice",
+      "gender": "masculine",
+      "description": "Polite, friendly male voice for customer support and service conversations"
+    },
+    {
+      "id": "6b7468f5-d6b0-4d6b-b38a-46f6d6e5bac7",
+      "name": "Rakesh - Thoughtful Speaker",
+      "gender": "masculine",
+      "description": "Expressive male voice for informative narration and explanations"
+    },
+    {
+      "id": "7e8cb11d-37af-476b-ab8f-25da99b18644",
+      "name": "Anuj - Engaging Narrator",
+      "gender": "masculine",
+      "description": "Expressive male voice for storytelling and conversational content"
+    },
+    {
+      "id": "56e35e2d-6eb6-4226-ab8b-9776515a7094",
+      "name": "Kavita - Customer Care Agent",
+      "gender": "feminine",
+      "description": "Mature Indian female for customer care use cases"
+    },
+    {
+      "id": "791d5162-d5eb-40f0-8189-f19db44611d8",
+      "name": "Ayush - Friendly Neighbor",
+      "gender": "masculine",
+      "description": "Confident, young Indian male for delivering demos and instructions"
+    }
+  ],
+  "it": [
+    {
+      "id": "d718e944-b313-4998-b011-d1cc078d4ef3",
+      "name": "Liv - Casual Friend",
+      "gender": "feminine",
+      "description": "Casual female for natural conversations"
+    },
+    {
+      "id": "408daed0-c597-4c27-aae8-fa0497d644bf",
+      "name": "Matteo - Gentle Narrator",
+      "gender": "masculine",
+      "description": "Reassuring male for soothing dialogue"
+    },
+    {
+      "id": "0e21713a-5e9a-428a-bed4-90d410b87f13",
+      "name": "Alessandra - Melodic Guide",
+      "gender": "feminine",
+      "description": "Graceful female for providing instructions and guidance"
+    },
+    {
+      "id": "029c3c7a-b6d9-44f0-814b-200d849830ff",
+      "name": "Giancarlo - Support Leader",
+      "gender": "masculine",
+      "description": "Deep male for conversational support"
+    },
+    {
+      "id": "e019ed7e-6079-4467-bc7f-b599a5dccf6f",
+      "name": "Luca - Everyday Friend",
+      "gender": "masculine",
+      "description": "Casual male for natural conversations"
+    },
+    {
+      "id": "79693aee-1207-4771-a01e-20c393c89e6f",
+      "name": "Marco - Friendly Conversationalist",
+      "gender": "masculine",
+      "description": "Friendly and professional male for conversational support"
+    },
+    {
+      "id": "d609f27f-f1a4-410f-85bb-10037b4fba99",
+      "name": "Francesca - Elegant Partner",
+      "gender": "feminine",
+      "description": "Enunciating female for natural conversations"
+    },
+    {
+      "id": "e5923af7-a329-4e9b-b95a-5ace4a083535",
+      "name": "Lucio - Empath",
+      "gender": "masculine",
+      "description": "Charismatic and engaging male for expressive dialogue"
+    },
+    {
+      "id": "88b329db-85d7-47cc-a5c5-98225a756721",
+      "name": "Giuseppe - Retro Man",
+      "gender": "masculine",
+      "description": "Vintage-style adult male voice with a nostalgic old-radio tone for historical reenactments, period storytelling, and retro-style media"
+    },
+    {
+      "id": "36d94908-c5b9-4014-b521-e69aee5bead0",
+      "name": "Giulia - Teacherly Voice",
+      "gender": "feminine",
+      "description": "Firm and clear adult female voice for lectures, guidance, and authoritative storytelling"
+    }
+  ],
+  "sk": [
+    {
+      "id": "ca590fdc-df56-4d2e-94a4-ef5b423c7ddf",
+      "name": "Peter - Narrator Man",
+      "gender": "masculine",
+      "description": "Steady and articulate adult male voice for narrations, audiobooks, and professional storytelling"
+    },
+    {
+      "id": "abf68668-6549-462c-8426-1fa7b466b91d",
+      "name": "Katarina - Friendly Sales",
+      "gender": "feminine",
+      "description": "Warm and approachable adult female voice for customer service, support, and friendly communication"
+    }
+  ],
+  "nl": [
+    {
+      "id": "0eb213fe-4658-45bc-9442-33a48b24b133",
+      "name": "Sanne - Clear Companion",
+      "gender": "feminine",
+      "description": "Cheerful female for engaging conversations"
+    },
+    {
+      "id": "4aa74047-d005-4463-ba2e-a0d9b261fb87",
+      "name": "Bram - Instructional Voice",
+      "gender": "masculine",
+      "description": "Clear male for tutorials and explainer videos"
+    },
+    {
+      "id": "9e8db62d-056f-47f3-b3b6-1b05767f9176",
+      "name": "Daan - Business Baritone",
+      "gender": "masculine",
+      "description": "Authoritative male for presentations"
+    },
+    {
+      "id": "af482421-80f4-4379-b00c-a118def29cde",
+      "name": "Lucas - Storyteller",
+      "gender": "masculine",
+      "description": "Enunciating male for storytelling"
+    },
+    {
+      "id": "4b250449-c635-4b63-bd1d-b654b12ffcd4",
+      "name": "Jeroen - Clear Storyteller",
+      "gender": "masculine",
+      "description": "Clear and firm adult male voice for scientific reporting, documentaries, and professional presentations"
+    },
+    {
+      "id": "ac317dac-1b8f-434f-b198-a490e2a4914d",
+      "name": "Anneke - Trusted Guide",
+      "gender": "feminine",
+      "description": "Soft-spoken adult female voice with a warm and caring tone for supportive conversations and gentle guidance"
+    }
+  ],
+  "bn": [
+    {
+      "id": "59ba7dee-8f9a-432f-a6c0-ffb33666b654",
+      "name": "Pooja - Everyday Assistant",
+      "gender": "feminine",
+      "description": "Soft-spoken adult female voice for casual conversations and natural dialogue"
+    },
+    {
+      "id": "2ba861ea-7cdc-43d1-8608-4045b5a41de5",
+      "name": "Rubel - City Guide",
+      "gender": "masculine",
+      "description": "Casual adult male voice for everyday conversations and relatable dialogue"
+    }
+  ],
+  "bg": [
+    {
+      "id": "d132064c-b931-4a80-bf0d-02a331ec4572",
+      "name": "Georgi - Conversationalist",
+      "gender": "masculine",
+      "description": "Friendly adult male with a casual tone for everyday conversations and relatable dialogue"
+    },
+    {
+      "id": "fcbecbcc-0cef-4615-8b5a-712fe1b39dd0",
+      "name": "Ivana - Instruction Provider",
+      "gender": "feminine",
+      "description": "Clear and authoritative adult female voice for giving instructions and professional communication"
+    }
+  ],
+  "vi": [
+    {
+      "id": "b8cd71e3-bc14-4538-a530-d6314731c036",
+      "name": "Xia - Calm Companion",
+      "gender": "feminine",
+      "description": "Soft-spoken adult female voice for calm conversations and customer support"
+    },
+    {
+      "id": "0e58d60a-2f1a-4252-81bd-3db6af45fb41",
+      "name": "Minh - Conversational Partner",
+      "gender": "masculine",
+      "description": "Easygoing adult male voice with a friendly tone for light conversation, casual dialogue, and everyday chat"
+    },
+    {
+      "id": "935a9060-373c-49e4-b078-f4ea6326987a",
+      "name": "Linh - Soft Presence",
+      "gender": "feminine",
+      "description": "Voice with gentle tone and natural warmth, perfect for natural conversations and friendly dialogue"
+    }
+  ],
+  "ar": [
+    {
+      "id": "6304c635-6681-4f9e-85b6-a97f4d26461a",
+      "name": "Amira - Dreamy Whisperer",
+      "gender": "feminine",
+      "description": "Calm, soft-spoken adult female for narrations and storytelling"
+    },
+    {
+      "id": "e3087ad8-7018-4154-9a87-11577f916cd4",
+      "name": "Omar - High-Energy Presenter",
+      "gender": "masculine",
+      "description": "Lively, energetic adult male for engaging conversations and dynamic narration"
+    },
+    {
+      "id": "9825cf5f-6aff-412a-80c5-bc58a8d55bc4",
+      "name": "Maryam - Friendly Voice",
+      "gender": "feminine",
+      "description": "Voice with warm, conversational tone and natural rhythm, ideal for approachable conversations"
+    },
+    {
+      "id": "664aec8a-64a4-4437-8a0b-a61aa4f51fe6",
+      "name": "Hassan - Authoritative Narrator",
+      "gender": "masculine",
+      "description": "Strong, authoritative voice for instructions, narration, and news-style delivery"
+    },
+    {
+      "id": "b0aa4612-81d2-4df3-9730-3fc064754b1f",
+      "name": "Khalid - Bright Energy",
+      "gender": "masculine",
+      "description": "Voice with cheerful tone and expressive clarity, perfect for engaging advertisements and lively promotions"
+    },
+    {
+      "id": "f1cdfb4a-bf7d-4e83-916e-8f0802278315",
+      "name": "Walid - Steady Presence",
+      "gender": "masculine",
+      "description": "Warm, confident voice for clear, customer-facing conversations"
+    },
+    {
+      "id": "002622d8-19d0-4567-a16a-f99c7397c062",
+      "name": "Huda - Approachable Speaker",
+      "gender": "feminine",
+      "description": "Natural voice for clear, engaging conversations"
+    },
+    {
+      "id": "fc923f89-1de5-4ddf-b93c-6da2ba63428a",
+      "name": "Nour - Engaging Speaker",
+      "gender": "feminine",
+      "description": "Smooth, expressive voice for engaging customer interactions"
+    }
+  ],
+  "hr": [
+    {
+      "id": "2a2624ad-bd06-4563-81fd-0519742e25d2",
+      "name": "Petra - Strict Lecturer",
+      "gender": "feminine",
+      "description": "Firm and strict adult female voice for storytelling, guidance, and instructional use cases"
+    },
+    {
+      "id": "a1a16724-b1f3-4b27-9e47-8a175115e93c",
+      "name": "Ivan - Bar Companion",
+      "gender": "masculine",
+      "description": "Relaxed adult male voice for easygoing conversations"
+    }
+  ],
+  "mr": [
+    {
+      "id": "5c32dce6-936a-4892-b131-bafe474afe5f",
+      "name": "Anika - Enthusiastic Seller",
+      "gender": "feminine",
+      "description": "Energetic and approachable adult female voice for sales conversations, casual chat, and customer support"
+    },
+    {
+      "id": "f227bc18-3704-47fe-b759-8c78a450fdfa",
+      "name": "Suresh - Instruction Voice",
+      "gender": "masculine",
+      "description": "Clear and well-enunciated adult male voice for instructions, narrations, and professional communication"
+    }
+  ],
+  "id": [
+    {
+      "id": "b441c4fd-4910-4c55-ae56-f0291057e2cc",
+      "name": "Siti - Ad Narrator",
+      "gender": "feminine",
+      "description": "Cheerful and optimistic adult female voice for brand placements, advertisements, and engaging storytelling"
+    },
+    {
+      "id": "a053f6bc-7df4-40de-96d4-de026bc47ce8",
+      "name": "Andi - Dynamic Presenter",
+      "gender": "masculine",
+      "description": "Expressive adult male voice with an upbeat tone for advertisements, promotions, and lively announcements"
+    }
+  ],
+  "cs": [
+    {
+      "id": "89266bab-6e15-455d-8654-e18c440b0656",
+      "name": "Petr - Pastor",
+      "gender": "masculine",
+      "description": "Resonant adult male voice, reminiscent of a priest delivering a sermon for narrations and formal reading"
+    },
+    {
+      "id": "bdc4a3ce-2e22-4398-8cd6-76b7160d2298",
+      "name": "Jana - Crisp Conversationalist",
+      "gender": "feminine",
+      "description": "Clear and crisp female voice with a casual yet commanding tone for customer support and guidance"
+    }
+  ],
+  "pa": [
+    {
+      "id": "8bacd442-a107-4ec1-b6f1-2fcb3f6f4d56",
+      "name": "Gurpreet - Companion",
+      "gender": "masculine",
+      "description": "Soft and caring adult male voice for empathetic conversations, support, and reassuring dialogue"
+    },
+    {
+      "id": "991c62ce-631f-48b0-8060-2a0ebecbd15b",
+      "name": "Jaspreet - Commercial Woman",
+      "gender": "feminine",
+      "description": "Expressive adult female voice with an engaging tone for commercials, promotions, and lively announcements"
+    }
+  ],
+  "th": [
+    {
+      "id": "ccc7bb22-dcd0-42e4-822e-0731b950972f",
+      "name": "Suda - Fortune Teller",
+      "gender": "feminine",
+      "description": "Expressive adult female voice with lively pronunciation for storytelling, advertisements, and engaging dialogue"
+    },
+    {
+      "id": "5de076e9-7b28-4442-b279-e7d80d573505",
+      "name": "Somchai - Star",
+      "gender": "masculine",
+      "description": "Upbeat and confident adult male voice for commercials, brand promotions, and lively presentations"
+    }
+  ],
+  "ro": [
+    {
+      "id": "3f64ef99-d87b-4b51-b217-df7351f7886a",
+      "name": "Andrei - Conversationalist Guy",
+      "gender": "masculine",
+      "description": "Casual yet firm middle-aged male voice for everyday conversations, guidance, and professional dialogue"
+    },
+    {
+      "id": "34acfaee-c556-41ee-a5f6-c687fb20357c",
+      "name": "Andrada - Steady Speaker",
+      "gender": "feminine",
+      "description": "Clear and monotone adult female voice for instructions formal announcements, and straightforward communication"
+    }
+  ],
+  "tl": [
+    {
+      "id": "c4cbcb7d-d9fa-4eac-b547-46831718ef58",
+      "name": "Angelo - Calm Narrator",
+      "gender": "masculine",
+      "description": "Gentle young adult male voice with a calm and approachable tone for casual conversations, support, and narrations"
+    },
+    {
+      "id": "9261664a-c3d0-4200-9038-5466bcf3a09c",
+      "name": "Luz - Casual Speaker",
+      "gender": "feminine",
+      "description": "Natural and conversational adult female voice for everyday dialogue, friendly interactions, and support"
+    }
+  ],
+  "ms": [
+    {
+      "id": "83604597-55fa-4ccc-8357-730b313f353f",
+      "name": "Aisyah - Chat Partner",
+      "gender": "feminine",
+      "description": "Friendly and upbeat adult female voice for casual conversations and engaging everyday dialogue"
+    },
+    {
+      "id": "8281db18-6ac5-47bb-91a8-ce23a1f1d951",
+      "name": "Faiz - Family Guide",
+      "gender": "masculine",
+      "description": "Warm and fatherly adult male voice for casual conversations and comforting dialogue"
+    }
+  ],
+  "hu": [
+    {
+      "id": "e97c3b37-1aa5-46af-afb7-9545086aaa92",
+      "name": "Eszter - Customer Companion",
+      "gender": "feminine",
+      "description": "Clear and cheerful adult female voice for customer support and friendly interactions"
+    },
+    {
+      "id": "36e0c00b-1bfd-4ad7-a0e8-928d4cadca00",
+      "name": "Gabor - Reassuring Voice",
+      "gender": "masculine",
+      "description": "Firm and well-paced adult male voice for customer support, guidance, and professional communication"
+    }
+  ],
+  "he": [
+    {
+      "id": "3e32f3c5-9ac0-4192-9994-87fdb277120f",
+      "name": "Noam - Broadcaster",
+      "gender": "masculine",
+      "description": "Clear and authoritative adult male voice for announcements, broadcasts, and formal presentations"
+    },
+    {
+      "id": "1daba551-67af-465e-a189-f91495aa2347",
+      "name": "Yael - Casual Presence",
+      "gender": "feminine",
+      "description": "Voice with relaxed tone and friendly warmth, ideal for conversational dialogue and everyday narration"
+    }
+  ],
+  "ml": [
+    {
+      "id": "b426013c-002b-4e89-8874-8cd20b68373a",
+      "name": "Latha - Friendly Host",
+      "gender": "feminine",
+      "description": "Bright and clear adult female voice for customer support, greetings, and welcoming guests"
+    },
+    {
+      "id": "374b80da-e622-4dfc-90f6-1eeb13d331c9",
+      "name": "Vijay - Comfort Voice",
+      "gender": "masculine",
+      "description": "Friendly and easygoing male voice for casual conversations and everyday support"
+    }
+  ],
+  "ka": [
+    {
+      "id": "dbebd077-80cb-4bcf-b43b-4552f96341bb",
+      "name": "Levan - Support Guide",
+      "gender": "masculine",
+      "description": "Casual and approachable adult male voice for customer support and everyday conversations"
+    },
+    {
+      "id": "0bfbea6c-2f8f-4f86-b411-aa2316561e36",
+      "name": "Tamara - Support Specialist",
+      "gender": "feminine",
+      "description": "Professional and clear adult female voice for customer service, guidance, and supportive interactions"
+    }
+  ],
+  "el": [
+    {
+      "id": "b45eba5b-2215-4da7-9c7c-121c95ed7b81",
+      "name": "Nikos - Radio Storyteller",
+      "gender": "masculine",
+      "description": "Nostalgic, middle-aged male voice with an old-radio tone for historical reenactments, vintage ads, or period storytelling"
+    },
+    {
+      "id": "50849023-76e9-46c7-af52-9ec39888a165",
+      "name": "Despina - Motherly Woman",
+      "gender": "feminine",
+      "description": "Warm yet authoritative middle-aged female voice, with a motherly tone for guidance, reassurance, and clear instruction"
+    }
+  ],
+  "ta": [
+    {
+      "id": "d2870b91-1b4c-47ab-81a8-3718d8e9c222",
+      "name": "Arun - Lively Voice",
+      "gender": "masculine",
+      "description": "Expressive adult voice with a lively tone for storytelling, narrations, and engaging cultural content"
+    },
+    {
+      "id": "7f98e662-142d-41ba-89a2-12452640ce6d",
+      "name": "Lakshmi - Everyday Voice",
+      "gender": "feminine",
+      "description": "Casual and upbeat adult female voice for friendly conversations, everyday dialogue, and lighthearted interactions"
+    },
+    {
+      "id": "25d2c432-139c-4035-bfd6-9baaabcdd006",
+      "name": "Kavya - Warm Presence",
+      "gender": "feminine",
+      "description": "Friendly voice with natural tone and smooth flow, ideal for everyday conversations"
+    }
+  ],
+  "uk": [
+    {
+      "id": "05ffab9c-d380-4909-8375-cd12f59238c3",
+      "name": "Oleh - Professional Guy",
+      "gender": "masculine",
+      "description": "Approachable adult male voice with a professional tone for casual conversations and everyday interactions"
+    }
+  ],
+  "da": [
+    {
+      "id": "c323c793-41f9-47b8-99dc-9b44b0440b84",
+      "name": "Katrine - Calm Caregiver",
+      "gender": "feminine",
+      "description": "Soft and calm adult female voice for meditation, relaxation, and gentle conversations"
+    },
+    {
+      "id": "926e0766-f380-4d77-aeb0-9aa4ebb16b38",
+      "name": "Soren - Executive Voice",
+      "gender": "masculine",
+      "description": "Voice with confident, businesslike tone and clear precision, perfect for professional dialogue"
+    }
+  ],
+  "fi": [
+    {
+      "id": "65c34eec-42c9-4a75-a8bd-b676fb847b72",
+      "name": "Helmi - Warm Friend",
+      "gender": "feminine",
+      "description": "Friendly adult female voice for casual conversations and everyday chat"
+    },
+    {
+      "id": "ae1a833b-0d95-4b7f-8d05-d6418c6f8049",
+      "name": "Mikko - Narration Expert",
+      "gender": "masculine",
+      "description": "Firm and strong adult male voice for narration, audiobooks, and authoritative communication"
+    }
+  ],
+  "kn": [
+    {
+      "id": "7c6219d2-e8d2-462c-89d8-7ecba7c75d65",
+      "name": "Divya - Joyful Narrator",
+      "gender": "feminine",
+      "description": "Lively and cheerful adult female voice for product advertisements, upbeat promotions, and happy storytelling"
+    },
+    {
+      "id": "6baae46d-1226-45b5-a976-c7f9b797aae2",
+      "name": "Prakash - Instructor",
+      "gender": "masculine",
+      "description": "Firm and articulate middle-aged male voice for lectures, presentations, and instructional content"
+    }
+  ],
+  "te": [
+    {
+      "id": "38bded0a-3ab4-42d1-8e47-2e0b6b10ced9",
+      "name": "Vikram - Folk Narrator",
+      "gender": "masculine",
+      "description": "Expressive adult male voice with a colorful tone for storytelling, narrations, and engaging cultural content"
+    },
+    {
+      "id": "330c4fa0-1da3-4c55-8e97-951bfd724e20",
+      "name": "Sarika - Calm Spirit",
+      "gender": "feminine",
+      "description": "Voice with laidback tone and gentle rhythm, perfect for relaxed, friendly, and conversational dialogue"
+    },
+    {
+      "id": "ebecd063-10f4-422e-a8ff-556ce5c4d4e4",
+      "name": "Pavan - Bright Voice",
+      "gender": "masculine",
+      "description": "Voice with energetic clarity and upbeat tone, ideal for customer support and engaging communication"
+    },
+    {
+      "id": "07bc462a-c644-49f1-baf7-82d5599131be",
+      "name": "Sindhu - Conversational Partner",
+      "gender": "feminine",
+      "description": "Clear and natural adult female voice for casual conversations and everyday interactions"
+    }
+  ],
+  "gu": [
+    {
+      "id": "91925fe5-42ee-4ebe-96c1-c84b12a85a32",
+      "name": "Amit - Sports Student",
+      "gender": "masculine",
+      "description": "Friendly young adult male voice for casual conversations and natural everyday dialogue"
+    },
+    {
+      "id": "4590a461-bc68-4a50-8d14-ac04f5923d22",
+      "name": "Isha - Learner",
+      "gender": "feminine",
+      "description": "Youthful male voice with a clear and approachable tone for narration, educational content, and voiceover"
+    }
+  ],
+  "no": [
+    {
+      "id": "d6dca1b6-cdd8-4e9c-823c-e03979261740",
+      "name": "Lars - Casual Conversationalist",
+      "gender": "masculine",
+      "description": "Approachable adult male voice with a relaxed tone for casual conversations and everyday interactions"
+    }
+  ],
+  "fr": [
+    {
+      "id": "68db3d29-e0ab-4d4f-a5d5-e34ee47d38b7",
+      "name": "Joris - Command Coach",
+      "gender": "masculine",
+      "description": "Deep voice with firm tone for providing instructions"
+    },
+    {
+      "id": "22f1a356-56c2-4428-bc91-2ab2e6d0c215",
+      "name": "Isabelle - Professional Liaison",
+      "gender": "feminine",
+      "description": "Formal adult female for professional conversations"
+    },
+    {
+      "id": "5deeaea9-c3cf-4288-82ec-22d8f04eb158",
+      "name": "Gerard",
+      "gender": "masculine",
+      "description": "Deep, distinct middle-aged male voice for grounded narration and calm, authoritative guidance."
+    },
+    {
+      "id": "80e11491-2d8a-4361-ac61-c4f3e0a4f7e7",
+      "name": "Vincent",
+      "gender": "masculine",
+      "description": "Energetic, engaging adult male great for exciting conversations"
+    },
+    {
+      "id": "ce74c4da-4aee-435d-bc6d-81d1a9367e12",
+      "name": "Marc - Conversational Buddy",
+      "gender": "masculine",
+      "description": "Friendly adult male for casual conversations"
+    },
+    {
+      "id": "6d912a43-805f-4673-bbc8-a9e6c45a6ad0",
+      "name": "Marie-Eve - Team Mentor",
+      "gender": "feminine",
+      "description": "Warm firm adult female for workplace conversations"
+    },
+    {
+      "id": "187d1cc5-a771-4ccd-9110-9df8c4e39499",
+      "name": "Mika - Empathetic Friend",
+      "gender": "feminine",
+      "description": "Friendly young adult female for emotive conversation"
+    },
+    {
+      "id": "2f8e82c4-cb94-4e6d-8b6a-29bf58ceb60a",
+      "name": "Manon - Bright Belle",
+      "gender": "feminine",
+      "description": "Upbeat and inviting young female suited for lifestyle and brand narrations"
+    },
+    {
+      "id": "ab7c61f5-3daa-47dd-a23b-4ac0aac5f5c3",
+      "name": "Friendly French Man",
+      "gender": "masculine",
+      "description": "This voice is friendly and calm, perfect for French customer support agents "
+    },
+    {
+      "id": "a8a1eb38-5f15-4c1d-8722-7ac0f329727d",
+      "name": "Calm French Woman",
+      "gender": "feminine",
+      "description": "This voice is soft and calm, suited for soothing conversations in French"
+    },
+    {
+      "id": "8832a0b5-47b2-4751-bb22-6a8e2149303d",
+      "name": "French Narrator Lady",
+      "gender": "feminine",
+      "description": "This voice is velvety and neutral, suited for narrating content in French"
+    },
+    {
+      "id": "5c3c89e5-535f-43ef-b14d-f8ffe148c1f0",
+      "name": "French Narrator Man",
+      "gender": "masculine",
+      "description": "This voice is even and rich, perfect for narrating content in French"
+    },
+    {
+      "id": "65b25c5d-ff07-4687-a04c-da2f43ef6fa9",
+      "name": "Helpful French Lady",
+      "gender": "feminine",
+      "description": "This voice is helpful and cheery, like you're talking with a friend in French"
+    },
+    {
+      "id": "6c64b57a-bc65-48e4-bff4-12dbe85606cd",
+      "name": "Eloise - Dialogue Anchor",
+      "gender": "feminine",
+      "description": "Clear and well-paced adult female voice with a warm tone for customer service and professional communication"
+    },
+    {
+      "id": "56df0456-8f47-4f7a-ac26-40c2f9797104",
+      "name": "Pierre - Baritone Storyteller",
+      "gender": "masculine",
+      "description": "Deep and resonant adult male voice for narration, audiobooks, and authoritative storytelling"
+    },
+    {
+      "id": "c9115185-0086-4cf4-bfdd-0d36425db387",
+      "name": "Juliette",
+      "gender": "feminine",
+      "description": "Upbeat and inviting young female suited for lifestyle and brand narrations"
+    },
+    {
+      "id": "bfd5390b-e4f9-4e44-95ab-9ebd223acd62",
+      "name": "Pierre",
+      "gender": "masculine",
+      "description": "Professional, calm adult male great for workplace conversations"
+    },
+    {
+      "id": "adff5dcb-249f-463f-aa89-d98d8ca05e88",
+      "name": "Leo",
+      "gender": "masculine",
+      "description": "High energy adult male great for motivational conversations"
+    },
+    {
+      "id": "dd951538-c475-4bde-a3f7-9fd7b3e4d8f5",
+      "name": "Vanessa",
+      "gender": "feminine",
+      "description": "Firm adult female great for providing clear instructions"
+    },
+    {
+      "id": "735287ee-ce91-4b08-8de4-63315c5ba1fb",
+      "name": "Emmanuelle",
+      "gender": "feminine",
+      "description": "Energetic, upbeat young adult female great for friendly conversations"
+    },
+    {
+      "id": "2d693a9c-fc75-4313-aefb-c9cfaa17dd83",
+      "name": "Gerard - Monsieur Noir",
+      "gender": "masculine",
+      "description": "Deep, distinct middle-aged male voice for grounded narration and calm, authoritative guidance."
+    },
+    {
+      "id": "0418348a-0ca2-4e90-9986-800fb8b3bbc0",
+      "name": "Antoine - Stern Man",
+      "gender": "masculine",
+      "description": ""
+    },
+    {
+      "id": "ab636c8b-9960-4fb3-bb0c-b7b655fb9745",
+      "name": "Erwan - Everyday Speaker",
+      "gender": "masculine",
+      "description": "Clear voice for consistent, system-driven conversations"
+    }
+  ]
+}
