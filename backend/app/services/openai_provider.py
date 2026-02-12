@@ -86,11 +86,8 @@ class OpenAIProvider(CallProvider):
 
         # Build agent config for the bridge
         if agent:
-            model_str = str(agent.model_type) if agent.model_type else "gpt-realtime-mini"
-            if "RealtimeModel." in model_str:
-                model_str = model_str.replace(
-                    "RealtimeModel.GPT_REALTIME_MINI", "gpt-realtime-mini"
-                ).replace("RealtimeModel.GPT_REALTIME", "gpt-realtime")
+            # Use .value to get the actual model string (e.g., "gpt-realtime-mini", "grok-2-realtime", "gemini-live-2.5-flash-native-audio")
+            model_str = agent.model_type.value if agent.model_type else "gpt-realtime-mini"
 
             # Build prompt from sections
             prompt_parts = []
