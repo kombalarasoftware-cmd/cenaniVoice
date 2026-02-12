@@ -2590,6 +2590,11 @@ A: Credit card, bank transfer, automatic payment order.
                         <>
                           <option value="grok-2-realtime">grok-2-realtime (per-minute billing)</option>
                         </>
+                      ) : selectedProvider === 'gemini' ? (
+                        <>
+                          <option value="gemini-live-2.5-flash-native-audio">Gemini 2.5 Flash Native Audio (GA)</option>
+                          <option value="gemini-live-2.5-flash-preview-native-audio-09-2025">Gemini 2.5 Flash Preview</option>
+                        </>
                       ) : (
                         <>
                           <option value="ultravox-v0.7">Ultravox v0.7 (latest, recommended)</option>
@@ -2604,6 +2609,8 @@ A: Credit card, bank transfer, automatic payment order.
                         ? 'Mini model is more cost-effective for most use cases.'
                         : selectedProvider === 'xai'
                         ? 'xAI Grok voice agent with flat per-minute pricing.'
+                        : selectedProvider === 'gemini'
+                        ? 'Gemini Live via Vertex AI with native audio support.'
                         : 'Ultravox v0.7 is the latest model with best quality.'}
                     </p>
                   </div>
