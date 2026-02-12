@@ -191,6 +191,16 @@ class OpenAIProvider(CallProvider):
                 result = await response.json()
                 channel_id = result.get("id")
 
+        # Store ARI channel_id in Redis so end_call() can terminate it later.
+        # This is critical for hanging up calls before the customer answers
+        # (AudioSocket bridge hasn't started yet, so Redis hangup signal has no listener).
+        if redis_client and channel_id:
+            try:
+                redis_client.setex(f"call_channel:{call_uuid}", 900, channel_id)
+                logger.info(f"Stored ARI channel_id in Redis: call_channel:{call_uuid[:8]} = {channel_id}")
+            except Exception as e:
+                logger.warning(f"Failed to store channel_id in Redis: {e}")
+
         logger.info(f"OpenAI call initiated: uuid={call_uuid[:8]}, channel={channel_id}")
 
         return {
@@ -219,33 +229,36 @@ class OpenAIProvider(CallProvider):
                 logger.warning(f"Redis hangup signal error: {e}")
 
         # 2. ARI channel hangup — terminate the SIP channel directly
-        # This is critical when the customer hasn't answered yet (no bridge running)
-        try:
-            ari_url = f"http://{ARI_HOST}:{ARI_PORT}/ari/channels"
-            auth = aiohttp.BasicAuth(ARI_USERNAME, ARI_PASSWORD)
-            async with aiohttp.ClientSession(auth=auth) as session:
-                # List active channels and find the one matching this call_id
-                async with session.get(ari_url) as resp:
-                    if resp.status == 200:
-                        channels = await resp.json()
-                        for ch in channels:
-                            ch_id = ch.get("id", "")
-                            ch_vars = ch.get("channelvars", {})
-                            # Match by VOICEAI_UUID channel variable or channel name
-                            if ch_vars.get("VOICEAI_UUID") == call_id or call_id in ch_id:
-                                delete_url = f"{ari_url}/{ch_id}"
-                                async with session.delete(
-                                    delete_url,
-                                    params={"reason_code": "location=0;cause=location=0;cause=16"}
-                                ) as del_resp:
-                                    if del_resp.status < 300:
-                                        results.append(f"ARI channel {ch_id} terminated")
-                                        logger.info(f"ARI channel {ch_id} terminated for call {call_id[:8]}")
-                                    else:
-                                        err = await del_resp.text()
-                                        logger.warning(f"ARI DELETE failed for {ch_id}: {del_resp.status} {err}")
-        except Exception as e:
-            logger.warning(f"ARI channel hangup error for {call_id[:8]}: {e}")
+        # This is critical when the customer hasn't answered yet (no bridge running).
+        # We stored the ARI channel_id in Redis during initiate_call().
+        # GET /ari/channels only lists Stasis channels, but our calls are in the
+        # dialplan, so we MUST use the stored channel_id for DELETE.
+        channel_id = None
+        if redis_client:
+            try:
+                channel_id = redis_client.get(f"call_channel:{call_id}")
+            except Exception as e:
+                logger.warning(f"Redis channel_id lookup error: {e}")
+
+        if channel_id:
+            try:
+                delete_url = f"http://{ARI_HOST}:{ARI_PORT}/ari/channels/{channel_id}"
+                auth = aiohttp.BasicAuth(ARI_USERNAME, ARI_PASSWORD)
+                async with aiohttp.ClientSession(auth=auth) as session:
+                    async with session.delete(delete_url) as del_resp:
+                        if del_resp.status < 300:
+                            results.append(f"ARI channel {channel_id} terminated")
+                            logger.info(f"ARI channel {channel_id} terminated for call {call_id[:8]}")
+                        elif del_resp.status == 404:
+                            results.append(f"ARI channel {channel_id} already gone")
+                            logger.info(f"ARI channel {channel_id} not found (already ended)")
+                        else:
+                            err = await del_resp.text()
+                            logger.warning(f"ARI DELETE failed for {channel_id}: {del_resp.status} {err}")
+            except Exception as e:
+                logger.warning(f"ARI channel hangup error for {call_id[:8]}: {e}")
+        else:
+            logger.warning(f"No ARI channel_id found in Redis for call {call_id[:8]} — cannot terminate SIP channel")
 
         return {"success": True, "message": "; ".join(results) if results else "Hangup signal sent"}
 
