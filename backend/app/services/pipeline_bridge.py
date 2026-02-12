@@ -390,8 +390,21 @@ class PipelineCallHandler:
                 default_voices = provider_config.get("default_voices", {})
                 tts_voice = default_voices.get(language, "")
 
-            # Build system prompt
-            system_prompt = agent_config.get("prompt", "")
+            # Build system prompt using the same enrichment as OpenAI Realtime
+            try:
+                from app.services.openai_realtime import build_system_prompt
+                customer_data = None
+                cust_name = agent_config.get("customer_name", "")
+                if cust_name:
+                    customer_data = {
+                        "name": cust_name,
+                        "phone": "",
+                        "title": agent_config.get("customer_title", ""),
+                    }
+                system_prompt = build_system_prompt(agent_config, customer_data)
+            except Exception as e:
+                logger.warning(f"[{call_uuid[:8]}] build_system_prompt failed, using raw prompt: {e}")
+                system_prompt = agent_config.get("prompt", "")
             if not system_prompt:
                 system_prompt = self._build_default_prompt(language)
 

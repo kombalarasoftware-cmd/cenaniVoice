@@ -430,33 +430,38 @@ def build_system_prompt(agent_config: dict, customer_data: Optional[dict] = None
     """
     sections = []
     
-    # Role
-    if agent_config.get("prompt_role"):
-        sections.append(f"# Role\n{agent_config['prompt_role']}")
+    # Collect agent-specific prompt sections
+    _section_keys = [
+        ("prompt_role", "# Role"),
+        ("prompt_personality", "# Environment"),
+        ("prompt_context", "# Tone"),
+        ("prompt_pronunciations", "# Goal"),
+        ("prompt_sample_phrases", "# Guardrails"),
+        ("prompt_language", "# Language Guidelines"),
+        ("prompt_flow", "# Conversation Flow"),
+        ("prompt_tools", "# Available Tools"),
+        ("prompt_safety", "# Safety Rules"),
+        ("prompt_rules", "# Important Rules"),
+    ]
     
-    # Personality
-    if agent_config.get("prompt_personality"):
-        sections.append(f"# Personality\n{agent_config['prompt_personality']}")
+    _has_individual_sections = False
+    for _key, _header in _section_keys:
+        _val = agent_config.get(_key)
+        if _val and str(_val).strip():
+            sections.append(f"{_header}\n{_val}")
+            _has_individual_sections = True
     
-    # Language
-    if agent_config.get("prompt_language"):
-        sections.append(f"# Language Guidelines\n{agent_config['prompt_language']}")
+    # Fallback: if no individual prompt sections found, use merged "prompt" field
+    if not _has_individual_sections:
+        _raw_prompt = agent_config.get("prompt", "")
+        if _raw_prompt and str(_raw_prompt).strip():
+            sections.append(f"# Agent Instructions\n{_raw_prompt}")
     
-    # Flow
-    if agent_config.get("prompt_flow"):
-        sections.append(f"# Conversation Flow\n{agent_config['prompt_flow']}")
-    
-    # Tools
-    if agent_config.get("prompt_tools"):
-        sections.append(f"# Available Tools\n{agent_config['prompt_tools']}")
-    
-    # Safety
-    if agent_config.get("prompt_safety"):
-        sections.append(f"# Safety Rules\n{agent_config['prompt_safety']}")
-    
-    # Rules
-    if agent_config.get("prompt_rules"):
-        sections.append(f"# Important Rules\n{agent_config['prompt_rules']}")
+    # Knowledge Base
+    if agent_config.get("knowledge_base"):
+        _kb = agent_config["knowledge_base"]
+        if str(_kb).strip():
+            sections.append(f"# Knowledge Base\n{_kb}")
     
     # =========================================================================
     # CURRENT DATE & TIME (dynamically injected every call)

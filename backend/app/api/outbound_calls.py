@@ -320,6 +320,7 @@ async def initiate_outbound_call(
             call_setup_data = {
                 "agent_id": str(agent.id),
                 "agent_name": agent.name or "AI Agent",
+                "name": agent.name or "AI Agent",
                 "voice": agent_voice,
                 "model": model_str,
                 "language": agent.language or "tr",
@@ -348,6 +349,19 @@ async def initiate_outbound_call(
                 "inactivity_messages": agent.inactivity_messages or [],
                 "interruptible": agent.interruptible if agent.interruptible is not None else True,
                 "record_calls": agent.record_calls if agent.record_calls is not None else True,
+                "timezone": getattr(agent, "timezone", None) or "Europe/Istanbul",
+                # Prompt sections for build_system_prompt()
+                "prompt_role": agent.prompt_role or "",
+                "prompt_personality": agent.prompt_personality or "",
+                "prompt_context": agent.prompt_context or "",
+                "prompt_pronunciations": agent.prompt_pronunciations or "",
+                "prompt_sample_phrases": agent.prompt_sample_phrases or "",
+                "prompt_tools": agent.prompt_tools or "",
+                "prompt_rules": agent.prompt_rules or "",
+                "prompt_flow": agent.prompt_flow or "",
+                "prompt_safety": agent.prompt_safety or "",
+                "prompt_language": agent.prompt_language or "",
+                "knowledge_base": agent.knowledge_base or "",
                 "human_transfer": agent.human_transfer if agent.human_transfer is not None else True,
                 "conversation_history": build_conversation_history(db, phone_number, agent.id),
             }

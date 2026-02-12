@@ -124,6 +124,7 @@ class PipelineProvider(CallProvider):
             call_setup_data = {
                 "agent_id": str(agent.id),
                 "agent_name": agent.name or "AI Agent",
+                "name": agent.name or "AI Agent",
                 "language": language,
                 "prompt": full_prompt,
                 "customer_name": customer_name or "",
@@ -133,7 +134,20 @@ class PipelineProvider(CallProvider):
                 "max_duration": agent.max_duration or 300,
                 "temperature": agent.temperature or 0.7,
                 "conversation_history": conversation_history,
+                "timezone": getattr(agent, "timezone", None) or "Europe/Istanbul",
                 "provider": "pipeline",
+                # Prompt sections for build_system_prompt()
+                "prompt_role": getattr(agent, "prompt_role", None) or "",
+                "prompt_personality": getattr(agent, "prompt_personality", None) or "",
+                "prompt_context": getattr(agent, "prompt_context", None) or "",
+                "prompt_pronunciations": getattr(agent, "prompt_pronunciations", None) or "",
+                "prompt_sample_phrases": getattr(agent, "prompt_sample_phrases", None) or "",
+                "prompt_tools": getattr(agent, "prompt_tools", None) or "",
+                "prompt_rules": getattr(agent, "prompt_rules", None) or "",
+                "prompt_flow": getattr(agent, "prompt_flow", None) or "",
+                "prompt_safety": getattr(agent, "prompt_safety", None) or "",
+                "prompt_language": getattr(agent, "prompt_language", None) or "",
+                "knowledge_base": getattr(agent, "knowledge_base", None) or "",
                 # Cloud pipeline providers (per-agent)
                 "stt_provider": stt_provider,
                 "llm_provider": llm_provider,
