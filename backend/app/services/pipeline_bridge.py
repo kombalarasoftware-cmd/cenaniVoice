@@ -305,12 +305,105 @@ async def get_agent_from_db(agent_id: int) -> Optional[Dict[str, Any]]:
 
 
 # ============================================================================
-# PIPER TTS CLIENT (Wyoming Protocol)
+# PIPER TTS CLIENT (Wyoming Protocol) - Connection Pool + Optimized
 # ============================================================================
+
+class PiperConnectionPool:
+    """
+    Persistent connection pool for Piper Wyoming protocol.
+
+    Reuses TCP connections across synthesis calls to avoid
+    the overhead of opening/closing a connection per call (~5-10ms each).
+    """
+
+    def __init__(self, host: str, port: int, max_size: int = 4):
+        self._host = host
+        self._port = port
+        self._max_size = max_size
+        self._pool: asyncio.Queue = asyncio.Queue(maxsize=max_size)
+        self._created = 0
+        self._lock = asyncio.Lock()
+
+    async def acquire(self):
+        """Get a connection from the pool or create a new one."""
+        # Try to get an existing idle connection
+        try:
+            reader, writer = self._pool.get_nowait()
+            # Verify connection is still alive
+            if writer.is_closing():
+                self._created -= 1
+                return await self._create_new()
+            return reader, writer
+        except asyncio.QueueEmpty:
+            pass
+
+        # Create new connection if under limit
+        async with self._lock:
+            if self._created < self._max_size:
+                return await self._create_new()
+
+        # Wait for a connection to become available
+        try:
+            reader, writer = await asyncio.wait_for(self._pool.get(), timeout=5.0)
+            if writer.is_closing():
+                self._created -= 1
+                return await self._create_new()
+            return reader, writer
+        except asyncio.TimeoutError:
+            # Force create one anyway
+            return await self._create_new()
+
+    async def _create_new(self):
+        """Create a new TCP connection to Piper."""
+        reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(self._host, self._port),
+            timeout=5.0,
+        )
+        self._created += 1
+        logger.debug(f"Piper pool: new connection (total={self._created})")
+        return reader, writer
+
+    async def release(self, reader, writer):
+        """Return a connection to the pool (or close if pool is full)."""
+        if writer.is_closing():
+            self._created -= 1
+            return
+        try:
+            self._pool.put_nowait((reader, writer))
+        except asyncio.QueueFull:
+            writer.close()
+            await writer.wait_closed()
+            self._created -= 1
+
+    async def close_all(self):
+        """Close all pooled connections."""
+        while not self._pool.empty():
+            try:
+                reader, writer = self._pool.get_nowait()
+                writer.close()
+                await writer.wait_closed()
+            except Exception:
+                pass
+        self._created = 0
+
+
+# Global connection pool (initialized once)
+_piper_pool: Optional[PiperConnectionPool] = None
+
+
+def get_piper_pool() -> PiperConnectionPool:
+    """Get or create the global Piper connection pool."""
+    global _piper_pool
+    if _piper_pool is None:
+        _piper_pool = PiperConnectionPool(PIPER_HOST, PIPER_PORT, max_size=4)
+    return _piper_pool
+
 
 async def synthesize_speech(text: str, voice: str = "tr_TR-dfki-medium") -> bytes:
     """
     Synthesize speech using Piper TTS via Wyoming protocol.
+
+    Uses connection pool to avoid TCP open/close overhead per call.
 
     Wyoming protocol format per event:
       1. event_json + newline  (contains type, data_length, payload_length)
@@ -319,11 +412,14 @@ async def synthesize_speech(text: str, voice: str = "tr_TR-dfki-medium") -> byte
 
     Returns raw PCM16 audio at Piper's native sample rate (22050Hz).
     """
+    t0 = time.monotonic()
+    pool = get_piper_pool()
+    reader = writer = None
+    reuse_conn = True
+
     try:
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(PIPER_HOST, PIPER_PORT),
-            timeout=5.0,
-        )
+        reader, writer = await pool.acquire()
+        conn_time = (time.monotonic() - t0) * 1000
 
         # Send synthesize event
         event = {
@@ -344,6 +440,7 @@ async def synthesize_speech(text: str, voice: str = "tr_TR-dfki-medium") -> byte
                 # Step 1: Read event header line (JSON + newline)
                 line = await asyncio.wait_for(reader.readline(), timeout=30.0)
                 if not line:
+                    reuse_conn = False
                     break
                 line_str = line.decode("utf-8").strip()
                 if not line_str:
@@ -370,16 +467,24 @@ async def synthesize_speech(text: str, voice: str = "tr_TR-dfki-medium") -> byte
                     break
                 elif event_type == "error":
                     logger.error(f"Piper TTS error event: {resp_event}")
+                    reuse_conn = False
                     break
         except asyncio.TimeoutError:
             logger.warning("Piper TTS response timeout")
+            reuse_conn = False
 
-        writer.close()
-        await writer.wait_closed()
+        total_time = (time.monotonic() - t0) * 1000
 
         if audio_chunks:
             result = b"".join(audio_chunks)
-            logger.info(f"Piper TTS: {len(result)} bytes for '{text[:50]}'")
+            # Calculate audio duration: bytes / (sample_rate * 2 bytes per sample)
+            audio_duration_ms = len(result) / (PIPER_SAMPLE_RATE * 2) * 1000
+            rtf = total_time / audio_duration_ms if audio_duration_ms > 0 else 0
+            logger.info(
+                f"Piper TTS: {len(result)} bytes ({audio_duration_ms:.0f}ms audio) "
+                f"in {total_time:.0f}ms (RTF={rtf:.2f}, conn={conn_time:.0f}ms) "
+                f"for '{text[:50]}'"
+            )
             return result
 
         logger.warning(f"Piper TTS returned no audio for: '{text[:80]}'")
@@ -387,7 +492,28 @@ async def synthesize_speech(text: str, voice: str = "tr_TR-dfki-medium") -> byte
 
     except Exception as e:
         logger.error(f"Piper TTS error: {e}")
-        return await _synthesize_speech_http(text, voice)
+        reuse_conn = False
+        return b""
+
+    finally:
+        # Return connection to pool or discard
+        if reader and writer:
+            if reuse_conn and not writer.is_closing():
+                # Wyoming protocol closes connection after each synthesis
+                # so we cannot reuse — close and let pool create fresh one
+                try:
+                    writer.close()
+                    await writer.wait_closed()
+                except Exception:
+                    pass
+                pool._created -= 1
+            else:
+                try:
+                    writer.close()
+                    await writer.wait_closed()
+                except Exception:
+                    pass
+                pool._created -= 1
 
 
 async def _read_exactly(reader: asyncio.StreamReader, n: int) -> bytes:
@@ -619,7 +745,8 @@ class PipelineCallHandler:
         self.session: Optional[PipelineCallSession] = None
         self._running = False
         self._processing = False  # True while STT/LLM is running
-        self._tts_queue: asyncio.Queue = asyncio.Queue()
+        self._tts_queue: asyncio.Queue = asyncio.Queue()       # text sentences → synthesis
+        self._audio_queue: asyncio.Queue = asyncio.Queue()     # synthesized audio → playback
         self._interrupt_event = asyncio.Event()
         self._process_task: Optional[asyncio.Task] = None
 
@@ -673,8 +800,9 @@ class PipelineCallHandler:
 
             self._running = True
 
-            # Start TTS playback task
-            tts_task = asyncio.create_task(self._tts_playback_loop())
+            # Start TTS pipeline: synthesis task (text→audio) + playback task (audio→asterisk)
+            synthesis_task = asyncio.create_task(self._tts_synthesis_loop())
+            playback_task = asyncio.create_task(self._tts_playback_loop())
 
             # Send greeting if agent speaks first
             first_speaker = agent_config.get("first_speaker", "agent")
@@ -849,10 +977,15 @@ class PipelineCallHandler:
                             # User is trying to speak while AI talks → interrupt
                             self._interrupt_event.set()
                             self.session.ai_speaking = False
-                            # Clear TTS queue
+                            # Clear both TTS and audio queues
                             while not self._tts_queue.empty():
                                 try:
                                     self._tts_queue.get_nowait()
+                                except asyncio.QueueEmpty:
+                                    break
+                            while not self._audio_queue.empty():
+                                try:
+                                    self._audio_queue.get_nowait()
                                 except asyncio.QueueEmpty:
                                     break
                     continue  # Don't collect audio while AI speaks/processing
@@ -955,8 +1088,10 @@ class PipelineCallHandler:
             self._processing = False
 
     async def _process_utterance(self, audio_data: bytes):
-        """Process a complete utterance: STT → LLM → TTS."""
+        """Process a complete utterance: STT → LLM → TTS with detailed timing."""
         try:
+            turn_start = time.monotonic()
+
             # Step 1: Resample 24kHz → 16kHz for Whisper
             audio_16k = resample_pcm16(audio_data, ASTERISK_SAMPLE_RATE, WHISPER_SAMPLE_RATE)
 
@@ -982,6 +1117,8 @@ class PipelineCallHandler:
             })
 
             t0 = time.monotonic()
+            first_sentence_time = None
+            sentence_count = 0
 
             # Use streaming for sentence-level TTS pipelining
             full_response = ""
@@ -1005,19 +1142,32 @@ class PipelineCallHandler:
 
                         sentence = sentence.strip()
                         if len(sentence) > 3:
+                            sentence_count += 1
+                            if first_sentence_time is None:
+                                first_sentence_time = (time.monotonic() - t0) * 1000
+                                logger.info(
+                                    f"[{self.session.call_uuid[:8]}] LLM first sentence ({first_sentence_time:.0f}ms): "
+                                    f"'{sentence[:60]}'"
+                                )
                             # Queue sentence for TTS immediately
                             await self._tts_queue.put(sentence)
                             break
 
             # Process remaining buffer
             if sentence_buffer.strip() and len(sentence_buffer.strip()) > 3:
+                sentence_count += 1
                 await self._tts_queue.put(sentence_buffer.strip())
 
             # Signal end of response
             await self._tts_queue.put(None)
 
             llm_time = (time.monotonic() - t0) * 1000
-            logger.info(f"[{self.session.call_uuid[:8]}] LLM ({llm_time:.0f}ms): {full_response[:100]}...")
+            total_time = (time.monotonic() - turn_start) * 1000
+            logger.info(
+                f"[{self.session.call_uuid[:8]}] Turn complete: "
+                f"STT={stt_time:.0f}ms, LLM={llm_time:.0f}ms ({sentence_count} sentences), "
+                f"total={total_time:.0f}ms | {full_response[:80]}..."
+            )
 
             # Save to history and Redis
             self.session.conversation_history.append({
@@ -1058,8 +1208,14 @@ class PipelineCallHandler:
             await self._tts_queue.put(sentence)
         await self._tts_queue.put(None)  # Signal end
 
-    async def _tts_playback_loop(self):
-        """Background task: synthesize and play TTS audio."""
+    async def _tts_synthesis_loop(self):
+        """
+        Background task: consume text sentences from _tts_queue,
+        synthesize with Piper, put resulting audio into _audio_queue.
+
+        Runs concurrently with _tts_playback_loop so next sentence
+        is being synthesized while current sentence is playing.
+        """
         while self._running:
             try:
                 sentence = await asyncio.wait_for(self._tts_queue.get(), timeout=1.0)
@@ -1067,26 +1223,66 @@ class PipelineCallHandler:
                 continue
 
             if sentence is None:
+                # Signal end-of-response to playback loop
+                await self._audio_queue.put(None)
+                continue
+
+            if self._interrupt_event.is_set():
+                # User interrupted, drain remaining text queue
+                while not self._tts_queue.empty():
+                    try:
+                        self._tts_queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                await self._audio_queue.put(None)
+                continue
+
+            try:
+                # Synthesize with Piper (already logs timing internally)
+                tts_audio = await synthesize_speech(sentence, self.session.voice)
+
+                if not tts_audio:
+                    logger.warning(f"[{self.session.call_uuid[:8]}] TTS returned empty audio")
+                    continue
+
+                # Resample Piper output (22050Hz) → Asterisk (24000Hz)
+                t0 = time.monotonic()
+                audio_24k = resample_pcm16(tts_audio, PIPER_SAMPLE_RATE, ASTERISK_SAMPLE_RATE)
+                resample_time = (time.monotonic() - t0) * 1000
+
+                if resample_time > 5:
+                    logger.debug(
+                        f"[{self.session.call_uuid[:8]}] Resample: {resample_time:.0f}ms "
+                        f"({len(tts_audio)}→{len(audio_24k)} bytes)"
+                    )
+
+                # Put ready-to-play audio into playback queue
+                await self._audio_queue.put(audio_24k)
+
+            except Exception as e:
+                logger.error(f"[{self.session.call_uuid[:8]}] TTS synthesis error: {e}")
+
+    async def _tts_playback_loop(self):
+        """
+        Background task: consume pre-synthesized audio from _audio_queue
+        and send to Asterisk as AudioSocket frames.
+
+        Separated from synthesis so next sentence can be synthesizing
+        while current one plays — eliminates inter-sentence gaps.
+        """
+        while self._running:
+            try:
+                audio_24k = await asyncio.wait_for(self._audio_queue.get(), timeout=1.0)
+            except asyncio.TimeoutError:
+                continue
+
+            if audio_24k is None:
                 self.session.ai_speaking = False
                 continue
 
             try:
                 self.session.ai_speaking = True
                 self._interrupt_event.clear()
-
-                # Synthesize with Piper
-                t0 = time.monotonic()
-                tts_audio = await synthesize_speech(sentence, self.session.voice)
-                tts_time = (time.monotonic() - t0) * 1000
-
-                if not tts_audio:
-                    logger.warning(f"[{self.session.call_uuid[:8]}] TTS returned empty audio")
-                    continue
-
-                logger.debug(f"[{self.session.call_uuid[:8]}] TTS ({tts_time:.0f}ms): {sentence[:50]}...")
-
-                # Resample Piper output (22050Hz) → Asterisk (24000Hz)
-                audio_24k = resample_pcm16(tts_audio, PIPER_SAMPLE_RATE, ASTERISK_SAMPLE_RATE)
 
                 # Send in chunks matching Asterisk expectations
                 chunk_size = ASTERISK_SAMPLE_RATE * CHUNK_DURATION_MS // 1000 * 2  # 960 bytes for 20ms
@@ -1116,7 +1312,13 @@ class PipelineCallHandler:
 
                 if self._interrupt_event.is_set():
                     logger.info(f"[{self.session.call_uuid[:8]}] TTS interrupted by user")
-                    # Drain remaining queue
+                    # Drain remaining audio queue
+                    while not self._audio_queue.empty():
+                        try:
+                            self._audio_queue.get_nowait()
+                        except asyncio.QueueEmpty:
+                            break
+                    # Also drain text queue
                     while not self._tts_queue.empty():
                         try:
                             self._tts_queue.get_nowait()
