@@ -117,7 +117,7 @@ VAD_ENERGY_THRESHOLD = 500      # Minimum RMS energy to consider speech
 VAD_SILENCE_TIMEOUT_MS = 1200   # Silence duration to trigger end of utterance
 VAD_MIN_SPEECH_MS = 200         # Minimum speech duration to process
 
-# Piper voice mapping per language
+# Piper voice mapping per language (default voice)
 PIPER_VOICES = {
     "tr": "tr_TR-dfki-medium",
     "de": "de_DE-thorsten-medium",
@@ -125,6 +125,37 @@ PIPER_VOICES = {
     "fr": "fr_FR-siwis-medium",
     "es": "es_ES-sharvard-medium",
     "it": "it_IT-riccardo-x_low",
+}
+
+# All available Piper voices (used for agent voice selection)
+PIPER_AVAILABLE_VOICES = {
+    # Turkish
+    "tr_TR-dfki-medium": {"lang": "tr", "gender": "male", "quality": "medium", "label": "Dfki (Male, TR)"},
+    "tr_TR-fahrettin-medium": {"lang": "tr", "gender": "male", "quality": "medium", "label": "Fahrettin (Male, TR)"},
+    "tr_TR-fettah-medium": {"lang": "tr", "gender": "male", "quality": "medium", "label": "Fettah (Male, TR)"},
+    # German
+    "de_DE-thorsten-medium": {"lang": "de", "gender": "male", "quality": "medium", "label": "Thorsten (Male, DE)"},
+    "de_DE-thorsten-high": {"lang": "de", "gender": "male", "quality": "high", "label": "Thorsten HQ (Male, DE)"},
+    "de_DE-thorsten_emotional-medium": {"lang": "de", "gender": "male", "quality": "medium", "label": "Thorsten Emotional (Male, DE)"},
+    "de_DE-eva_k-x_low": {"lang": "de", "gender": "female", "quality": "low", "label": "Eva (Female, DE)"},
+    "de_DE-kerstin-low": {"lang": "de", "gender": "female", "quality": "low", "label": "Kerstin (Female, DE)"},
+    # English
+    "en_US-amy-medium": {"lang": "en", "gender": "female", "quality": "medium", "label": "Amy (Female, EN)"},
+    "en_US-lessac-high": {"lang": "en", "gender": "male", "quality": "high", "label": "Lessac HQ (Male, EN)"},
+    "en_US-ryan-high": {"lang": "en", "gender": "male", "quality": "high", "label": "Ryan HQ (Male, EN)"},
+    "en_US-kristin-medium": {"lang": "en", "gender": "female", "quality": "medium", "label": "Kristin (Female, EN)"},
+    "en_GB-cori-high": {"lang": "en", "gender": "female", "quality": "high", "label": "Cori HQ (Female, EN-GB)"},
+    # French
+    "fr_FR-siwis-medium": {"lang": "fr", "gender": "female", "quality": "medium", "label": "Siwis (Female, FR)"},
+    "fr_FR-tom-medium": {"lang": "fr", "gender": "male", "quality": "medium", "label": "Tom (Male, FR)"},
+    "fr_FR-gilles-low": {"lang": "fr", "gender": "male", "quality": "low", "label": "Gilles (Male, FR)"},
+    # Spanish
+    "es_ES-sharvard-medium": {"lang": "es", "gender": "male", "quality": "medium", "label": "Sharvard (Male, ES)"},
+    "es_ES-davefx-medium": {"lang": "es", "gender": "male", "quality": "medium", "label": "Davefx (Male, ES)"},
+    "es_MX-claude-high": {"lang": "es", "gender": "male", "quality": "high", "label": "Claude HQ (Male, ES-MX)"},
+    # Italian
+    "it_IT-riccardo-x_low": {"lang": "it", "gender": "male", "quality": "low", "label": "Riccardo (Male, IT)"},
+    "it_IT-paola-medium": {"lang": "it", "gender": "female", "quality": "medium", "label": "Paola (Female, IT)"},
 }
 
 # Filler phrases per language (played while AI is thinking)
@@ -609,7 +640,11 @@ class PipelineCallHandler:
             # Step 2: Get agent config from Redis
             agent_config = await get_call_setup_from_redis(call_uuid) or {}
             language = agent_config.get("language", "tr")
-            voice = PIPER_VOICES.get(language, PIPER_VOICES["tr"])
+
+            # Voice selection: explicit pipeline_voice > language default
+            voice = agent_config.get("pipeline_voice", "")
+            if not voice or voice not in PIPER_AVAILABLE_VOICES:
+                voice = PIPER_VOICES.get(language, PIPER_VOICES["tr"])
 
             # Pipeline-specific model from agent config or default
             pipeline_model = agent_config.get("pipeline_model", OLLAMA_MODEL)

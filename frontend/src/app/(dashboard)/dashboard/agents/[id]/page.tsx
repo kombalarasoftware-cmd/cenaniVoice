@@ -844,15 +844,32 @@ export default function AgentEditorPage() {
 
   const pipelineVoices = [
     // Turkish
-    { id: 'tr_TR-dfki-medium', name: 'DFKI (TR, Female)', gender: 'female' },
+    { id: 'tr_TR-dfki-medium', name: 'Dfki (TR, Male)', gender: 'male' },
+    { id: 'tr_TR-fahrettin-medium', name: 'Fahrettin (TR, Male)', gender: 'male' },
+    { id: 'tr_TR-fettah-medium', name: 'Fettah (TR, Male)', gender: 'male' },
     // English
     { id: 'en_US-amy-medium', name: 'Amy (EN, Female)', gender: 'female' },
-    { id: 'en_US-danny-low', name: 'Danny (EN, Male)', gender: 'male' },
-    { id: 'en_US-lessac-medium', name: 'Lessac (EN, Female)', gender: 'female' },
-    { id: 'en_US-ryan-medium', name: 'Ryan (EN, Male)', gender: 'male' },
+    { id: 'en_US-lessac-high', name: 'Lessac HQ (EN, Male)', gender: 'male' },
+    { id: 'en_US-ryan-high', name: 'Ryan HQ (EN, Male)', gender: 'male' },
+    { id: 'en_US-kristin-medium', name: 'Kristin (EN, Female)', gender: 'female' },
+    { id: 'en_GB-cori-high', name: 'Cori HQ (EN-GB, Female)', gender: 'female' },
     // German
     { id: 'de_DE-thorsten-medium', name: 'Thorsten (DE, Male)', gender: 'male' },
+    { id: 'de_DE-thorsten-high', name: 'Thorsten HQ (DE, Male)', gender: 'male' },
+    { id: 'de_DE-thorsten_emotional-medium', name: 'Thorsten Emotional (DE, Male)', gender: 'male' },
+    { id: 'de_DE-eva_k-x_low', name: 'Eva (DE, Female)', gender: 'female' },
     { id: 'de_DE-kerstin-low', name: 'Kerstin (DE, Female)', gender: 'female' },
+    // French
+    { id: 'fr_FR-siwis-medium', name: 'Siwis (FR, Female)', gender: 'female' },
+    { id: 'fr_FR-tom-medium', name: 'Tom (FR, Male)', gender: 'male' },
+    { id: 'fr_FR-gilles-low', name: 'Gilles (FR, Male)', gender: 'male' },
+    // Spanish
+    { id: 'es_ES-sharvard-medium', name: 'Sharvard (ES, Male)', gender: 'male' },
+    { id: 'es_ES-davefx-medium', name: 'Davefx (ES, Male)', gender: 'male' },
+    { id: 'es_MX-claude-high', name: 'Claude HQ (ES-MX, Male)', gender: 'male' },
+    // Italian
+    { id: 'it_IT-riccardo-x_low', name: 'Riccardo (IT, Male)', gender: 'male' },
+    { id: 'it_IT-paola-medium', name: 'Paola (IT, Female)', gender: 'female' },
   ];
 
   const allVoices = selectedProvider === 'ultravox' ? ultravoxVoices : selectedProvider === 'pipeline' ? pipelineVoices : openaiVoices;

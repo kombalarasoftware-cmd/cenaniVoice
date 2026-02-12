@@ -143,14 +143,17 @@ class PipelineProvider(CallProvider):
                     custom_variables=variables or {},
                 )
 
-            # Resolve Piper voice
+            # Resolve Piper voice (agent-specific or language default)
             language = agent.language or "tr"
-            piper_voice = PIPER_VOICES.get(language, PIPER_VOICES["tr"])
+            piper_voice = getattr(agent, "pipeline_voice", "") or ""
+            if not piper_voice:
+                piper_voice = PIPER_VOICES.get(language, PIPER_VOICES["tr"])
 
             call_setup_data = {
                 "agent_id": str(agent.id),
                 "agent_name": agent.name or "AI Agent",
                 "voice": piper_voice,
+                "pipeline_voice": piper_voice,
                 "pipeline_model": pipeline_model,
                 "language": language,
                 "prompt": full_prompt,

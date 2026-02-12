@@ -195,6 +195,7 @@ class Agent(Base):
     # Voice settings
     voice: Mapped[str] = mapped_column(String(50), default="alloy")
     language: Mapped[str] = mapped_column(String(10), default="tr")
+    pipeline_voice: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # Piper TTS voice name
     timezone: Mapped[str] = mapped_column(String(50), default="Europe/Istanbul")
     speech_speed: Mapped[float] = mapped_column(Float, default=1.0)
     

@@ -169,6 +169,22 @@ const config: Config = {
           '0%, 100%': { boxShadow: '0 0 20px rgba(139, 92, 246, 0.3)' },
           '50%': { boxShadow: '0 0 40px rgba(139, 92, 246, 0.6)' },
         },
+        // Float animation
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
+        // Gradient shift
+        'gradient-shift': {
+          '0%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
+          '100%': { backgroundPosition: '0% 50%' },
+        },
+        // Blur in
+        'blur-in': {
+          from: { filter: 'blur(12px)', opacity: '0' },
+          to: { filter: 'blur(0)', opacity: '1' },
+        },
         // Accordion
         'accordion-down': {
           from: { height: '0' },
@@ -189,6 +205,9 @@ const config: Config = {
         'scale-up': 'scale-up 0.2s ease-out',
         shimmer: 'shimmer 2s linear infinite',
         glow: 'glow 2s ease-in-out infinite',
+        float: 'float 3s ease-in-out infinite',
+        'gradient-shift': 'gradient-shift 6s ease infinite',
+        'blur-in': 'blur-in 0.5s ease-out',
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
       },
@@ -197,6 +216,11 @@ const config: Config = {
         'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
         'gradient-primary': 'linear-gradient(135deg, var(--tw-gradient-stops))',
         shimmer: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)',
+        'glass-gradient': 'linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.02))',
+      },
+      backdropBlur: {
+        xs: '2px',
+        '3xl': '64px',
       },
     },
   },

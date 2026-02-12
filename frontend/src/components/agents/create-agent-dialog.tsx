@@ -175,15 +175,32 @@ const ultravoxVoices = [
 
 const pipelineVoices = [
   // Turkish
-  { id: 'tr_TR-dfki-medium', name: 'DFKI', description: 'TR, Female', gender: 'female' },
+  { id: 'tr_TR-dfki-medium', name: 'Dfki', description: 'TR, Male', gender: 'male' },
+  { id: 'tr_TR-fahrettin-medium', name: 'Fahrettin', description: 'TR, Male', gender: 'male' },
+  { id: 'tr_TR-fettah-medium', name: 'Fettah', description: 'TR, Male', gender: 'male' },
   // English
   { id: 'en_US-amy-medium', name: 'Amy', description: 'EN, Female', gender: 'female' },
-  { id: 'en_US-danny-low', name: 'Danny', description: 'EN, Male', gender: 'male' },
-  { id: 'en_US-lessac-medium', name: 'Lessac', description: 'EN, Female', gender: 'female' },
-  { id: 'en_US-ryan-medium', name: 'Ryan', description: 'EN, Male', gender: 'male' },
+  { id: 'en_US-lessac-high', name: 'Lessac HQ', description: 'EN, Male, High Quality', gender: 'male' },
+  { id: 'en_US-ryan-high', name: 'Ryan HQ', description: 'EN, Male, High Quality', gender: 'male' },
+  { id: 'en_US-kristin-medium', name: 'Kristin', description: 'EN, Female', gender: 'female' },
+  { id: 'en_GB-cori-high', name: 'Cori HQ', description: 'EN-GB, Female, High Quality', gender: 'female' },
   // German
   { id: 'de_DE-thorsten-medium', name: 'Thorsten', description: 'DE, Male', gender: 'male' },
+  { id: 'de_DE-thorsten-high', name: 'Thorsten HQ', description: 'DE, Male, High Quality', gender: 'male' },
+  { id: 'de_DE-thorsten_emotional-medium', name: 'Thorsten Emotional', description: 'DE, Male, Expressive', gender: 'male' },
+  { id: 'de_DE-eva_k-x_low', name: 'Eva', description: 'DE, Female', gender: 'female' },
   { id: 'de_DE-kerstin-low', name: 'Kerstin', description: 'DE, Female', gender: 'female' },
+  // French
+  { id: 'fr_FR-siwis-medium', name: 'Siwis', description: 'FR, Female', gender: 'female' },
+  { id: 'fr_FR-tom-medium', name: 'Tom', description: 'FR, Male', gender: 'male' },
+  { id: 'fr_FR-gilles-low', name: 'Gilles', description: 'FR, Male', gender: 'male' },
+  // Spanish
+  { id: 'es_ES-sharvard-medium', name: 'Sharvard', description: 'ES, Male', gender: 'male' },
+  { id: 'es_ES-davefx-medium', name: 'Davefx', description: 'ES, Male', gender: 'male' },
+  { id: 'es_MX-claude-high', name: 'Claude HQ', description: 'ES-MX, Male, High Quality', gender: 'male' },
+  // Italian
+  { id: 'it_IT-riccardo-x_low', name: 'Riccardo', description: 'IT, Male', gender: 'male' },
+  { id: 'it_IT-paola-medium', name: 'Paola', description: 'IT, Female', gender: 'female' },
 ];
 
 const providers = [

@@ -18,11 +18,29 @@ router = APIRouter(prefix="/agents", tags=["Agents"])
 
 @router.get("/voices/list")
 async def list_voices(
-    provider: str = Query("openai", description="Provider: 'openai' or 'ultravox'"),
+    provider: str = Query("openai", description="Provider: 'openai', 'ultravox', or 'pipeline'"),
     gender: Optional[str] = Query(None, description="Filter by gender: 'male' or 'female'"),
+    language: Optional[str] = Query(None, description="Filter by language code (pipeline only): 'tr', 'de', 'en', etc."),
     current_user: User = Depends(get_current_user)
 ):
     """List available voices for the specified provider, optionally filtered by gender."""
+    if provider == "pipeline":
+        from app.services.pipeline_bridge import PIPER_AVAILABLE_VOICES
+        voices = []
+        for voice_id, info in PIPER_AVAILABLE_VOICES.items():
+            if gender and info["gender"] != gender:
+                continue
+            if language and info["lang"] != language:
+                continue
+            voices.append({
+                "id": voice_id,
+                "name": info["label"],
+                "gender": info["gender"],
+                "language": info["lang"],
+                "quality": info["quality"],
+            })
+        return {"provider": provider, "voices": voices}
+
     if provider not in ("openai", "ultravox"):
         raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
 
@@ -88,6 +106,8 @@ async def create_agent(
         agent.language = agent_data.voice_settings.language
         agent.timezone = agent_data.voice_settings.timezone
         agent.speech_speed = agent_data.voice_settings.speech_speed
+        if agent_data.voice_settings.pipeline_voice is not None:
+            agent.pipeline_voice = agent_data.voice_settings.pipeline_voice
     
     # Apply call settings
     if agent_data.call_settings:
@@ -222,6 +242,8 @@ async def update_agent(
         agent.language = agent_data.voice_settings.language
         agent.timezone = agent_data.voice_settings.timezone
         agent.speech_speed = agent_data.voice_settings.speech_speed
+        if agent_data.voice_settings.pipeline_voice is not None:
+            agent.pipeline_voice = agent_data.voice_settings.pipeline_voice
     
     # Update call settings
     if agent_data.call_settings:

@@ -131,6 +131,7 @@ class VoiceSettings(BaseModel):
     language: str = "tr"
     timezone: str = "Europe/Istanbul"
     speech_speed: float = Field(default=1.0, ge=0.5, le=2.0)
+    pipeline_voice: Optional[str] = None  # Piper TTS voice (e.g. "tr_TR-fahrettin-medium")
 
 
 class CallSettings(BaseModel):
@@ -437,6 +438,7 @@ class AgentResponse(AgentBase):
     model_type: RealtimeModel = RealtimeModel.GPT_REALTIME_MINI
     voice: str
     language: str
+    pipeline_voice: Optional[str] = None
     total_calls: int
     successful_calls: int
     is_system: bool = False

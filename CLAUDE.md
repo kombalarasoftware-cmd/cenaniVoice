@@ -58,6 +58,17 @@ nginx/            # Reverse proxy + SSL
 - Circuit breaker per provider (5 failures → 30s cooldown)
 - Middleware order: RequestID → SecurityHeaders → BodySizeLimit → RateLimit → CORS
 
+## Frontend Design Philosophy
+- Every page must feel like a **premium SaaS product** (Linear, Vercel, Stripe aesthetic)
+- **Dark mode first** — design for dark, adapt to light
+- Use **Framer Motion** for all page transitions, list animations, and interactive states
+- Loading states: **skeleton screens with shimmer** — never spinning loaders
+- Before building any UI page, use `/visual-dev` skill for Playwright preview loop
+- Use `/design-inspiration` skill to research modern patterns before major UI work
+- Minimum **2 visual iterations** (build → screenshot → fix → screenshot) before presenting
+- Responsive: always test mobile (375px), tablet (768px), desktop (1440px)
+- See `.claude/rules/frontend-design.md` for detailed standards
+
 ## Model Configuration
 - Default: Sonnet (fast, cost-efficient)
 - Planning: `--model opusplan` (Opus for plans, Sonnet for execution)
@@ -70,7 +81,7 @@ nginx/            # Reverse proxy + SSL
 - `debugger` — Root cause analysis with project-specific patterns (persistent memory)
 - `frontend-developer` — Next.js/React specialist (persistent memory)
 
-## Available Skills (12)
+## Available Skills (14)
 - `/review` — Code review with linter integration + security + performance checks
 - `/security` — OWASP-focused security vulnerability scan
 - `/test` — Generate comprehensive tests
@@ -83,6 +94,8 @@ nginx/            # Reverse proxy + SSL
 - `/create-pr` — Auto-generate PR with AI summary (Copilot PR Summary-style)
 - `/todo-scan` — Scan for TODO/FIXME and create GitHub issues (Copilot TODO detection-style)
 - `/space` — Load task-specific context space for focused work (Copilot Spaces-style)
+- `/visual-dev` — Build UI with Playwright visual feedback loop (design → preview → iterate)
+- `/design-inspiration` — Research modern UI patterns before building
 
 ## Copilot Custom Agents (`.github/agents/`)
 - `backend-developer` — FastAPI/Python specialist
@@ -112,6 +125,7 @@ nginx/            # Reverse proxy + SSL
 ## Path-Scoped Rules (`.claude/rules/`)
 - `backend-python.md` — Python/FastAPI standards
 - `frontend-react.md` — React/TypeScript standards
+- `frontend-design.md` — Visual design standards (frontend/src/**/*.tsx, *.css)
 - `security.md` — Security rules for all code
 - `docker-infra.md` — Docker/infrastructure rules
 - `api-routes.md` — API endpoint rules (backend/api/**)
@@ -140,4 +154,4 @@ When context is compacted, preserve:
 - Language policy (English only in code)
 - Key architecture decisions
 - All @import references
-- The project rules from .claude/rules/ (8 rules: backend-python, frontend-react, security, docker-infra, api-routes, celery-tasks, database-models, react-components)
+- The project rules from .claude/rules/ (9 rules: backend-python, frontend-react, frontend-design, security, docker-infra, api-routes, celery-tasks, database-models, react-components)
