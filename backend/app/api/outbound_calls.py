@@ -361,6 +361,15 @@ async def initiate_outbound_call(
                 channel_id = result.get("id")
                 logger.info(f"Call initiated successfully: {channel_id}")
 
+                # Store ARI channel_id in Redis so hangup can terminate the SIP channel
+                # even before the customer answers (AudioSocket bridge not yet running)
+                if redis_client and channel_id:
+                    try:
+                        redis_client.setex(f"call_channel:{call_uuid}", 900, channel_id)
+                        logger.info(f"Stored ARI channel_id in Redis: call_channel:{call_uuid[:8]} = {channel_id}")
+                    except Exception as e:
+                        logger.warning(f"Failed to store channel_id in Redis: {e}")
+
                 try:
                     agent_id_int = int(request.agent_id) if request.agent_id else None
                     call_log = CallLog(

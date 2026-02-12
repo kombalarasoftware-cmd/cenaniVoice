@@ -371,22 +371,48 @@ async def hangup_call(
             except Exception as e2:
                 logger.error(f"Ultravox DELETE also failed for call {call_id}: {e2}")
     else:
-        # OpenAI/xAI/Gemini+Asterisk: use provider's end_call (Redis + ARI hangup)
+        # OpenAI/xAI/Gemini+Asterisk: Redis hangup signal + ARI channel DELETE
+        call_sid = call.call_sid
+
+        # 1. Redis hangup signal (for bridge cleanup if bridge is running)
         try:
-            from app.services.openai_provider import OpenAIProvider
-            provider = OpenAIProvider()
-            result = await provider.end_call(call.call_sid)
-            hangup_sent = True
-            logger.info(f"OpenAI provider hangup for call {call_id}: {result}")
+            if redis_client:
+                redis_client.set(f"hangup_signal:{call_sid}", "1", ex=60)
+                logger.info(f"Redis hangup signal set for call {call_id} (call_sid={call_sid[:8]})")
         except Exception as e:
-            logger.error(f"OpenAI provider hangup failed for call {call_id}: {e}")
-            # Fallback: at least set Redis signal
+            logger.warning(f"Redis hangup signal failed: {e}")
+
+        # 2. ARI channel DELETE — terminate SIP channel directly
+        # channel_id is stored in Redis by outbound_calls.py at originate time
+        ari_channel_id = None
+        if redis_client:
             try:
-                if redis_client:
-                    redis_client.set(f"hangup_signal:{call.call_sid}", "1", ex=60)
-                    hangup_sent = True
+                ari_channel_id = redis_client.get(f"call_channel:{call_sid}")
             except Exception:
                 pass
+
+        if ari_channel_id:
+            try:
+                import aiohttp
+                from app.core.config import settings as _settings
+                _ari_url = f"http://{_settings.ASTERISK_HOST}:{_settings.ASTERISK_ARI_PORT}/ari/channels/{ari_channel_id}"
+                _auth = aiohttp.BasicAuth(_settings.ASTERISK_ARI_USER, _settings.ASTERISK_ARI_PASSWORD)
+                async with aiohttp.ClientSession(auth=_auth) as _session:
+                    async with _session.delete(_ari_url) as _resp:
+                        if _resp.status < 300:
+                            hangup_sent = True
+                            logger.info(f"ARI channel {ari_channel_id} terminated for call {call_id}")
+                        elif _resp.status == 404:
+                            hangup_sent = True
+                            logger.info(f"ARI channel {ari_channel_id} already gone for call {call_id}")
+                        else:
+                            _err = await _resp.text()
+                            logger.warning(f"ARI DELETE failed: {_resp.status} {_err}")
+            except Exception as e:
+                logger.error(f"ARI channel hangup failed for call {call_id}: {e}")
+        else:
+            logger.warning(f"No ARI channel_id in Redis for call_sid={call_sid[:8]}")
+            hangup_sent = True  # Redis signal was sent at least
 
     # Set correct SIP code based on call state at hangup time
     # If the call was still RINGING (customer never answered), use 487 (Request Terminated)
