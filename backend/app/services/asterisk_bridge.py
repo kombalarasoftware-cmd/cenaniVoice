@@ -1055,8 +1055,12 @@ class CallBridge:
 
             await self._connect_openai()
             
-            # Wait for session.created before configuring (instead of blind sleep)
-            await self._wait_for_event("session.created", timeout=5.0)
+            # Wait for initial event before configuring
+            # OpenAI sends session.created; xAI sends conversation.created
+            if self.provider == "xai":
+                await self._wait_for_event("conversation.created", timeout=5.0)
+            else:
+                await self._wait_for_event("session.created", timeout=5.0)
             await self._configure_session()
             # Wait for session.updated to confirm config applied (replaces asyncio.sleep(0.3))
             await self._wait_for_event("session.updated", timeout=3.0)
@@ -1228,34 +1232,54 @@ If you detect an answering machine, voicemail, or automated greeting system:
                 "interrupt_response": self.agent_interrupt_response,
             }
         
-        config = {
-            "type": "session.update",
-            "session": {
-                "modalities": ["text", "audio"],
-                "voice": self.agent_voice,  # Agent ayarından alınıyor
-                "input_audio_format": "pcm16",
-                "output_audio_format": "pcm16",
-                "instructions": instructions,  # Agent ayarından alınıyor
-                "temperature": self.agent_temperature,
-                "turn_detection": turn_detection_config,
-                "input_audio_transcription": {
-                    "model": self.agent_transcript_model,  # DB'den: gpt-4o-transcribe (best accuracy)
-                    "language": self.agent_language,  # Agent ayarından alınıyor
-                },
-                "tools": _build_tools(),
-                "tool_choice": "auto",
-                "max_response_output_tokens": self.agent_max_output_tokens,
-            }
-        }
-        
-        # xAI requires model in session config (not in URL like OpenAI)
+        # Build session config — xAI and OpenAI use different schemas
         if self.provider == "xai":
-            config["session"]["model"] = self.agent_model
+            # xAI Grok session config
+            # Docs: https://docs.x.ai/developers/model-capabilities/audio/voice-agent
+            xai_turn_detection = {"type": "server_vad"}
+            if self.agent_turn_detection == "server_vad":
+                xai_turn_detection = {"type": "server_vad"}
+            
+            config = {
+                "type": "session.update",
+                "session": {
+                    "model": self.agent_model,  # xAI requires model in session
+                    "voice": self.agent_voice,
+                    "instructions": instructions,
+                    "turn_detection": xai_turn_detection,
+                    "audio": {
+                        "input": {"format": {"type": "audio/pcm", "rate": 24000}},
+                        "output": {"format": {"type": "audio/pcm", "rate": 24000}},
+                    },
+                    "tools": _build_tools(),
+                }
+            }
+        else:
+            # OpenAI Realtime session config
+            config = {
+                "type": "session.update",
+                "session": {
+                    "modalities": ["text", "audio"],
+                    "voice": self.agent_voice,
+                    "input_audio_format": "pcm16",
+                    "output_audio_format": "pcm16",
+                    "instructions": instructions,
+                    "temperature": self.agent_temperature,
+                    "turn_detection": turn_detection_config,
+                    "input_audio_transcription": {
+                        "model": self.agent_transcript_model,
+                        "language": self.agent_language,
+                    },
+                    "tools": _build_tools(),
+                    "tool_choice": "auto",
+                    "max_response_output_tokens": self.agent_max_output_tokens,
+                }
+            }
         
-        # Noise reduction: only include when enabled (don't send null - API may reject/ignore)
-        if self.agent_noise_reduction:
-            config["session"]["input_audio_noise_reduction"] = {"type": "near_field"}
-            logger.info(f"[{self.call_uuid[:8]}] 🔇 Noise reduction aktif: near_field")
+            # Noise reduction: only include when enabled (OpenAI only)
+            if self.agent_noise_reduction:
+                config["session"]["input_audio_noise_reduction"] = {"type": "near_field"}
+                logger.info(f"[{self.call_uuid[:8]}] 🔇 Noise reduction aktif: near_field")
         
         await self.openai_ws.send(json.dumps(config))
         logger.info(f"[{self.call_uuid[:8]}] ⚙️ Session yapılandırıldı: voice={self.agent_voice}, lang={self.agent_language}, "
@@ -1287,11 +1311,17 @@ If you detect an answering machine, voicemail, or automated greeting system:
             # Default greeting
             greeting_instruction = "Greet the customer with a brief welcome message."
         
+        # Build response.create payload
+        response_payload = {
+            "instructions": greeting_instruction
+        }
+        # xAI requires modalities in response.create
+        if self.provider == "xai":
+            response_payload["modalities"] = ["text", "audio"]
+        
         await self.openai_ws.send(json.dumps({
             "type": "response.create",
-            "response": {
-                "instructions": greeting_instruction
-            }
+            "response": response_payload
         }))
         logger.info(f"[{self.call_uuid[:8]}] 🎙️ Greeting gönderildi: {greeting_instruction[:80]}...")
 
@@ -1406,18 +1436,20 @@ If you detect an answering machine, voicemail, or automated greeting system:
 
                 # Publish event to Redis for SSE streaming (filtered events only)
                 publishable_events = [
-                    "session.created", "session.updated",
+                    "session.created", "session.updated", "conversation.created",
                     "input_audio_buffer.speech_started", "input_audio_buffer.speech_stopped",
                     "conversation.item.input_audio_transcription.completed",
-                    "response.created", "response.audio_transcript.delta", "response.audio_transcript.done",
+                    "response.created",
+                    "response.audio_transcript.delta", "response.audio_transcript.done",
+                    "response.output_audio_transcript.delta", "response.output_audio_transcript.done",
                     "response.done", "rate_limits.updated", "error"
                 ]
                 if event_type in publishable_events:
                     # Don't await - fire and forget to avoid blocking
                     asyncio.create_task(publish_event_to_redis(self.call_uuid, event))
 
-                if event_type == "session.created":
-                    logger.info(f"[{self.call_uuid[:8]}] 🎙️ Realtime session hazır")
+                if event_type in ("session.created", "conversation.created"):
+                    logger.info(f"[{self.call_uuid[:8]}] 🎙️ Realtime session hazır ({event_type})")
 
                 elif event_type == "input_audio_buffer.speech_started":
                     # User started speaking - interrupt AI response
@@ -1433,7 +1465,7 @@ If you detect an answering machine, voicemail, or automated greeting system:
                 elif event_type == "input_audio_buffer.speech_stopped":
                     logger.debug(f"[{self.call_uuid[:8]}] 👂 Müşteri konuşmayı bitirdi")
 
-                elif event_type == "response.audio.delta":
+                elif event_type in ("response.audio.delta", "response.output_audio.delta"):
                     audio_b64 = event.get("delta", "")
                     if audio_b64:
                         audio_pcm_24k = base64.b64decode(audio_b64)
@@ -1469,7 +1501,7 @@ If you detect an answering machine, voicemail, or automated greeting system:
 
                         await self.writer.drain()
                 
-                elif event_type == "response.audio.done":
+                elif event_type in ("response.audio.done", "response.output_audio.done"):
                     # Yanıt bitti, kalan buffer'ı temizle
                     while len(self.output_buffer) >= ASTERISK_CHUNK_BYTES:
                         chunk = bytes(self.output_buffer[:ASTERISK_CHUNK_BYTES])
@@ -1503,7 +1535,7 @@ If you detect an answering machine, voicemail, or automated greeting system:
                         self.turn_count += 1
                         await self._update_conversation_phase(transcript)
 
-                elif event_type == "response.audio_transcript.done":
+                elif event_type in ("response.audio_transcript.done", "response.output_audio_transcript.done"):
                     transcript = event.get("transcript", "")
                     if transcript:
                         logger.info(f"[{self.call_uuid[:8]}] 🤖 Agent: \"{transcript}\"")
