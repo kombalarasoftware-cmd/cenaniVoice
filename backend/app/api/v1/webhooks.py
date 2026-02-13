@@ -349,12 +349,12 @@ async def amd_result_webhook(
     call_log.amd_status = payload.status
     call_log.amd_cause = payload.cause
 
-    if payload.status == "MACHINE":
+    if payload.status in ("MACHINE", "NOTSURE"):
         call_log.status = CallStatus.COMPLETED
-        call_log.outcome = CallOutcome.NO_ANSWER  # re-use no_answer for machines
+        call_log.outcome = CallOutcome.VOICEMAIL
         call_log.hangup_cause = f"AMD:{payload.cause}"
         call_log.ended_at = datetime.utcnow()
-        logger.info(f"AMD: Marked call {payload.uuid[:8]} as machine — will not connect AI agent")
+        logger.info(f"AMD: Marked call {payload.uuid[:8]} as {payload.status} — will not connect AI agent")
 
     db.commit()
 
@@ -407,7 +407,7 @@ async def call_failed_webhook(
         return {"status": "not_found"}
 
     # Only update if not already completed/failed
-    if call_log.status in (CallStatus.RINGING, CallStatus.QUEUED, CallStatus.IN_PROGRESS):
+    if call_log.status in (CallStatus.RINGING, CallStatus.QUEUED, CallStatus.CONNECTED):
         call_log.status = CallStatus.NO_ANSWER
         call_log.outcome = CallOutcome.NO_ANSWER
         call_log.sip_code = sip_code
