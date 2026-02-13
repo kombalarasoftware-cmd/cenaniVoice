@@ -220,6 +220,8 @@ async def _mark_call_failed(call_uuid: str, sip_code: int = 486):
                 )
             elif call_log:
                 logger.info(f"[{call_uuid[:8]}] CallLog already updated (status={call_log.status}), skipping")
+                # Don't set Redis 'failed' — call was already handled (e.g. AMD voicemail)
+                return
             else:
                 logger.warning(f"[{call_uuid[:8]}] CallLog not found for uuid")
         finally:
