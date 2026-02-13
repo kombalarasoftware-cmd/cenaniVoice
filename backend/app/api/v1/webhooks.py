@@ -370,7 +370,7 @@ async def amd_result_webhook(
         call_log = (
             db.query(CallLog)
             .filter(
-                CallLog.phone_number == phone,
+                CallLog.to_number == phone,
                 CallLog.provider == "ultravox",
                 CallLog.status.in_(active_statuses),
             )
@@ -382,7 +382,7 @@ async def amd_result_webhook(
             call_log = (
                 db.query(CallLog)
                 .filter(
-                    CallLog.phone_number == phone[1:],
+                    CallLog.to_number == phone[1:],
                     CallLog.provider == "ultravox",
                     CallLog.status.in_(active_statuses),
                 )
