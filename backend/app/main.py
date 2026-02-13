@@ -22,6 +22,7 @@ from app.api.v1 import api_router
 from app.api.knowledge_base import router as knowledge_base_router
 from app.api.prompt_generator import router as prompt_generator_router
 from app.api.outbound_calls import router as outbound_calls_router
+from app.api.v1.prompt_maker import router as prompt_maker_router
 from app.core.database import engine, Base, get_health_status
 
 
@@ -284,6 +285,7 @@ async def ready_check():
 app.include_router(api_router, prefix="/api/v1")
 app.include_router(knowledge_base_router, prefix="/api/v1")
 app.include_router(prompt_generator_router, prefix="/api/v1")
+app.include_router(prompt_maker_router, prefix="/api/v1")
 app.include_router(outbound_calls_router, prefix="/api/v1")
 
 

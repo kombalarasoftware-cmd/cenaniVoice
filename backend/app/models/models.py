@@ -337,6 +337,27 @@ class PromptTemplate(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class PromptHistory(Base):
+    """Stores generated prompts from the Prompt Maker feature"""
+    __tablename__ = "prompt_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)  # openai, ultravox, xai, gemini
+    agent_type: Mapped[Optional[str]] = mapped_column(String(50))  # sales, support, collection, appointment, survey
+    tone: Mapped[Optional[str]] = mapped_column(String(50))  # professional, friendly, formal, casual
+    language: Mapped[str] = mapped_column(String(10), default="en")
+    description: Mapped[Optional[str]] = mapped_column(Text)  # User's original description
+    generated_prompt: Mapped[str] = mapped_column(Text, nullable=False)  # The full generated prompt
+    applied_to_agent_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("agents.id", ondelete="SET NULL"))
+    owner_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    owner: Mapped["User"] = relationship("User")
+    applied_to_agent: Mapped[Optional["Agent"]] = relationship("Agent")
+
+
 class NumberList(Base):
     __tablename__ = "number_lists"
     

@@ -20,6 +20,7 @@ import {
   CalendarCheck,
   UserPlus,
   ClipboardList,
+  Wand2,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useState, useEffect } from 'react';
@@ -69,6 +70,11 @@ const navigation = [
     name: 'Surveys',
     href: '/dashboard/surveys',
     icon: ClipboardList,
+  },
+  {
+    name: 'Prompt Maker',
+    href: '/dashboard/prompt-maker',
+    icon: Wand2,
   },
   {
     name: 'Reports',

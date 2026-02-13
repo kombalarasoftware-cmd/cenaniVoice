@@ -13,10 +13,8 @@ import {
   Trash2,
   Info,
   Copy,
-  Sparkles,
   X,
   Loader2,
-  Wand2,
   GitBranch,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -175,303 +173,7 @@ function parsePromptSections(prompt: string): ParsedPromptSections {
   return sections;
 }
 
-// ============================================
-// AI Prompt Maker Modal Component
-// ============================================
-interface PromptMakerModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onGenerate: (prompt: string) => void;
-  existingPrompt?: string;
-}
 
-function PromptMakerModal({ isOpen, onClose, onGenerate, existingPrompt }: PromptMakerModalProps) {
-  const [description, setDescription] = useState('');
-  const [agentType, setAgentType] = useState('');
-  const [tone, setTone] = useState('professional');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedPrompt, setGeneratedPrompt] = useState('');
-  const [error, setError] = useState('');
-
-  const agentTypes = [
-    { id: '', label: 'Select...' },
-    { id: 'sales', label: '🛒 Sales Representative' },
-    { id: 'appointment', label: '📅 Appointment Assistant' },
-    { id: 'support', label: '🎧 Customer Support' },
-    { id: 'collection', label: '💰 Collections' },
-    { id: 'survey', label: '📋 Survey' },
-  ];
-
-  const tones = [
-    { id: 'professional', label: 'Professional' },
-    { id: 'friendly', label: 'Friendly' },
-    { id: 'formal', label: 'Formal' },
-    { id: 'casual', label: 'Casual' },
-  ];
-
-  const quickSuggestions = [
-    'A sales representative for solar energy systems that books appointments',
-    'A polite but firm representative that handles debt reminders',
-    'A support representative that listens to customer complaints and offers solutions',
-    'A concise and to-the-point survey representative',
-  ];
-
-  const handleGenerate = async () => {
-    if (!description.trim()) {
-      setError('Please describe what kind of agent you want');
-      return;
-    }
-
-    setIsGenerating(true);
-    setError('');
-
-    try {
-      const response = await fetch(`${API_V1}/prompt-generator/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          description,
-          agent_type: agentType || undefined,
-          tone,
-          existing_prompt: existingPrompt || undefined,
-          language: 'en',
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate prompt');
-      }
-
-      const data = await response.json();
-      setGeneratedPrompt(data.prompt);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleApply = () => {
-    onGenerate(generatedPrompt);
-    onClose();
-    // Reset state
-    setDescription('');
-    setGeneratedPrompt('');
-    setAgentType('');
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      
-      {/* Modal */}
-      <div className="relative bg-background rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col border border-border">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600">
-              <Sparkles className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold">AI Prompt Maker</h2>
-              <p className="text-sm text-muted-foreground">
-                Describe what you need and AI will generate a professional prompt
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-muted rounded-lg transition-colors"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-6 space-y-6">
-          {!generatedPrompt ? (
-            <>
-              {/* Description Input */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Describe your agent</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => { setDescription(e.target.value); setError(''); }}
-                  placeholder="E.g.: A receptionist for a solar energy company. Should respond quickly, warmly, and helpfully to short customer inquiries."
-                  rows={4}
-                  className="w-full px-4 py-3 bg-muted/30 rounded-xl text-sm border border-border focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
-                />
-                {error && (
-                  <p className="text-sm text-red-500">{error}</p>
-                )}
-              </div>
-
-              {/* Quick Suggestions */}
-              <div className="space-y-2">
-                <label className="text-xs text-muted-foreground uppercase tracking-wider">Quick Suggestions</label>
-                <div className="flex flex-wrap gap-2">
-                  {quickSuggestions.map((suggestion, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setDescription(suggestion)}
-                      className="px-3 py-1.5 text-xs bg-muted hover:bg-muted/80 rounded-lg transition-colors text-left"
-                    >
-                      {suggestion.length > 50 ? suggestion.substring(0, 50) + '...' : suggestion}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Options */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Agent Type */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Agent Type (optional)</label>
-                  <select
-                    value={agentType}
-                    onChange={(e) => setAgentType(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-violet-500"
-                  >
-                    {agentTypes.map((type) => (
-                      <option key={type.id} value={type.id}>{type.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Tone */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Tone</label>
-                  <select
-                    value={tone}
-                    onChange={(e) => setTone(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-violet-500"
-                  >
-                    {tones.map((t) => (
-                      <option key={t.id} value={t.id}>{t.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {existingPrompt && (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-                  <p className="text-sm text-amber-600 dark:text-amber-400">
-                    💡 Your existing prompt will be improved
-                  </p>
-                </div>
-              )}
-            </>
-          ) : (
-            /* Generated Prompt Preview */
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
-                <Wand2 className="h-4 w-4" />
-                <span>Prompt generated!</span>
-              </div>
-              <div className="relative">
-                <textarea
-                  value={generatedPrompt}
-                  onChange={(e) => setGeneratedPrompt(e.target.value)}
-                  rows={15}
-                  className="w-full px-4 py-3 bg-muted/30 rounded-xl text-sm border border-border focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none font-mono"
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  You can edit it if you wish
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/30">
-          {!generatedPrompt ? (
-            <>
-              <button
-                onClick={onClose}
-                className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleGenerate}
-                disabled={isGenerating || !description.trim()}
-                className={cn(
-                  'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all',
-                  isGenerating || !description.trim()
-                    ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                    : 'bg-gradient-to-r from-violet-500 to-purple-600 text-white hover:from-violet-600 hover:to-purple-700 shadow-lg shadow-violet-500/25'
-                )}
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    Generate Prompt
-                  </>
-                )}
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={() => setGeneratedPrompt('')}
-                className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                ← Go Back
-              </button>
-              <button
-                onClick={handleApply}
-                className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium transition-colors shadow-lg shadow-emerald-500/25"
-              >
-                <Wand2 className="h-4 w-4" />
-                Apply Prompt
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================
-// Suggestions Component
-// ============================================
-function PromptSuggestions({ onSelect }: { onSelect: (text: string) => void }) {
-  const suggestions = [
-    'How can my prompt be better?',
-    'Rewrite this prompt clearly.',
-    'Debug an issue',
-  ];
-
-  return (
-    <div className="space-y-2">
-      <p className="text-xs text-muted-foreground uppercase tracking-wider">Suggestions</p>
-      <div className="flex flex-wrap gap-2">
-        {suggestions.map((s, i) => (
-          <button
-            key={i}
-            onClick={() => onSelect(s)}
-            className="px-3 py-1.5 text-sm bg-muted hover:bg-muted/80 rounded-lg transition-colors"
-          >
-            {s}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // ============================================
 // Tooltip Component
@@ -499,7 +201,7 @@ export default function AgentEditorPage() {
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [agentName, setAgentName] = useState('');
-  const [isPromptMakerOpen, setIsPromptMakerOpen] = useState(false);
+
   const [isTestCallModalOpen, setIsTestCallModalOpen] = useState(false);
   
   // Unified prompt (all sections combined with # headers)
@@ -1186,13 +888,7 @@ export default function AgentEditorPage() {
                       Use # headers: Personality, Environment, Tone, Goal, Guardrails, Tools, Character normalization, Error handling, Safety, Language
                     </p>
                   </div>
-                  <button
-                    onClick={() => setIsPromptMakerOpen(true)}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white rounded-lg text-sm font-medium transition-all shadow-lg"
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    AI Prompt Maker
-                  </button>
+
                 </div>
 
                 {/* Unified Prompt Editor */}
@@ -3090,17 +2786,7 @@ A: Credit card, bank transfer, automatic payment order.
         </div>
       </div>
 
-      {/* AI Prompt Maker Modal */}
-      <PromptMakerModal
-        isOpen={isPromptMakerOpen}
-        onClose={() => setIsPromptMakerOpen(false)}
-        onGenerate={(generatedPrompt) => {
-          // Set the unified prompt directly
-          setPrompt(generatedPrompt);
-          setHasChanges(true);
-        }}
-        existingPrompt={prompt}
-      />
+
     </div>
   );
 }
