@@ -216,26 +216,27 @@ class Agent(Base):
     knowledge_base: Mapped[Optional[str]] = mapped_column(Text)  # Static knowledge base content (embedded in prompt)
     web_sources: Mapped[Optional[str]] = mapped_column(JSON, default=list)  # Web URLs for dynamic info retrieval
     
-    # Prompt sections (10-section standard structure)
-    # 1. Personality - who the agent is, character traits
-    prompt_role: Mapped[Optional[str]] = mapped_column(Text)  # DB column kept as prompt_role for compat
-    # 2. Environment - context of the conversation
-    prompt_personality: Mapped[Optional[str]] = mapped_column(Text)  # DB column kept as prompt_personality for compat
-    # 3. Tone - how to speak (concise, clear, professional)
-    prompt_context: Mapped[Optional[str]] = mapped_column(Text)  # DB column kept as prompt_context for compat
-    # 4. Goal - what to accomplish, numbered workflow steps
-    prompt_pronunciations: Mapped[Optional[str]] = mapped_column(Text)  # DB column kept for compat
-    # 5. Guardrails - non-negotiable rules (models pay extra attention to this heading)
-    prompt_sample_phrases: Mapped[Optional[str]] = mapped_column(Text)  # DB column kept for compat
-    # 6. Tools - tool descriptions with when/how/error handling
+    # Prompt sections (10-section standard structure — PromptBuilder headings)
+    # DB column names are legacy; heading mapping: SECTION_MAP in prompt_builder.py
+    # 1. Role — who the agent is, role & objective
+    prompt_role: Mapped[Optional[str]] = mapped_column(Text)
+    # 2. Environment — context of the conversation
+    prompt_personality: Mapped[Optional[str]] = mapped_column(Text)
+    # 3. Tone — how to speak (concise, clear, professional)
+    prompt_context: Mapped[Optional[str]] = mapped_column(Text)
+    # 4. Goal — what to accomplish, numbered workflow steps
+    prompt_pronunciations: Mapped[Optional[str]] = mapped_column(Text)
+    # 5. Guardrails — non-negotiable rules
+    prompt_sample_phrases: Mapped[Optional[str]] = mapped_column(Text)
+    # 6. Tools — tool descriptions with when/how/error handling
     prompt_tools: Mapped[Optional[str]] = mapped_column(Text)
-    # 7. Character normalization - spoken vs written format rules
-    prompt_rules: Mapped[Optional[str]] = mapped_column(Text)  # DB column kept as prompt_rules for compat
-    # 8. Error handling - tool failure recovery instructions
-    prompt_flow: Mapped[Optional[str]] = mapped_column(Text)  # DB column kept as prompt_flow for compat
-    # 9. Safety & Escalation - fallback and handoff logic (legacy, merged into guardrails)
+    # 7. Instructions — spoken vs written format rules, response guidelines
+    prompt_rules: Mapped[Optional[str]] = mapped_column(Text)
+    # 8. Conversation Flow — dialogue flow, error recovery instructions
+    prompt_flow: Mapped[Optional[str]] = mapped_column(Text)
+    # 9. Safety & Escalation — fallback and handoff logic
     prompt_safety: Mapped[Optional[str]] = mapped_column(Text)
-    # Legacy field
+    # 10. Language — language register and guidelines
     prompt_language: Mapped[Optional[str]] = mapped_column(Text)
     
     # Call settings

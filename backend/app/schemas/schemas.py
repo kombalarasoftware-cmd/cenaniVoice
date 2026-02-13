@@ -395,7 +395,8 @@ class CallCost(BaseModel):
 
 
 class AgentCreate(AgentBase):
-    provider: str = "openai"  # "openai", "ultravox", "xai", or "gemini": Optional[VoiceSettings] = None
+    provider: str = "openai"  # "openai", "ultravox", "xai", or "gemini"
+    voice_settings: Optional[VoiceSettings] = None
     call_settings: Optional[CallSettings] = None
     behavior_settings: Optional[BehaviorSettings] = None
     advanced_settings: Optional[AdvancedSettings] = None
@@ -483,9 +484,9 @@ class AgentDetailResponse(AgentResponse):
     temperature: float
     vad_threshold: float
     turn_detection: str
-    vad_eagerness: str = "auto"
-    silence_duration_ms: int = 800
-    prefix_padding_ms: int = 500
+    vad_eagerness: str = "low"
+    silence_duration_ms: int = 1000
+    prefix_padding_ms: int = 400
     idle_timeout_ms: Optional[int] = None
     interrupt_response: bool = True
     create_response: bool = True
@@ -638,6 +639,11 @@ class CallLogResponse(BaseModel):
     cached_tokens: int = 0
     estimated_cost: float = 0.0
 
+    connected_at: Optional[datetime] = None
+    notes: Optional[str] = None
+    intent: Optional[str] = None
+    callback_scheduled: Optional[datetime] = None
+    call_metadata: Optional[Dict[str, Any]] = None
     created_at: datetime
 
     class Config:

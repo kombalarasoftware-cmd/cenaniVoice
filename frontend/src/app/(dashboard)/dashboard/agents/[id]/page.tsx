@@ -240,6 +240,7 @@ export default function AgentEditorPage() {
   const [silenceTimeout, setSilenceTimeout] = useState(10);
   const [recordCalls, setRecordCalls] = useState(true);
   const [autoTranscribe, setAutoTranscribe] = useState(true);
+  const [humanTransfer, setHumanTransfer] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
 
   // Advanced Settings state
@@ -348,6 +349,7 @@ export default function AgentEditorPage() {
         setSilenceTimeout(data.silence_timeout ?? 10);
         setRecordCalls(data.record_calls ?? true);
         setAutoTranscribe(data.auto_transcribe ?? true);
+        setHumanTransfer(data.human_transfer ?? true);
         
         // Load advanced settings
         setTemperature(data.temperature ?? 0.7);
@@ -718,7 +720,7 @@ export default function AgentEditorPage() {
             interruptible: !uninterruptible,
             auto_transcribe: autoTranscribe,
             record_calls: recordCalls,
-            human_transfer: false,
+            human_transfer: humanTransfer,
           },
           advanced_settings: {
             temperature: temperature,
@@ -2494,6 +2496,29 @@ A: Credit card, bank transfer, automatic payment order.
                       <span className={cn(
                         'absolute top-1 w-4 h-4 bg-white rounded-full transition-transform',
                         autoTranscribe ? 'translate-x-7' : 'translate-x-1'
+                      )} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Toggle Switches Row 2 - Full Width */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Human Transfer */}
+                  <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border">
+                    <div>
+                      <p className="text-sm font-medium">Human Transfer</p>
+                      <p className="text-xs text-muted-foreground">Allow transferring calls to a human agent</p>
+                    </div>
+                    <button
+                      onClick={() => { setHumanTransfer(!humanTransfer); setHasChanges(true); }}
+                      className={cn(
+                        'w-12 h-6 rounded-full transition-colors relative flex-shrink-0',
+                        humanTransfer ? 'bg-primary-500' : 'bg-muted'
+                      )}
+                    >
+                      <span className={cn(
+                        'absolute top-1 w-4 h-4 bg-white rounded-full transition-transform',
+                        humanTransfer ? 'translate-x-7' : 'translate-x-1'
                       )} />
                     </button>
                   </div>

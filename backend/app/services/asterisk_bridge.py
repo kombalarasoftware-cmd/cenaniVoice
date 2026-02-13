@@ -491,10 +491,13 @@ async def get_agent_from_db(agent_id: int) -> Optional[Dict[str, Any]]:
                           prompt_flow, prompt_rules, prompt_safety,
                           prompt_language, prompt_tools, knowledge_base,
                           greeting_message, first_speaker,
+                          greeting_uninterruptible, first_message_delay,
                           transcript_model, temperature, vad_threshold,
                           silence_duration_ms, prefix_padding_ms,
                           turn_detection, vad_eagerness, max_output_tokens,
                           noise_reduction, interrupt_response, create_response,
+                          idle_timeout_ms, max_duration, speech_speed,
+                          human_transfer,
                           inactivity_messages
                    FROM agents WHERE id = $1""",
                 agent_id
@@ -523,6 +526,8 @@ async def get_agent_from_db(agent_id: int) -> Optional[Dict[str, Any]]:
                     "knowledge_base": row.get("knowledge_base") or "",
                     "greeting_message": row.get("greeting_message") or "",
                     "first_speaker": row.get("first_speaker") or "agent",
+                    "greeting_uninterruptible": row.get("greeting_uninterruptible") if row.get("greeting_uninterruptible") is not None else False,
+                    "first_message_delay": row.get("first_message_delay") or 0,
                     "transcript_model": row["transcript_model"] or "gpt-4o-transcribe",
                     "temperature": row["temperature"] or 0.6,
                     "vad_threshold": row["vad_threshold"] or 0.5,
@@ -534,6 +539,10 @@ async def get_agent_from_db(agent_id: int) -> Optional[Dict[str, Any]]:
                     "noise_reduction": row["noise_reduction"] if row["noise_reduction"] is not None else True,
                     "interrupt_response": row["interrupt_response"] if row["interrupt_response"] is not None else True,
                     "create_response": row["create_response"] if row["create_response"] is not None else True,
+                    "idle_timeout_ms": row.get("idle_timeout_ms"),
+                    "max_duration": row.get("max_duration") or 300,
+                    "speech_speed": row.get("speech_speed") or 1.0,
+                    "human_transfer": row.get("human_transfer") if row.get("human_transfer") is not None else True,
                     "inactivity_messages": json.loads(row["inactivity_messages"]) if row.get("inactivity_messages") else [],
                 }
         finally:
@@ -2551,6 +2560,37 @@ class CallBridge:
         except Exception as e:
             logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Usage/cost hesaplama hatası: {e}")
 
+        # Determine final status and outcome based on SIP code and call data
+        final_status = "COMPLETED"
+        final_outcome = "SUCCESS"
+
+        if self.sip_code and self.sip_code != 200:
+            if self.sip_code in (480, 408):
+                final_status = "NO_ANSWER"
+                final_outcome = "NO_ANSWER"
+            elif self.sip_code == 486:
+                final_status = "BUSY"
+                final_outcome = "BUSY"
+            elif self.sip_code >= 400:
+                final_status = "FAILED"
+                final_outcome = "FAILED"
+
+        # Check AMD status — preserve VOICEMAIL outcome if already set
+        amd_status_key = f"call_amd:{self.call_uuid}"
+        try:
+            import redis.asyncio as redis_async
+            r_amd = redis_async.from_url(REDIS_URL, decode_responses=True)
+            try:
+                amd_data = await r_amd.get(amd_status_key)
+                if amd_data:
+                    amd_info = json.loads(amd_data)
+                    if amd_info.get("amd_status") == "MACHINE":
+                        final_outcome = "VOICEMAIL"
+            finally:
+                await r_amd.close()
+        except Exception:
+            pass
+
         # Save to PostgreSQL
         try:
             conn = await asyncpg.connect(
@@ -2578,9 +2618,16 @@ class CallBridge:
                         estimated_cost = $15,
                         transcription = CASE WHEN $17 = '' THEN transcription ELSE $17 END,
                         connected_at = COALESCE(connected_at, $18),
-                        status = 'COMPLETED',
-                        outcome = 'SUCCESS',
-                        ended_at = NOW()
+                        status = CASE
+                            WHEN status IN ('NO_ANSWER', 'BUSY', 'FAILED') AND $19 = 'COMPLETED' THEN status
+                            ELSE $19
+                        END,
+                        outcome = CASE
+                            WHEN outcome = 'VOICEMAIL' AND $20 = 'SUCCESS' THEN outcome
+                            ELSE $20
+                        END,
+                        ended_at = NOW(),
+                        provider = COALESCE(provider, $21)
                     WHERE call_sid = $16""",
                     sentiment,
                     summary,
@@ -2600,6 +2647,9 @@ class CallBridge:
                     self.call_uuid,
                     transcription_text,
                     self.start_time,
+                    final_status,
+                    final_outcome,
+                    self.provider or "openai",
                 )
                 if "UPDATE 0" in result:
                     logger.info(f"[{self.call_uuid[:8]}] CallLog not found, inserting new record")
@@ -2609,19 +2659,21 @@ class CallBridge:
                             tags, callback_scheduled, call_metadata, notes,
                             customer_name, sip_code, hangup_cause,
                             to_number, agent_id, started_at, ended_at, created_at,
-                            connected_at,
+                            connected_at, provider,
                             model_used, input_tokens, output_tokens, cached_tokens, estimated_cost,
                             transcription
                         ) VALUES (
-                            $1, 'COMPLETED', 'SUCCESS', $2, $3, $4,
-                            $5, $6, $7, $8,
-                            $9, $10, $11,
-                            $12, $13, $14, $15, $14,
-                            $14,
-                            $16, $17, $18, $19, $20,
-                            $21
+                            $1, $2, $3, $4, $5, $6,
+                            $7, $8, $9, $10,
+                            $11, $12, $13,
+                            $14, $15, $16, $17, $16,
+                            $16, $18,
+                            $19, $20, $21, $22, $23,
+                            $24
                         )""",
                         self.call_uuid,
+                        final_status,
+                        final_outcome,
                         int(duration),
                         sentiment,
                         summary,
@@ -2636,6 +2688,7 @@ class CallBridge:
                         int(self.agent_id) if hasattr(self, 'agent_id') and self.agent_id else None,
                         self.start_time,
                         datetime.now(),
+                        self.provider or "openai",
                         model_used,
                         input_tokens,
                         output_tokens,

@@ -140,14 +140,14 @@ ULTRAVOX_SYSTEM_PROMPT = """You are an expert prompt engineer specializing in Ul
 - Start simple, iterate based on testing
 
 ## REQUIRED STRUCTURE (use # markdown headings):
-# Agent Identity
-# Voice Interaction Context
-# Personality & Tone
-# Conversation Flow
-# Tool Usage (if applicable)
-# Response Guidelines
+# Role
+# Environment
+# Tone
+# Goal
 # Guardrails
-# Error Handling
+# Tools (if applicable)
+# Instructions
+# Conversation Flow
 # Safety & Escalation
 # Language
 
@@ -182,14 +182,14 @@ XAI_SYSTEM_PROMPT = """You are an expert prompt engineer specializing in xAI Gro
 - Tool calling follows OpenAI format — same When/Parameters/Usage pattern
 
 ## REQUIRED STRUCTURE (use # markdown headings):
-# Role & Personality
-# Context
-# Tone & Style
-# Conversation Flow
+# Role
+# Environment
+# Tone
+# Goal
 # Guardrails
 # Tools (if applicable)
-# Speech Formatting
-# Error Recovery
+# Instructions
+# Conversation Flow
 # Safety & Escalation
 # Language
 
@@ -226,16 +226,16 @@ GEMINI_SYSTEM_PROMPT = """You are an expert prompt engineer specializing in Goog
 - Specify response format: "Keep responses under 2 sentences for voice"
 
 ## REQUIRED STRUCTURE (use # markdown headings):
-# Agent Role
-# Conversation Context
-# Tone & Communication Style
-# Workflow Steps
-# Guardrails & Rules
-# Tool Definitions (if applicable)
-# Voice Output Formatting
-# Error Handling
+# Role
+# Environment
+# Tone
+# Goal
+# Guardrails
+# Tools (if applicable)
+# Instructions
+# Conversation Flow
 # Safety & Escalation
-# Language Settings
+# Language
 
 ## RULES:
 1. Target 1500-3000 characters
@@ -583,7 +583,6 @@ def _parse_prompt_sections(prompt_text: str) -> dict:
         "tone & communication style": "context",
         # DB field: prompt_pronunciations (stores Goal)
         "goal": "pronunciations",
-        "conversation flow": "pronunciations",
         "workflow steps": "pronunciations",
         # DB field: prompt_sample_phrases (stores Guardrails)
         "guardrails": "sample_phrases",
@@ -597,7 +596,7 @@ def _parse_prompt_sections(prompt_text: str) -> dict:
         "response guidelines": "rules",
         "speech formatting": "rules",
         "voice output formatting": "rules",
-        # DB field: prompt_flow (stores Error Handling)
+        # DB field: prompt_flow (stores Conversation Flow)
         "conversation flow": "flow",
         "error handling": "flow",
         "error recovery": "flow",

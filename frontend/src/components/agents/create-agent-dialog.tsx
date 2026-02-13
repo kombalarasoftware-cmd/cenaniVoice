@@ -304,6 +304,9 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
           prompt: {
             role: '',
             personality: '',
+            context: '',
+            pronunciations: '',
+            sample_phrases: '',
             language: '',
             flow: '',
             tools: '',
