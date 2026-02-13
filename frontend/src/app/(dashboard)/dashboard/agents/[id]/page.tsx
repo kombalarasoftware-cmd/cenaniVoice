@@ -23,7 +23,7 @@ import { LiveConsole } from '@/components/agents/agent-editor';
 // ============================================
 // Types
 // ============================================
-type EditorTab = 'prompt' | 'rag' | 'greeting' | 'inactivity' | 'settings' | 'console' | 'lead_capture' | 'call_tags' | 'callback' | 'survey';
+type EditorTab = 'prompt' | 'rag' | 'greeting' | 'inactivity' | 'settings' | 'console' | 'lead_capture' | 'call_tags' | 'callback' | 'survey' | 'tariff';
 type RagSubTab = 'knowledge' | 'sources' | 'documents';
 type EndBehavior = 'unspecified' | 'interruptible_hangup' | 'uninterruptible_hangup';
 type SurveyQuestionType = 'yes_no' | 'multiple_choice' | 'rating' | 'open_ended';
@@ -65,6 +65,13 @@ interface SurveyConfig {
 interface WebSource {
   url: string;
   name: string;
+  description: string;
+}
+
+interface TariffRule {
+  id: string;
+  prefix: string;
+  price_per_second: number;
   description: string;
 }
 
@@ -288,6 +295,10 @@ export default function AgentEditorPage() {
   const [surveyShowProgress, setSurveyShowProgress] = useState(true);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
 
+  // Tariff state
+  const [tariffRules, setTariffRules] = useState<TariffRule[]>([]);
+  const [isSavingTariffs, setIsSavingTariffs] = useState(false);
+
   // Fetch agent data on mount
   useEffect(() => {
     const fetchAgent = async () => {
@@ -436,6 +447,26 @@ export default function AgentEditorPage() {
         } catch (docError) {
           console.error('Documents fetch error:', docError);
         }
+
+        // Load tariff rules
+        try {
+          const tariffResponse = await fetch(`${API_V1}/agents/${agentId}/tariffs`, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+          });
+          if (tariffResponse.ok) {
+            const tariffData = await tariffResponse.json();
+            setTariffRules(
+              tariffData.map((t: { id: number; prefix: string; price_per_second: number; description: string | null }) => ({
+                id: String(t.id),
+                prefix: t.prefix,
+                price_per_second: t.price_per_second,
+                description: t.description || '',
+              }))
+            );
+          }
+        } catch (tariffError) {
+          console.error('Tariff fetch error:', tariffError);
+        }
       } catch (error) {
         console.error('Agent fetch error:', error);
         toast.error('Error occurred while loading agent');
@@ -458,6 +489,7 @@ export default function AgentEditorPage() {
     { id: 'call_tags' as EditorTab, label: 'Call Tags' },
     { id: 'callback' as EditorTab, label: 'Callback' },
     { id: 'survey' as EditorTab, label: 'Survey' },
+    { id: 'tariff' as EditorTab, label: 'Tariff' },
     { id: 'settings' as EditorTab, label: 'Settings' },
     { id: 'console' as EditorTab, label: 'Console' },
   ];
@@ -2204,6 +2236,163 @@ A: Credit card, bank transfer, automatic payment order.
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Tariff Tab */}
+            {activeTab === 'tariff' && (
+              <div className="p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">Tariff Rules</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Define per-second pricing based on number prefixes. The longest matching prefix determines the rate.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={async () => {
+                        setIsSavingTariffs(true);
+                        try {
+                          const token = localStorage.getItem('access_token');
+                          const resp = await fetch(`${API_V1}/agents/${agentId}/tariffs`, {
+                            method: 'PUT',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                            },
+                            body: JSON.stringify(
+                              tariffRules.filter(r => r.prefix.trim()).map(r => ({
+                                prefix: r.prefix.trim(),
+                                price_per_second: r.price_per_second,
+                                description: r.description || null,
+                              }))
+                            ),
+                          });
+                          if (!resp.ok) {
+                            const err = await resp.json();
+                            throw new Error(err.detail || 'Failed to save tariffs');
+                          }
+                          const saved = await resp.json();
+                          setTariffRules(
+                            saved.map((t: { id: number; prefix: string; price_per_second: number; description: string | null }) => ({
+                              id: String(t.id),
+                              prefix: t.prefix,
+                              price_per_second: t.price_per_second,
+                              description: t.description || '',
+                            }))
+                          );
+                          toast.success('Tariff rules saved');
+                        } catch (error) {
+                          toast.error(error instanceof Error ? error.message : 'Failed to save tariffs');
+                        } finally {
+                          setIsSavingTariffs(false);
+                        }
+                      }}
+                      disabled={isSavingTariffs}
+                      className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {isSavingTariffs ? 'Saving...' : 'Save Tariffs'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tariff table */}
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-muted/50 border-b border-border">
+                        <th className="text-left px-4 py-3 text-sm font-medium">Prefix</th>
+                        <th className="text-left px-4 py-3 text-sm font-medium">Price/Second</th>
+                        <th className="text-left px-4 py-3 text-sm font-medium">Description</th>
+                        <th className="w-16 px-4 py-3"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tariffRules.map((rule, idx) => (
+                        <tr key={rule.id} className="border-b border-border last:border-0">
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={rule.prefix}
+                              onChange={(e) => {
+                                const updated = [...tariffRules];
+                                updated[idx] = { ...rule, prefix: e.target.value.replace(/[^0-9]/g, '') };
+                                setTariffRules(updated);
+                              }}
+                              placeholder="e.g. 49"
+                              className="w-full px-3 py-1.5 bg-background border border-border rounded text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="number"
+                              step="0.0001"
+                              min="0"
+                              value={rule.price_per_second}
+                              onChange={(e) => {
+                                const updated = [...tariffRules];
+                                updated[idx] = { ...rule, price_per_second: parseFloat(e.target.value) || 0 };
+                                setTariffRules(updated);
+                              }}
+                              placeholder="0.001"
+                              className="w-full px-3 py-1.5 bg-background border border-border rounded text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={rule.description}
+                              onChange={(e) => {
+                                const updated = [...tariffRules];
+                                updated[idx] = { ...rule, description: e.target.value };
+                                setTariffRules(updated);
+                              }}
+                              placeholder="e.g. Germany Mobile"
+                              className="w-full px-3 py-1.5 bg-background border border-border rounded text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                            />
+                          </td>
+                          <td className="px-4 py-2 text-center">
+                            <button
+                              onClick={() => {
+                                setTariffRules(tariffRules.filter((_, i) => i !== idx));
+                              }}
+                              className="text-red-500 hover:text-red-600 p-1"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Add new rule button */}
+                <button
+                  onClick={() => {
+                    setTariffRules([
+                      ...tariffRules,
+                      { id: `new-${Date.now()}`, prefix: '', price_per_second: 0, description: '' },
+                    ]);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 border border-dashed border-border rounded-lg text-sm text-muted-foreground hover:text-foreground hover:border-primary-500 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Tariff Rule
+                </button>
+
+                {/* Example explanation */}
+                <div className="bg-muted/30 rounded-lg p-4 text-sm space-y-2">
+                  <p className="font-medium">How prefix matching works:</p>
+                  <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                    <li>The system matches the <strong>longest prefix</strong> first (most specific wins)</li>
+                    <li>Example: Prefix &quot;49&quot; = 0.10, Prefix &quot;495&quot; = 0.15</li>
+                    <li>Call to +491234... → matches &quot;49&quot; → 0.10/sec</li>
+                    <li>Call to +495234... → matches &quot;495&quot; → 0.15/sec</li>
+                    <li>Cost = Duration (seconds) × Price per second</li>
+                  </ul>
+                </div>
               </div>
             )}
 

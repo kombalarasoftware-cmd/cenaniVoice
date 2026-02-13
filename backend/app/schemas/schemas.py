@@ -1248,3 +1248,65 @@ class ExcelUploadResponse(BaseModel):
     errors: int
     duplicates: int
     error_details: Optional[List[Dict[str, Any]]] = None
+
+
+# ============ Agent Tariff Schemas ============
+
+class AgentTariffCreate(BaseModel):
+    """Create a tariff rule for an agent."""
+    prefix: str = Field(..., min_length=1, max_length=20, description="Number prefix, e.g. '49', '495'")
+    price_per_second: float = Field(..., gt=0, description="Price per second for this prefix")
+    description: Optional[str] = Field(default=None, max_length=255, description="Human-readable label")
+
+
+class AgentTariffUpdate(BaseModel):
+    """Update a tariff rule."""
+    prefix: Optional[str] = Field(default=None, min_length=1, max_length=20)
+    price_per_second: Optional[float] = Field(default=None, gt=0)
+    description: Optional[str] = Field(default=None, max_length=255)
+
+
+class AgentTariffResponse(BaseModel):
+    """Tariff rule response."""
+    id: int
+    agent_id: int
+    prefix: str
+    price_per_second: float
+    description: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AgentCallLogItem(BaseModel):
+    """Single call entry in agent call log with tariff cost."""
+    id: int
+    call_sid: str
+    to_number: Optional[str] = None
+    from_number: Optional[str] = None
+    customer_name: Optional[str] = None
+    status: str
+    outcome: Optional[str] = None
+    duration: int  # seconds
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    campaign_name: Optional[str] = None
+    provider: Optional[str] = None
+    # Tariff cost
+    matched_prefix: Optional[str] = None
+    price_per_second: Optional[float] = None
+    tariff_cost: Optional[float] = None  # duration * price_per_second
+    tariff_description: Optional[str] = None
+
+
+class AgentCallLogResponse(BaseModel):
+    """Paginated agent call log with tariff cost summary."""
+    items: List[AgentCallLogItem]
+    total: int
+    page: int
+    page_size: int
+    # Summary
+    total_duration_seconds: int
+    total_tariff_cost: float
+    avg_cost_per_call: float

@@ -1,17 +1,25 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from datetime import datetime
 
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.voice_config import get_voices_by_provider, get_voices_by_gender
 from app.api.v1.auth import get_current_user, verify_token
-from app.models import Agent, User
-from app.models.models import AgentStatus as ModelAgentStatus, UserRole
+from app.models import Agent, User, AgentTariff
+from app.models.models import AgentStatus as ModelAgentStatus, UserRole, CallLog, Campaign
 from app.schemas import (
     AgentCreate, AgentUpdate, AgentResponse, AgentDetailResponse
 )
-from app.schemas.schemas import AgentStatus as SchemaAgentStatus
+from app.schemas.schemas import (
+    AgentStatus as SchemaAgentStatus,
+    AgentTariffCreate,
+    AgentTariffUpdate,
+    AgentTariffResponse,
+    AgentCallLogItem,
+    AgentCallLogResponse,
+)
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
 
@@ -499,3 +507,299 @@ async def deactivate_agent(
     db.commit()
     
     return {"message": "Agent deactivated"}
+
+
+# ============ Agent Tariff CRUD ============
+
+def _get_agent_or_404(agent_id: int, db: Session, user: User) -> Agent:
+    """Helper to fetch agent with ownership check."""
+    if user.role == UserRole.ADMIN:
+        agent = db.query(Agent).filter(Agent.id == agent_id).first()
+    else:
+        agent = db.query(Agent).filter(
+            Agent.id == agent_id,
+            (Agent.owner_id == user.id) | (Agent.is_system == True)
+        ).first()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    return agent
+
+
+@router.get("/{agent_id}/tariffs", response_model=List[AgentTariffResponse])
+async def list_tariffs(
+    agent_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List all tariff rules for an agent."""
+    _get_agent_or_404(agent_id, db, current_user)
+    tariffs = (
+        db.query(AgentTariff)
+        .filter(AgentTariff.agent_id == agent_id)
+        .order_by(AgentTariff.prefix)
+        .all()
+    )
+    return tariffs
+
+
+@router.post("/{agent_id}/tariffs", response_model=AgentTariffResponse, status_code=201)
+async def create_tariff(
+    agent_id: int,
+    data: AgentTariffCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a tariff rule for an agent."""
+    _get_agent_or_404(agent_id, db, current_user)
+
+    # Check for duplicate prefix
+    existing = (
+        db.query(AgentTariff)
+        .filter(AgentTariff.agent_id == agent_id, AgentTariff.prefix == data.prefix)
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Prefix '{data.prefix}' already exists for this agent")
+
+    tariff = AgentTariff(
+        agent_id=agent_id,
+        prefix=data.prefix,
+        price_per_second=data.price_per_second,
+        description=data.description,
+    )
+    db.add(tariff)
+    db.commit()
+    db.refresh(tariff)
+    return tariff
+
+
+@router.put("/{agent_id}/tariffs/{tariff_id}", response_model=AgentTariffResponse)
+async def update_tariff(
+    agent_id: int,
+    tariff_id: int,
+    data: AgentTariffUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update a tariff rule."""
+    _get_agent_or_404(agent_id, db, current_user)
+    tariff = (
+        db.query(AgentTariff)
+        .filter(AgentTariff.id == tariff_id, AgentTariff.agent_id == agent_id)
+        .first()
+    )
+    if not tariff:
+        raise HTTPException(status_code=404, detail="Tariff rule not found")
+
+    if data.prefix is not None:
+        # Check uniqueness if prefix is changing
+        if data.prefix != tariff.prefix:
+            dup = (
+                db.query(AgentTariff)
+                .filter(AgentTariff.agent_id == agent_id, AgentTariff.prefix == data.prefix)
+                .first()
+            )
+            if dup:
+                raise HTTPException(status_code=400, detail=f"Prefix '{data.prefix}' already exists")
+        tariff.prefix = data.prefix
+    if data.price_per_second is not None:
+        tariff.price_per_second = data.price_per_second
+    if data.description is not None:
+        tariff.description = data.description
+
+    db.commit()
+    db.refresh(tariff)
+    return tariff
+
+
+@router.delete("/{agent_id}/tariffs/{tariff_id}")
+async def delete_tariff(
+    agent_id: int,
+    tariff_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a tariff rule."""
+    _get_agent_or_404(agent_id, db, current_user)
+    tariff = (
+        db.query(AgentTariff)
+        .filter(AgentTariff.id == tariff_id, AgentTariff.agent_id == agent_id)
+        .first()
+    )
+    if not tariff:
+        raise HTTPException(status_code=404, detail="Tariff rule not found")
+    db.delete(tariff)
+    db.commit()
+    return {"message": "Tariff rule deleted"}
+
+
+@router.put("/{agent_id}/tariffs", response_model=List[AgentTariffResponse])
+async def bulk_update_tariffs(
+    agent_id: int,
+    tariffs: List[AgentTariffCreate],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Replace all tariff rules for an agent (bulk save)."""
+    _get_agent_or_404(agent_id, db, current_user)
+
+    # Delete existing tariffs
+    db.query(AgentTariff).filter(AgentTariff.agent_id == agent_id).delete()
+
+    # Validate unique prefixes
+    seen_prefixes: set[str] = set()
+    for t in tariffs:
+        if t.prefix in seen_prefixes:
+            raise HTTPException(status_code=400, detail=f"Duplicate prefix '{t.prefix}' in request")
+        seen_prefixes.add(t.prefix)
+
+    # Create new tariffs
+    new_tariffs = []
+    for t in tariffs:
+        tariff = AgentTariff(
+            agent_id=agent_id,
+            prefix=t.prefix,
+            price_per_second=t.price_per_second,
+            description=t.description,
+        )
+        db.add(tariff)
+        new_tariffs.append(tariff)
+
+    db.commit()
+    for t in new_tariffs:
+        db.refresh(t)
+    return new_tariffs
+
+
+# ============ Agent Call Log with Tariff Cost ============
+
+def _match_tariff(to_number: str, tariffs: list[AgentTariff]) -> AgentTariff | None:
+    """Find the tariff with the longest matching prefix for a phone number.
+
+    Strips leading '+' before matching. Longest prefix wins (most specific).
+    Example: tariffs with '49' and '495' — number '+4951234' matches '495'.
+    """
+    number = to_number.lstrip("+") if to_number else ""
+    best: AgentTariff | None = None
+    best_len = 0
+    for t in tariffs:
+        if number.startswith(t.prefix) and len(t.prefix) > best_len:
+            best = t
+            best_len = len(t.prefix)
+    return best
+
+
+@router.get("/{agent_id}/call-log", response_model=AgentCallLogResponse)
+async def agent_call_log(
+    agent_id: int,
+    search: Optional[str] = Query(None, description="Search by phone number or customer name"),
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
+    status: Optional[str] = Query(None),
+    outcome: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get call log for an agent with tariff-based cost calculation.
+
+    Cost is computed per-call using the agent's tariff rules:
+    - Longest prefix match on `to_number` determines the rate
+    - cost = duration_seconds * price_per_second
+    """
+    agent = _get_agent_or_404(agent_id, db, current_user)
+
+    # Load tariffs for this agent (cached in memory for this request)
+    tariffs = (
+        db.query(AgentTariff)
+        .filter(AgentTariff.agent_id == agent_id)
+        .all()
+    )
+
+    # Build query
+    query = db.query(CallLog).filter(CallLog.agent_id == agent_id)
+
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            (CallLog.to_number.ilike(search_term))
+            | (CallLog.customer_name.ilike(search_term))
+            | (CallLog.from_number.ilike(search_term))
+        )
+    if date_from:
+        query = query.filter(CallLog.started_at >= date_from)
+    if date_to:
+        query = query.filter(CallLog.started_at <= date_to)
+    if status:
+        query = query.filter(CallLog.status == status)
+    if outcome:
+        query = query.filter(CallLog.outcome == outcome)
+
+    total = query.count()
+
+    calls = (
+        query
+        .order_by(CallLog.started_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+    # Load campaign names in one go
+    campaign_ids = {c.campaign_id for c in calls if c.campaign_id}
+    campaign_map: dict[int, str] = {}
+    if campaign_ids:
+        campaigns = db.query(Campaign.id, Campaign.name).filter(Campaign.id.in_(campaign_ids)).all()
+        campaign_map = {c.id: c.name for c in campaigns}
+
+    # Build response items with tariff cost
+    items: list[AgentCallLogItem] = []
+    total_duration = 0
+    total_tariff_cost = 0.0
+
+    for call in calls:
+        duration = call.duration or 0
+        total_duration += duration
+
+        matched = _match_tariff(call.to_number or "", tariffs)
+        tariff_cost = None
+        matched_prefix = None
+        price_ps = None
+        tariff_desc = None
+
+        if matched and duration > 0:
+            price_ps = matched.price_per_second
+            matched_prefix = matched.prefix
+            tariff_desc = matched.description
+            tariff_cost = round(duration * price_ps, 6)
+            total_tariff_cost += tariff_cost
+
+        items.append(AgentCallLogItem(
+            id=call.id,
+            call_sid=call.call_sid,
+            to_number=call.to_number,
+            from_number=call.from_number,
+            customer_name=call.customer_name,
+            status=call.status.value if hasattr(call.status, 'value') else str(call.status),
+            outcome=call.outcome.value if call.outcome and hasattr(call.outcome, 'value') else (str(call.outcome) if call.outcome else None),
+            duration=duration,
+            started_at=call.started_at,
+            ended_at=call.ended_at,
+            campaign_name=campaign_map.get(call.campaign_id) if call.campaign_id else None,
+            provider=call.provider,
+            matched_prefix=matched_prefix,
+            price_per_second=price_ps,
+            tariff_cost=tariff_cost,
+            tariff_description=tariff_desc,
+        ))
+
+    return AgentCallLogResponse(
+        items=items,
+        total=total,
+        page=(skip // limit) + 1,
+        page_size=limit,
+        total_duration_seconds=total_duration,
+        total_tariff_cost=round(total_tariff_cost, 6),
+        avg_cost_per_call=round(total_tariff_cost / len(items), 6) if items else 0.0,
+    )

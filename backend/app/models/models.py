@@ -1059,3 +1059,21 @@ class CampaignDisposition(Base):
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     campaign = relationship("Campaign", backref="dispositions")
+
+
+class AgentTariff(Base):
+    """Prefix-based per-second pricing rules for an agent."""
+    __tablename__ = "agent_tariffs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    agent_id: Mapped[int] = mapped_column(Integer, ForeignKey("agents.id", ondelete="CASCADE"), nullable=False, index=True)
+    prefix: Mapped[str] = mapped_column(String(20), nullable=False)  # e.g. "49", "495", "90532"
+    price_per_second: Mapped[float] = mapped_column(Float, nullable=False)  # e.g. 0.001
+    description: Mapped[Optional[str]] = mapped_column(String(255))  # e.g. "Germany Mobile"
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    agent = relationship("Agent", backref="tariffs")
+
+    __table_args__ = (
+        Index('idx_tariff_agent_prefix', 'agent_id', 'prefix'),
+    )

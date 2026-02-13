@@ -21,6 +21,7 @@ import {
   UserPlus,
   ClipboardList,
   Wand2,
+  Receipt,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useState, useEffect } from 'react';
@@ -55,6 +56,11 @@ const navigation = [
     name: 'Call Logs',
     href: '/dashboard/call-logs',
     icon: PhoneCall,
+  },
+  {
+    name: 'Agent Call Log',
+    href: '/dashboard/agent-call-log',
+    icon: Receipt,
   },
   {
     name: 'Appointments',

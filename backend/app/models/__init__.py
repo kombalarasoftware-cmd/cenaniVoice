@@ -25,6 +25,7 @@ from app.models.models import (
     DialListEntry,
     DialEntryStatus,
     CampaignList,
+    AgentTariff,
 )
 
 __all__ = [
@@ -54,4 +55,5 @@ __all__ = [
     "DialListEntry",
     "DialEntryStatus",
     "CampaignList",
+    "AgentTariff",
 ]
