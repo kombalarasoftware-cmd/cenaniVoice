@@ -494,7 +494,8 @@ async def get_agent_from_db(agent_id: int) -> Optional[Dict[str, Any]]:
                           transcript_model, temperature, vad_threshold,
                           silence_duration_ms, prefix_padding_ms,
                           turn_detection, vad_eagerness, max_output_tokens,
-                          noise_reduction, interrupt_response, create_response
+                          noise_reduction, interrupt_response, create_response,
+                          inactivity_messages
                    FROM agents WHERE id = $1""",
                 agent_id
             )
@@ -533,6 +534,7 @@ async def get_agent_from_db(agent_id: int) -> Optional[Dict[str, Any]]:
                     "noise_reduction": row["noise_reduction"] if row["noise_reduction"] is not None else True,
                     "interrupt_response": row["interrupt_response"] if row["interrupt_response"] is not None else True,
                     "create_response": row["create_response"] if row["create_response"] is not None else True,
+                    "inactivity_messages": json.loads(row["inactivity_messages"]) if row.get("inactivity_messages") else [],
                 }
         finally:
             await conn.close()
@@ -1003,6 +1005,11 @@ class CallBridge:
         self.function_args = ""
         self.function_call_id = ""
 
+        # Inactivity tracking
+        self.last_user_activity_time: float = time.monotonic()
+        self.inactivity_messages: list = []  # Loaded from Redis call_setup
+        self.inactivity_message_index: int = 0  # Next message to send
+
         # İstatistikler
         self.stats = {
             "audio_frames_in": 0,
@@ -1069,6 +1076,8 @@ class CallBridge:
             self.agent_max_output_tokens = int(call_setup.get("max_output_tokens", 500))
             
             # Note: conversation_history is already included by PromptBuilder
+            # Inactivity messages from agent config
+            self.inactivity_messages = call_setup.get("inactivity_messages") or []
             logger.info(f"[{self.call_uuid[:8]}] Agent '{call_setup.get('agent_name', 'Unknown')}' loaded from Redis: "
                         f"voice={self.agent_voice}, model={self.agent_model}, lang={self.agent_language}, vad={self.agent_vad_threshold}")
         else:
@@ -1112,6 +1121,7 @@ class CallBridge:
                         self.agent_noise_reduction = agent_data.get("noise_reduction", True)
                         self.agent_interrupt_response = agent_data.get("interrupt_response", True)
                         self.agent_create_response = agent_data.get("create_response", True)
+                        self.inactivity_messages = agent_data.get("inactivity_messages") or []
                         
                         logger.info(f"[{self.call_uuid[:8]}] ✅ Agent '{agent_data['name']}' yüklendi (ARI fallback): "
                                     f"voice={self.agent_voice}, model={self.agent_model}, lang={self.agent_language}, "
@@ -1213,12 +1223,14 @@ class CallBridge:
                     self._asterisk_to_gemini(),
                     self._gemini_to_asterisk(),
                     self._check_hangup_signal(),
+                    self._inactivity_monitor(),
                 )
             else:
                 await asyncio.gather(
                     self._asterisk_to_openai(),
                     self._openai_to_asterisk(),
                     self._check_hangup_signal(),
+                    self._inactivity_monitor(),
                 )
         except Exception as e:
             logger.error(f"[{self.call_uuid[:8]}] Bridge error: {e}")
@@ -1661,6 +1673,8 @@ class CallBridge:
 
                 elif event_type == "input_audio_buffer.speech_started":
                     # User started speaking - interrupt AI response
+                    self.last_user_activity_time = time.monotonic()
+                    self.inactivity_message_index = 0  # Reset inactivity counter
                     if self.agent_interrupt_response:
                         logger.debug(f"[{self.call_uuid[:8]}] 👂 Müşteri konuşuyor - AI yanıtı durduruluyor")
                         # Clear output buffer to stop AI audio immediately
@@ -1671,6 +1685,7 @@ class CallBridge:
                         await self.openai_ws.send(json.dumps({"type": "response.cancel"}))
 
                 elif event_type == "input_audio_buffer.speech_stopped":
+                    self.last_user_activity_time = time.monotonic()
                     logger.debug(f"[{self.call_uuid[:8]}] 👂 Müşteri konuşmayı bitirdi")
 
                 elif event_type in ("response.audio.delta", "response.output_audio.delta"):
@@ -1963,6 +1978,9 @@ class CallBridge:
                         self.output_buffer.clear()
                         is_playing = False
                         next_send_time = None
+                        # User is active — reset inactivity
+                        self.last_user_activity_time = time.monotonic()
+                        self.inactivity_message_index = 0
                     
                     # Input transcription from Gemini
                     input_transcription = server_content.get("inputTranscription")
@@ -1972,6 +1990,9 @@ class CallBridge:
                             logger.info(f"[{self.call_uuid[:8]}] 🗣️ Müşteri: \"{text}\"")
                             await save_transcript_to_redis(self.call_uuid, "user", text)
                             self.turn_count += 1
+                            # User spoke — reset inactivity
+                            self.last_user_activity_time = time.monotonic()
+                            self.inactivity_message_index = 0
 
                 # ── Tool calls ──
                 tool_call = event.get("toolCall")
@@ -2115,6 +2136,122 @@ class CallBridge:
                 await self.openai_ws.close()
         except Exception:
             pass
+
+    async def _inactivity_monitor(self):
+        """Monitor user inactivity and send configured messages.
+
+        Tracks time since last user speech.  When cumulative inactivity
+        reaches each message's *duration* threshold, the message is injected
+        into the conversation so the AI speaks it.  Durations are cumulative
+        (same semantics as Ultravox: message N duration is seconds after
+        message N-1, not absolute from call start).
+
+        For hangup end_behavior, the call is terminated after the message.
+        """
+        if not self.inactivity_messages:
+            return  # No inactivity messages configured — skip entirely
+
+        # Sort messages by duration and filter out empty ones
+        valid_messages = [
+            m for m in self.inactivity_messages
+            if m.get("message")
+        ]
+        if not valid_messages:
+            return
+
+        # Build cumulative time thresholds list
+        # Each duration is additive: msg1 at 15s, msg2 at 15s after msg1 = 30s total
+        cumulative_thresholds: list[dict] = []
+        total_seconds = 0
+        for msg in valid_messages:
+            total_seconds += msg.get("duration", 30)
+            cumulative_thresholds.append({
+                "cumulative_seconds": total_seconds,
+                "message": msg["message"],
+                "end_behavior": msg.get("end_behavior", "unspecified"),
+            })
+
+        logger.info(
+            f"[{self.call_uuid[:8]}] ⏰ Inactivity monitor started: "
+            f"{len(cumulative_thresholds)} messages, "
+            f"thresholds={[t['cumulative_seconds'] for t in cumulative_thresholds]}s"
+        )
+
+        try:
+            while self.is_active and self.inactivity_message_index < len(cumulative_thresholds):
+                await asyncio.sleep(2)  # Check every 2 seconds
+
+                if not self.is_active:
+                    break
+
+                elapsed = time.monotonic() - self.last_user_activity_time
+                target = cumulative_thresholds[self.inactivity_message_index]
+
+                if elapsed >= target["cumulative_seconds"]:
+                    msg_text = target["message"]
+                    end_behavior = target["end_behavior"]
+                    logger.info(
+                        f"[{self.call_uuid[:8]}] ⏰ Inactivity message #{self.inactivity_message_index + 1}: "
+                        f"'{msg_text[:60]}...' (after {target['cumulative_seconds']}s silence)"
+                    )
+
+                    # Inject the message as an AI response instruction
+                    if self.openai_ws and self.is_active:
+                        try:
+                            if self.provider == "gemini":
+                                # Gemini uses clientContent
+                                await self.openai_ws.send(json.dumps({
+                                    "clientContent": {
+                                        "turns": [{
+                                            "role": "user",
+                                            "parts": [{"text": f"Say EXACTLY this to the customer: '{msg_text}'"}]
+                                        }],
+                                        "turnComplete": True
+                                    }
+                                }))
+                            else:
+                                # OpenAI / xAI — use response.create with instructions
+                                response_payload = {
+                                    "instructions": f"Say EXACTLY this to the customer: '{msg_text}'"
+                                }
+                                if self.provider == "xai":
+                                    response_payload["modalities"] = ["text", "audio"]
+                                await self.openai_ws.send(json.dumps({
+                                    "type": "response.create",
+                                    "response": response_payload,
+                                }))
+                        except Exception as e:
+                            logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Failed to send inactivity message: {e}")
+
+                    self.inactivity_message_index += 1
+
+                    # Handle hangup behavior
+                    if end_behavior in ("interruptible_hangup", "uninterruptible_hangup"):
+                        # Wait a few seconds for the AI to speak the message before hanging up
+                        await asyncio.sleep(5)
+                        if self.is_active:
+                            logger.info(f"[{self.call_uuid[:8]}] 📴 Inactivity hangup triggered")
+                            self.sip_code = 200
+                            self.hangup_cause = "Inactivity Timeout"
+                            self.is_active = False
+                            try:
+                                self.writer.write(build_audiosocket_message(MSG_HANGUP))
+                                await self.writer.drain()
+                                await asyncio.sleep(0.3)
+                                self.writer.close()
+                            except Exception:
+                                pass
+                            try:
+                                if self.openai_ws and self.openai_ws.state == State.OPEN:
+                                    await self.openai_ws.close()
+                            except Exception:
+                                pass
+                        break
+
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Inactivity monitor error: {e}")
 
     async def _check_hangup_signal(self):
         """Check Redis for external hangup signal (from frontend/API).

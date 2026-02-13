@@ -61,6 +61,7 @@ class UltravoxService:
         greeting_text: Optional[str] = None,
         template_context: Optional[dict] = None,
         time_exceeded_message: Optional[str] = None,
+        inactivity_messages: Optional[list] = None,
     ) -> dict:
         """
         Create an outbound SIP call via Ultravox API.
@@ -142,6 +143,29 @@ class UltravoxService:
         # Time exceeded message (spoken before hanging up when max duration reached)
         if time_exceeded_message:
             payload["timeExceededMessage"] = time_exceeded_message
+
+        # Inactivity messages — spoken when the user is silent for specified durations
+        # Ultravox format: duration is a string like "30s", endBehavior is an enum
+        if inactivity_messages:
+            end_behavior_map = {
+                "unspecified": "END_BEHAVIOR_UNSPECIFIED",
+                "interruptible_hangup": "END_BEHAVIOR_INTERRUPTIBLE_HANGUP",
+                "uninterruptible_hangup": "END_BEHAVIOR_UNINTERRUPTIBLE_HANGUP",
+            }
+            converted = []
+            for msg in inactivity_messages:
+                text = msg.get("message", "")
+                if not text:
+                    continue
+                duration_sec = msg.get("duration", 30)
+                behavior = msg.get("end_behavior", "unspecified")
+                converted.append({
+                    "duration": f"{duration_sec}s",
+                    "message": text,
+                    "endBehavior": end_behavior_map.get(behavior, "END_BEHAVIOR_UNSPECIFIED"),
+                })
+            if converted:
+                payload["inactivityMessages"] = converted
 
         logger.info(f"Creating Ultravox call to {sip_to}")
         logger.debug(f"Ultravox payload: {json.dumps({k: v for k, v in payload.items() if k != 'systemPrompt'}, default=str)}")

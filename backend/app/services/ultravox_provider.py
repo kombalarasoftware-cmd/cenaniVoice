@@ -152,6 +152,9 @@ class UltravoxProvider(CallProvider):
         }
         time_exceeded_msg = time_exceeded_messages.get(language, time_exceeded_messages["en"])
 
+        # Inactivity messages from agent configuration
+        inactivity_messages = getattr(agent, "inactivity_messages", None) or []
+
         try:
             result = await self.service.create_call(
                 system_prompt=system_prompt,
@@ -172,6 +175,7 @@ class UltravoxProvider(CallProvider):
                 vad_settings=vad_settings,
                 greeting_text=greeting_text,
                 time_exceeded_message=time_exceeded_msg,
+                inactivity_messages=inactivity_messages,
             )
 
             ultravox_call_id = result.get("callId", "")
