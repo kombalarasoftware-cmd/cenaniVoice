@@ -563,9 +563,18 @@ async def ultravox_webhook(
 
     # ------- call.started -------
     if event_type == "call.started":
-        call_log.status = CallStatus.CONNECTED
-        call_log.connected_at = datetime.utcnow()
-        db.commit()
+        # Only update to CONNECTED if call hasn't already been completed/ended
+        # (hangup_call may fire before this webhook arrives)
+        if call_log.status in (CallStatus.RINGING,):
+            call_log.status = CallStatus.CONNECTED
+            call_log.connected_at = datetime.utcnow()
+            db.commit()
+            logger.info(f"[Ultravox webhook] call.started → CONNECTED for {ultravox_call_id}")
+        else:
+            logger.info(
+                f"[Ultravox webhook] call.started ignored, status already {call_log.status} "
+                f"for {ultravox_call_id}"
+            )
         return {"status": "ok"}
 
     # ------- call.ended -------

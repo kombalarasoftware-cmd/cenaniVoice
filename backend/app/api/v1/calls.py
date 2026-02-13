@@ -513,23 +513,33 @@ async def hangup_call(
     # If the call was still RINGING (customer never answered), use 487 (Request Terminated)
     # If the call was CONNECTED/TALKING (customer answered), use 200 (Normal)
     if call.status == CallStatus.RINGING:
-        # Double-check: if bridge was active, the call was actually connected
-        # (bridge may have set Redis flag before DB update managed to commit)
-        bridge_was_active = False
-        try:
-            _r = redis.from_url(str(settings.REDIS_URL), decode_responses=True)
-            bridge_was_active = bool(_r.get(f"call_bridge_active:{call_sid}"))
-            _r.close()
-        except Exception:
-            pass
-
-        if bridge_was_active:
-            call.sip_code = 200
-            call.hangup_cause = "User Hangup (Manual)"
-            call.connected_at = call.connected_at or call.started_at
+        if call.provider == "ultravox":
+            # For Ultravox: if hangup was sent via API (joined=True), call was answered
+            if hangup_sent:
+                call.sip_code = 200
+                call.hangup_cause = "User Hangup (Manual)"
+                call.connected_at = call.connected_at or call.started_at
+            else:
+                call.sip_code = 487
+                call.hangup_cause = "User Hangup (Manual)"
         else:
-            call.sip_code = 487
-            call.hangup_cause = "User Hangup (Manual)"
+            # OpenAI/xAI/Gemini: check Redis bridge_active flag as fallback
+            bridge_was_active = False
+            call_sid = call.call_sid
+            try:
+                _r = redis.from_url(str(settings.REDIS_URL), decode_responses=True)
+                bridge_was_active = bool(_r.get(f"call_bridge_active:{call_sid}"))
+                _r.close()
+            except Exception:
+                pass
+
+            if bridge_was_active:
+                call.sip_code = 200
+                call.hangup_cause = "User Hangup (Manual)"
+                call.connected_at = call.connected_at or call.started_at
+            else:
+                call.sip_code = 487
+                call.hangup_cause = "User Hangup (Manual)"
     else:
         call.sip_code = call.sip_code or 200
         call.hangup_cause = call.hangup_cause or "User Hangup (Manual)"
