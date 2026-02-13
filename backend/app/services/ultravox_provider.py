@@ -126,17 +126,20 @@ class UltravoxProvider(CallProvider):
                 language=language,
             )
 
-        # SIP routing: Ultravox → direct SIP trunk (bypass Asterisk)
-        # Asterisk is behind hosting NAT, so Ultravox cannot reach it.
-        # Route directly to the SIP trunk provider instead.
-        sip_trunk_host = settings.SIP_TRUNK_HOST
-        sip_trunk_port = settings.SIP_TRUNK_PORT or 5060
-        sip_username = settings.SIP_TRUNK_USERNAME
-        sip_password = settings.SIP_TRUNK_PASSWORD
+        # SIP routing: Ultravox → Asterisk → SIP trunk
+        # Ultravox registers as SIP endpoint on Asterisk.
+        # Asterisk [from-ultravox] context routes the call through the SIP trunk.
+        # This lets us cancel ringing calls via ARI channel DELETE → SIP CANCEL.
+        sip_trunk_host = settings.ASTERISK_EXTERNAL_HOST
+        sip_trunk_port = settings.ASTERISK_SIP_PORT or 5043
+        sip_username = settings.ULTRAVOX_SIP_USERNAME
+        sip_password = settings.ULTRAVOX_SIP_PASSWORD
+        # CallerID: passed via SIP From header for logging;
+        # Asterisk dialplan overrides with VOICEAI_CALLERID.
         sip_from = caller_id or settings.SIP_TRUNK_CALLER_ID
 
         if not sip_trunk_host:
-            raise ValueError("SIP_TRUNK_HOST must be configured for outbound calls")
+            raise ValueError("ASTERISK_EXTERNAL_HOST must be configured for Ultravox SIP routing")
 
         # Build time exceeded message (spoken before hanging up at max duration)
         language = getattr(agent, "language", "en") or "en"

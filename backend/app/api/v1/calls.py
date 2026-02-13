@@ -321,6 +321,97 @@ async def get_call_transcription(
     }
 
 
+async def _cancel_ultravox_via_ari(call: CallLog) -> bool:
+    """Cancel a ringing Ultravox call by deleting the Asterisk channel via ARI.
+
+    When Ultravox routes SIP through Asterisk, the Asterisk channel is visible
+    in ARI. Deleting it sends SIP CANCEL to the trunk, immediately stopping
+    the customer's phone from ringing.
+
+    Finds the correct channel by matching the dialed number in the
+    [from-ultravox] dialplan context.
+    """
+    import aiohttp
+
+    phone = call.to_number
+    if not phone:
+        logger.warning(f"No phone number for ARI cancel, call {call.id}")
+        return False
+
+    # Normalize: strip + and leading 00
+    phone = phone.lstrip("+")
+    if phone.startswith("00"):
+        phone = phone[2:]
+
+    ari_url = f"http://{settings.ASTERISK_HOST}:{settings.ASTERISK_ARI_PORT}/ari"
+    auth = aiohttp.BasicAuth(settings.ASTERISK_ARI_USER, settings.ASTERISK_ARI_PASSWORD)
+
+    try:
+        async with aiohttp.ClientSession(auth=auth) as session:
+            # List all active Asterisk channels
+            async with session.get(f"{ari_url}/channels") as resp:
+                if resp.status != 200:
+                    logger.error(f"ARI channels list failed: {resp.status}")
+                    return False
+                channels = await resp.json()
+
+            # Find channel(s) in from-ultravox context matching the phone number
+            target_channels = []
+            for ch in channels:
+                dialplan = ch.get("dialplan", {})
+                ctx = dialplan.get("context", "")
+                exten = dialplan.get("exten", "")
+                ch_name = ch.get("name", "")
+
+                # Match: from-ultravox context with matching extension
+                # or any PJSIP/ultravox channel with matching number
+                if ctx == "from-ultravox" and phone in exten:
+                    target_channels.append(ch)
+                elif "ultravox" in ch_name.lower() and phone in exten:
+                    target_channels.append(ch)
+
+            if not target_channels:
+                # Also check outgoing trunk channels for this number
+                for ch in channels:
+                    ch_name = ch.get("name", "")
+                    connected = ch.get("connected", {})
+                    conn_num = connected.get("number", "")
+                    if phone in ch_name or phone in conn_num:
+                        target_channels.append(ch)
+
+            if not target_channels:
+                logger.warning(
+                    f"No ARI channel found for Ultravox call to {phone} "
+                    f"(total channels: {len(channels)})"
+                )
+                return False
+
+            # Delete each matching channel — this sends SIP CANCEL
+            cancelled = False
+            for ch in target_channels:
+                ch_id = ch["id"]
+                ch_name = ch.get("name", "unknown")
+                async with session.delete(f"{ari_url}/channels/{ch_id}") as del_resp:
+                    if del_resp.status < 300:
+                        logger.info(
+                            f"ARI channel {ch_name} ({ch_id[:12]}) deleted "
+                            f"— SIP CANCEL sent for {phone}"
+                        )
+                        cancelled = True
+                    elif del_resp.status == 404:
+                        logger.info(f"ARI channel {ch_id[:12]} already gone")
+                        cancelled = True
+                    else:
+                        err = await del_resp.text()
+                        logger.warning(f"ARI DELETE {ch_id[:12]} failed: {del_resp.status} {err}")
+
+            return cancelled
+
+    except Exception as e:
+        logger.error(f"ARI cancel failed for Ultravox call to {phone}: {e}")
+        return False
+
+
 @router.post("/{call_id}/hangup")
 async def hangup_call(
     call_id: int,
@@ -356,7 +447,8 @@ async def hangup_call(
     if call.provider == "ultravox" and call.ultravox_call_id:
         # Ultravox call termination strategy:
         # 1. Try send_data_message with hang_up (works for active/answered calls)
-        # 2. If 422 (not joined = still ringing), DELETE the call to cancel SIP INVITE
+        # 2. If 422 (not joined = still ringing), use ARI to DELETE the Asterisk
+        #    channel which sends SIP CANCEL → customer phone stops ringing instantly
         from app.services.ultravox_service import UltravoxService
         ultravox_svc = UltravoxService()
         try:
@@ -366,31 +458,13 @@ async def hangup_call(
                 hangup_sent = True
                 logger.info(f"Ultravox hangup sent for call {call_id} (ultravox_id={call.ultravox_call_id})")
             else:
-                # 422: Call was still ringing (not joined) — DELETE to send SIP CANCEL
-                logger.info(f"Ultravox call {call_id} still ringing, sending DELETE to cancel SIP")
-                try:
-                    del_result = await ultravox_svc.delete_call(call.ultravox_call_id)
-                    if del_result.get("success"):
-                        hangup_sent = True
-                        logger.info(f"Ultravox DELETE cancelled ringing call {call_id}")
-                    else:
-                        # 425 Too Early — call might still be setting up, retry after delay
-                        import asyncio
-                        await asyncio.sleep(2)
-                        del_result2 = await ultravox_svc.delete_call(call.ultravox_call_id)
-                        hangup_sent = del_result2.get("success", False)
-                        logger.info(f"Ultravox DELETE retry for call {call_id}: success={hangup_sent}")
-                except Exception as del_err:
-                    logger.error(f"Ultravox DELETE failed for ringing call {call_id}: {del_err}")
+                # 422: Call was still ringing — cancel via Asterisk ARI channel DELETE
+                logger.info(f"Ultravox call {call_id} still ringing, cancelling via ARI")
+                hangup_sent = await _cancel_ultravox_via_ari(call)
         except Exception as e:
             logger.warning(f"Ultravox hang_up failed for call {call_id}: {e}")
-            # Fallback: force-terminate via DELETE
-            try:
-                await ultravox_svc.delete_call(call.ultravox_call_id)
-                hangup_sent = True
-                logger.info(f"Ultravox DELETE fallback succeeded for call {call_id}")
-            except Exception as e2:
-                logger.error(f"Ultravox DELETE also failed for call {call_id}: {e2}")
+            # Fallback: try ARI channel cancel
+            hangup_sent = await _cancel_ultravox_via_ari(call)
     else:
         # OpenAI/xAI/Gemini+Asterisk: Redis hangup signal + ARI channel DELETE
         call_sid = call.call_sid
