@@ -193,10 +193,12 @@ export default function PromptMakerPage(): React.ReactElement {
   const loadAgents = useCallback(async () => {
     setAgentsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/agents/`, { headers: authHeaders() });
+      const res = await fetch(`${API_BASE}/agents?limit=100`, { headers: authHeaders() });
       if (res.ok) {
         const data = await res.json();
-        const list: AgentOption[] = (data.agents || data || []).map(
+        // API returns a flat array of agent objects
+        const items = Array.isArray(data) ? data : (data.agents || []);
+        const list: AgentOption[] = items.map(
           (a: { id: number; name: string; provider?: string }) => ({
             id: a.id,
             name: a.name,
