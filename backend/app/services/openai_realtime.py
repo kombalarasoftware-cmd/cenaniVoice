@@ -128,9 +128,9 @@ class RealtimeConfig:
     temperature: float = 0.7
     max_response_output_tokens: int = 4096
     turn_detection_type: str = "server_vad"
-    turn_detection_threshold: float = 0.5
-    turn_detection_prefix_padding_ms: int = 300
-    turn_detection_silence_duration_ms: int = 500
+    turn_detection_threshold: float = 0.3       # Lower = detect speech faster (was 0.5)
+    turn_detection_prefix_padding_ms: int = 200  # Minimal prefix (was 300)
+    turn_detection_silence_duration_ms: int = 400  # Faster response (was 500)
     input_audio_format: str = "pcm16"
     output_audio_format: str = "pcm16"
 

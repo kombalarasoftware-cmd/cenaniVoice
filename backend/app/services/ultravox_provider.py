@@ -336,23 +336,29 @@ class UltravoxProvider(CallProvider):
         return VOICE_MAP.get(openai_voice, openai_voice)
 
     def _build_vad_settings(self, agent: Any) -> dict:
-        """Build Ultravox VAD settings from agent config."""
+        """Build Ultravox VAD settings from agent config.
+
+        CRITICAL RULE: Agent must ALWAYS stop speaking and listen when
+        the customer starts talking. This is a non-negotiable system requirement.
+        VAD settings are tuned for immediate barge-in detection.
+        """
         silence_ms = getattr(agent, "silence_duration_ms", 800) or 800
         vad_threshold = getattr(agent, "vad_threshold", 0.1) or 0.1
-        eagerness = getattr(agent, "vad_eagerness", "low") or "low"
+        eagerness = getattr(agent, "vad_eagerness", "high") or "high"
 
         # Map eagerness to minimum interruption duration
+        # Lower values = faster interruption = better barge-in
         interruption_map = {
-            "low": "0.3s",
-            "medium": "0.15s",
-            "high": "0.05s",
-            "auto": "0.09s",
+            "low": "0.15s",     # Even 'low' must be responsive (was 0.3s)
+            "medium": "0.08s",  # Quick interruption (was 0.15s)
+            "high": "0.03s",    # Near-instant interruption (was 0.05s)
+            "auto": "0.05s",    # Balanced (was 0.09s)
         }
 
         return {
             "turnEndpointDelay": f"{silence_ms / 1000:.3f}s",
             "minimumTurnDuration": "0s",
-            "minimumInterruptionDuration": interruption_map.get(eagerness, "0.09s"),
+            "minimumInterruptionDuration": interruption_map.get(eagerness, "0.05s"),
             "frameActivationThreshold": vad_threshold,
         }
 

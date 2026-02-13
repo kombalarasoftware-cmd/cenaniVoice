@@ -530,11 +530,11 @@ async def get_agent_from_db(agent_id: int) -> Optional[Dict[str, Any]]:
                     "first_message_delay": row.get("first_message_delay") or 0,
                     "transcript_model": row["transcript_model"] or "gpt-4o-transcribe",
                     "temperature": row["temperature"] or 0.6,
-                    "vad_threshold": row["vad_threshold"] or 0.5,
-                    "silence_duration_ms": row["silence_duration_ms"] or 1000,
-                    "prefix_padding_ms": row["prefix_padding_ms"] or 400,
+                    "vad_threshold": row["vad_threshold"] or 0.3,
+                    "silence_duration_ms": row["silence_duration_ms"] or 800,
+                    "prefix_padding_ms": row["prefix_padding_ms"] or 200,
                     "turn_detection": row["turn_detection"] or "semantic_vad",
-                    "vad_eagerness": row["vad_eagerness"] or "low",
+                    "vad_eagerness": row["vad_eagerness"] or "high",
                     "max_output_tokens": row["max_output_tokens"] or 500,
                     "noise_reduction": row["noise_reduction"] if row["noise_reduction"] is not None else True,
                     "interrupt_response": row["interrupt_response"] if row["interrupt_response"] is not None else True,
@@ -972,15 +972,17 @@ class CallBridge:
         self.greeting_message = None  # Agent's custom greeting message
         self.first_speaker = "agent"
         self.agent_temperature = 0.6
-        # VAD settings - optimized for comprehension accuracy
-        self.agent_vad_threshold = 0.5  # OpenAI recommended default (was 0.3 - too sensitive)
-        self.agent_silence_duration_ms = 1000  # Give customer more time to finish (was 800)
-        self.agent_prefix_padding_ms = 400  # Capture speech start (was 500, OpenAI recommends 300)
-        self.agent_interrupt_response = True
+        # VAD settings - optimized for IMMEDIATE barge-in
+        # CRITICAL RULE: Agent MUST stop speaking and listen the moment customer starts talking.
+        # This is a non-negotiable system requirement. Never weaken these settings.
+        self.agent_vad_threshold = 0.3  # Low threshold = detect speech faster
+        self.agent_silence_duration_ms = 800  # Shorter silence = faster response (was 1000)
+        self.agent_prefix_padding_ms = 200  # Minimal prefix = catch speech start immediately (was 400)
+        self.agent_interrupt_response = True  # ALWAYS True - non-negotiable
         self.agent_create_response = True
         self.agent_noise_reduction = True
-        self.agent_turn_detection = "semantic_vad"  # Semantic VAD for better turn detection (was server_vad)
-        self.agent_vad_eagerness = "low"  # Don't interrupt customer prematurely
+        self.agent_turn_detection = "semantic_vad"  # Semantic VAD for better turn detection
+        self.agent_vad_eagerness = "high"  # High eagerness = respond to interruptions immediately (was low)
         # Transcription settings
         self.agent_transcript_model = "gpt-4o-transcribe"  # Best accuracy (was hardcoded gpt-4o-mini-transcribe)
         self.agent_max_output_tokens = 500  # Configurable from DB
@@ -1071,15 +1073,16 @@ class CallBridge:
             self.greeting_message = call_setup.get("greeting_message") or None
             self.first_speaker = call_setup.get("first_speaker") or "agent"
             self.agent_temperature = float(call_setup.get("temperature", 0.6))
-            # VAD and interrupt settings
-            self.agent_vad_threshold = float(call_setup.get("vad_threshold", 0.5))
-            self.agent_silence_duration_ms = int(call_setup.get("silence_duration_ms", 1000))
-            self.agent_prefix_padding_ms = int(call_setup.get("prefix_padding_ms", 400))
-            self.agent_interrupt_response = call_setup.get("interrupt_response", True)
+            # VAD and interrupt settings — barge-in optimized
+            # CRITICAL: interrupt_response is ALWAYS True (non-negotiable system rule)
+            self.agent_vad_threshold = float(call_setup.get("vad_threshold", 0.3))
+            self.agent_silence_duration_ms = int(call_setup.get("silence_duration_ms", 800))
+            self.agent_prefix_padding_ms = int(call_setup.get("prefix_padding_ms", 200))
+            self.agent_interrupt_response = True  # FORCED True — agent must always stop when customer speaks
             self.agent_create_response = call_setup.get("create_response", True)
             self.agent_noise_reduction = call_setup.get("noise_reduction", True)
             self.agent_turn_detection = call_setup.get("turn_detection", "semantic_vad")
-            self.agent_vad_eagerness = call_setup.get("vad_eagerness", "low")
+            self.agent_vad_eagerness = call_setup.get("vad_eagerness", "high")
             # Transcription & output settings from DB
             self.agent_transcript_model = call_setup.get("transcript_model", "gpt-4o-transcribe")
             self.agent_max_output_tokens = int(call_setup.get("max_output_tokens", 500))
@@ -1121,14 +1124,14 @@ class CallBridge:
                         # Comprehension-critical settings from DB
                         self.agent_transcript_model = agent_data.get("transcript_model", "gpt-4o-transcribe")
                         self.agent_temperature = float(agent_data.get("temperature", 0.6))
-                        self.agent_vad_threshold = float(agent_data.get("vad_threshold", 0.5))
-                        self.agent_silence_duration_ms = int(agent_data.get("silence_duration_ms", 1000))
-                        self.agent_prefix_padding_ms = int(agent_data.get("prefix_padding_ms", 400))
+                        self.agent_vad_threshold = float(agent_data.get("vad_threshold", 0.3))
+                        self.agent_silence_duration_ms = int(agent_data.get("silence_duration_ms", 800))
+                        self.agent_prefix_padding_ms = int(agent_data.get("prefix_padding_ms", 200))
                         self.agent_turn_detection = agent_data.get("turn_detection", "semantic_vad")
-                        self.agent_vad_eagerness = agent_data.get("vad_eagerness", "low")
+                        self.agent_vad_eagerness = agent_data.get("vad_eagerness", "high")
                         self.agent_max_output_tokens = int(agent_data.get("max_output_tokens", 500))
                         self.agent_noise_reduction = agent_data.get("noise_reduction", True)
-                        self.agent_interrupt_response = agent_data.get("interrupt_response", True)
+                        self.agent_interrupt_response = True  # FORCED True — non-negotiable
                         self.agent_create_response = agent_data.get("create_response", True)
                         self.inactivity_messages = agent_data.get("inactivity_messages") or []
                         
@@ -1681,17 +1684,17 @@ class CallBridge:
                     logger.info(f"[{self.call_uuid[:8]}] 🎙️ Realtime session hazır ({event_type})")
 
                 elif event_type == "input_audio_buffer.speech_started":
-                    # User started speaking - interrupt AI response
+                    # User started speaking — IMMEDIATELY stop AI and listen.
+                    # This is a non-negotiable system rule: agent must always yield to customer.
                     self.last_user_activity_time = time.monotonic()
                     self.inactivity_message_index = 0  # Reset inactivity counter
-                    if self.agent_interrupt_response:
-                        logger.debug(f"[{self.call_uuid[:8]}] 👂 Müşteri konuşuyor - AI yanıtı durduruluyor")
-                        # Clear output buffer to stop AI audio immediately
-                        self.output_buffer.clear()
-                        is_playing = False
-                        next_send_time = None
-                        # Send response.cancel to stop AI
-                        await self.openai_ws.send(json.dumps({"type": "response.cancel"}))
+                    logger.debug(f"[{self.call_uuid[:8]}] 👂 Müşteri konuşuyor - AI yanıtı HEMEN durduruluyor")
+                    # Clear output buffer to stop AI audio immediately
+                    self.output_buffer.clear()
+                    is_playing = False
+                    next_send_time = None
+                    # Send response.cancel to stop AI generation
+                    await self.openai_ws.send(json.dumps({"type": "response.cancel"}))
 
                 elif event_type == "input_audio_buffer.speech_stopped":
                     self.last_user_activity_time = time.monotonic()
