@@ -295,7 +295,13 @@ export function CallProvider({ children }: { children: ReactNode }) {
             setDbCallId(null);
             setIsUserSpeaking(false);
             setIsAgentSpeaking(false);
-            toast.error('Customer did not answer the call');
+            const failureMessages: Record<string, string> = {
+              'no-answer': 'Customer did not answer the call',
+              'no_answer': 'Customer did not answer the call',
+              'busy': 'Customer is busy',
+              'failed': 'Call failed — invalid number or unreachable',
+            };
+            toast.error(failureMessages[data.status] || 'Call could not be connected');
             return;
           }
 

@@ -107,17 +107,22 @@ async def _monitor_outbound_channel(call_uuid: str, channel_id: str):
     If the customer rejects (busy) or doesn't answer, the ARI channel is
     destroyed without the bridge ever starting.
 
-    This function polls the ARI channel status and updates CallLog when the
-    channel disappears before the bridge starts.
+    This function polls the ARI channel status and tracks channel state to
+    determine the failure reason:
+    - Never saw "Ring" state + quick death → Invalid number (SIP 404)
+    - Saw "Ring" state → Customer declined/busy (SIP 486)
+    - Timed out → No answer (SIP 480)
     """
-    # Wait before first check — give time for SIP negotiation
-    await asyncio.sleep(5)
+    # Wait before first check — shorter delay to catch quick failures
+    await asyncio.sleep(3)
 
     auth = aiohttp.BasicAuth(ARI_USERNAME, ARI_PASSWORD)
     ari_url = f"http://{ARI_HOST}:{ARI_PORT}/ari/channels/{channel_id}"
+    saw_ringing = False
+    poll_count = 0
 
-    # Poll for up to 2 minutes (24 checks × 5 seconds)
-    for _ in range(24):
+    # Poll for up to 2 minutes (40 checks × 3 seconds)
+    for _ in range(40):
         try:
             # If bridge has taken over, stop monitoring
             if redis_client and redis_client.exists(f"call_bridge_active:{call_uuid}"):
@@ -132,21 +137,44 @@ async def _monitor_outbound_channel(call_uuid: str, channel_id: str):
                             logger.info(f"[{call_uuid[:8]}] Channel monitor: bridge active (late), stopping")
                             return
 
-                        # Bridge never started → call failed before answer
+                        # Determine SIP code based on observed channel states
+                        if saw_ringing:
+                            # Customer saw the call and rejected/busy
+                            sip_code = 486
+                        elif poll_count <= 1:
+                            # Channel died very quickly (< 6s), never rang → invalid number
+                            sip_code = 404
+                        else:
+                            # Died without ringing but took some time → congestion/unavailable
+                            sip_code = 480
+
                         logger.warning(
                             f"[{call_uuid[:8]}] Channel monitor: channel {channel_id} gone, "
-                            f"bridge never started — marking call as failed"
+                            f"bridge never started, saw_ringing={saw_ringing}, "
+                            f"polls={poll_count} — sip_code={sip_code}"
                         )
-                        await _mark_call_failed(call_uuid, sip_code=486)
+                        await _mark_call_failed(call_uuid, sip_code=sip_code)
                         return
-                    # Channel still exists — continue monitoring
+
+                    elif response.status == 200:
+                        # Channel still alive — check its state
+                        try:
+                            data = await response.json()
+                            state = data.get("state", "")
+                            if state in ("Ring", "Ringing"):
+                                saw_ringing = True
+                        except Exception:
+                            pass
+
         except Exception as e:
             logger.debug(f"[{call_uuid[:8]}] Channel monitor poll error: {e}")
 
-        await asyncio.sleep(5)
+        poll_count += 1
+        await asyncio.sleep(3)
 
-    # Timed out (2 minutes) — assume something went wrong
+    # Timed out (2 minutes) — no answer
     logger.warning(f"[{call_uuid[:8]}] Channel monitor: timed out after 2 minutes")
+    await _mark_call_failed(call_uuid, sip_code=480)
 
 
 async def _mark_call_failed(call_uuid: str, sip_code: int = 486):
@@ -154,8 +182,9 @@ async def _mark_call_failed(call_uuid: str, sip_code: int = 486):
     from app.core.database import SessionLocal
 
     sip_map = {
-        486: ("no-answer", "User Busy"),
+        404: ("failed", "Number Not Found"),
         480: ("no-answer", "No Answer"),
+        486: ("no-answer", "User Busy"),
         487: ("no-answer", "Request Terminated"),
         503: ("failed", "Service Unavailable"),
     }
