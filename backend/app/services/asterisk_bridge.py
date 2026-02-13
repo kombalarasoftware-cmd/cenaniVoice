@@ -2359,7 +2359,8 @@ class CallBridge:
                         cached_tokens = $14,
                         estimated_cost = $15,
                         transcription = CASE WHEN $17 = '' THEN transcription ELSE $17 END,
-                        status = 'COMPLETED',
+                        connected_at = COALESCE(connected_at, $18),
+                        status = 'completed',
                         ended_at = NOW()
                     WHERE call_sid = $16""",
                     sentiment,
@@ -2379,6 +2380,7 @@ class CallBridge:
                     estimated_cost,
                     self.call_uuid,
                     transcription_text,
+                    self.start_time,
                 )
                 if "UPDATE 0" in result:
                     logger.info(f"[{self.call_uuid[:8]}] CallLog not found, inserting new record")
@@ -2388,13 +2390,15 @@ class CallBridge:
                             tags, callback_scheduled, call_metadata, notes,
                             customer_name, sip_code, hangup_cause,
                             to_number, agent_id, started_at, ended_at, created_at,
+                            connected_at,
                             model_used, input_tokens, output_tokens, cached_tokens, estimated_cost,
                             transcription
                         ) VALUES (
-                            $1, 'COMPLETED', $2, $3, $4,
+                            $1, 'completed', $2, $3, $4,
                             $5, $6, $7, $8,
                             $9, $10, $11,
                             $12, $13, $14, $15, $14,
+                            $14,
                             $16, $17, $18, $19, $20,
                             $21
                         )""",
