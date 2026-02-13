@@ -8,6 +8,8 @@ import logging
 import json
 from datetime import datetime
 
+import redis as redis_lib
+
 from app.core.database import get_db
 from app.core.config import settings
 from app.api.v1.auth import get_current_user
@@ -18,6 +20,12 @@ from app.schemas import WebhookCreate, WebhookResponse
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
+
+# Redis client for call status updates
+try:
+    _redis_client = redis_lib.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+except Exception:
+    _redis_client = None
 
 
 async def verify_incoming_webhook_signature(
@@ -429,6 +437,28 @@ import math
 ULTRAVOX_RATE_PER_MINUTE = 0.05
 ULTRAVOX_DECIMINUTE_RATE = 0.005  # $0.005 per 6-second increment
 
+# Ultravox TerminationReasonEnum → SIP code mapping
+ULTRAVOX_TERMINATION_TO_SIP = {
+    "SIP_TERMINATION_NORMAL": (200, "Normal Clearing"),
+    "SIP_TERMINATION_INVALID_NUMBER": (404, "Number Not Found"),
+    "SIP_TERMINATION_TIMEOUT": (480, "No Answer (Timeout)"),
+    "SIP_TERMINATION_DESTINATION_UNAVAILABLE": (503, "Destination Unavailable"),
+    "SIP_TERMINATION_BUSY": (486, "User Busy"),
+    "SIP_TERMINATION_CANCELED": (487, "Call Canceled"),
+    "SIP_TERMINATION_REJECTED": (603, "Call Rejected"),
+    "SIP_TERMINATION_UNKNOWN": (0, "Unknown"),
+}
+
+# Ultravox endReason → (CallStatus, CallOutcome) mapping
+ULTRAVOX_END_REASON_MAP = {
+    "hangup": (CallStatus.COMPLETED, CallOutcome.SUCCESS),
+    "agent_hangup": (CallStatus.COMPLETED, CallOutcome.SUCCESS),
+    "timeout": (CallStatus.COMPLETED, CallOutcome.NO_ANSWER),
+    "unjoined": (CallStatus.FAILED, CallOutcome.NO_ANSWER),
+    "connection_error": (CallStatus.FAILED, CallOutcome.FAILED),
+    "system_error": (CallStatus.FAILED, CallOutcome.FAILED),
+}
+
 
 @router.post("/ultravox")
 async def ultravox_webhook(
@@ -473,7 +503,6 @@ async def ultravox_webhook(
 
     # ------- call.ended -------
     if event_type in ("call.ended", "call.billed"):
-        call_log.status = CallStatus.COMPLETED
         call_log.ended_at = datetime.utcnow()
 
         # Duration
@@ -483,18 +512,71 @@ async def ultravox_webhook(
         elif call_log.connected_at:
             call_log.duration = int((call_log.ended_at - call_log.connected_at).total_seconds())
 
-        # End reason -> outcome mapping
+        # ---- Fetch full call details from Ultravox API for SIP info ----
+        sip_termination_reason = None
+        full_call_data = None
+        try:
+            from app.services.ultravox_service import UltravoxService
+            service = UltravoxService()
+            full_call_data = await service.get_call(ultravox_call_id)
+
+            # Extract sipDetails
+            sip_details = full_call_data.get("sipDetails", {}) or {}
+            sip_termination_reason = sip_details.get("terminationReason")
+
+            # Also pick up endReason from the full call data if webhook didn't provide it
+            if not call_data.get("endReason") and full_call_data.get("endReason"):
+                call_data["endReason"] = full_call_data["endReason"]
+
+            logger.info(
+                f"[Ultravox webhook] SIP details: "
+                f"termination={sip_termination_reason}, "
+                f"endReason={call_data.get('endReason')}"
+            )
+        except Exception as e:
+            logger.warning(f"[Ultravox webhook] Failed to fetch call details: {e}")
+
+        # ---- Map SIP termination reason to sip_code + hangup_cause ----
+        if sip_termination_reason and sip_termination_reason in ULTRAVOX_TERMINATION_TO_SIP:
+            sip_code, hangup_cause = ULTRAVOX_TERMINATION_TO_SIP[sip_termination_reason]
+            call_log.sip_code = sip_code
+            call_log.hangup_cause = hangup_cause
+        elif sip_termination_reason:
+            # Unknown termination reason — store raw value
+            call_log.hangup_cause = sip_termination_reason
+
+        # ---- End reason → status + outcome mapping ----
         end_reason = call_data.get("endReason", "")
-        if end_reason in ("hangup", "completed"):
-            call_log.outcome = CallOutcome.SUCCESS
-        elif end_reason in ("no_answer", "timeout"):
-            call_log.outcome = CallOutcome.NO_ANSWER
-        elif end_reason == "busy":
-            call_log.outcome = CallOutcome.BUSY
-        elif end_reason == "error":
-            call_log.outcome = CallOutcome.FAILED
+
+        # First: use endReason for basic mapping
+        if end_reason in ULTRAVOX_END_REASON_MAP:
+            status, outcome = ULTRAVOX_END_REASON_MAP[end_reason]
+            call_log.status = status
+            call_log.outcome = outcome
         else:
+            call_log.status = CallStatus.COMPLETED
             call_log.outcome = CallOutcome.SUCCESS
+
+        # Second: override outcome based on SIP termination reason (more precise)
+        if sip_termination_reason:
+            if sip_termination_reason == "SIP_TERMINATION_INVALID_NUMBER":
+                call_log.status = CallStatus.FAILED
+                call_log.outcome = CallOutcome.FAILED
+            elif sip_termination_reason == "SIP_TERMINATION_BUSY":
+                call_log.status = CallStatus.BUSY
+                call_log.outcome = CallOutcome.BUSY
+            elif sip_termination_reason == "SIP_TERMINATION_TIMEOUT":
+                call_log.status = CallStatus.NO_ANSWER
+                call_log.outcome = CallOutcome.NO_ANSWER
+            elif sip_termination_reason == "SIP_TERMINATION_DESTINATION_UNAVAILABLE":
+                call_log.status = CallStatus.FAILED
+                call_log.outcome = CallOutcome.FAILED
+            elif sip_termination_reason == "SIP_TERMINATION_REJECTED":
+                call_log.status = CallStatus.FAILED
+                call_log.outcome = CallOutcome.BUSY
+            elif sip_termination_reason == "SIP_TERMINATION_CANCELED":
+                call_log.status = CallStatus.FAILED
+                call_log.outcome = CallOutcome.FAILED
 
         # Cost: deciminute-based (6-second increments, rounded up)
         if call_log.duration:
@@ -513,8 +595,9 @@ async def ultravox_webhook(
 
         # Fetch transcript from Ultravox API
         try:
-            from app.services.ultravox_service import UltravoxService
-            service = UltravoxService()
+            if not full_call_data:
+                from app.services.ultravox_service import UltravoxService
+                service = UltravoxService()
             messages = await service.get_call_messages(ultravox_call_id)
             if messages:
                 transcript_lines = []
@@ -527,6 +610,29 @@ async def ultravox_webhook(
         except Exception as e:
             logger.warning(f"Failed to fetch Ultravox transcript: {e}")
 
+        # Set Redis call status for frontend polling detection
+        if _redis_client and call_log.call_sid:
+            try:
+                status_val = call_log.status.value if call_log.status else "completed"
+                # Map to frontend-friendly status names
+                redis_status_map = {
+                    "failed": "failed",
+                    "no_answer": "no-answer",
+                    "busy": "busy",
+                    "completed": "completed",
+                }
+                redis_status = redis_status_map.get(status_val, status_val)
+                _redis_client.setex(
+                    f"call_status:{call_log.call_sid}",
+                    300,  # 5 min TTL
+                    redis_status,
+                )
+                logger.info(
+                    f"[Ultravox webhook] Redis call_status:{call_log.call_sid[:8]} = {redis_status}"
+                )
+            except Exception as redis_err:
+                logger.warning(f"Redis status update failed (non-fatal): {redis_err}")
+
         db.commit()
 
         # Broadcast to frontend via WebSocket
@@ -536,7 +642,10 @@ async def ultravox_webhook(
                 "type": "call_ended",
                 "call_id": call_log.id,
                 "call_sid": call_log.call_sid,
-                "status": "completed",
+                "status": call_log.status.value if call_log.status else "completed",
+                "outcome": call_log.outcome.value if call_log.outcome else None,
+                "sip_code": call_log.sip_code,
+                "hangup_cause": call_log.hangup_cause,
                 "duration": call_log.duration,
                 "provider": "ultravox",
             })
