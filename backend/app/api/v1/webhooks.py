@@ -330,9 +330,11 @@ from pydantic import BaseModel as PydanticBaseModel
 
 
 class AMDResultRequest(PydanticBaseModel):
-    uuid: str
+    uuid: Optional[str] = None  # For OpenAI provider calls (call_sid)
+    phone: Optional[str] = None  # For Ultravox calls (phone number lookup)
     status: str  # MACHINE, HUMAN, NOTSURE
     cause: str = ""  # AMD decision reason
+    source: str = ""  # "ultravox" when from Ultravox AMD via Asterisk
 
 
 @router.post("/amd-result")
@@ -347,11 +349,49 @@ async def amd_result_webhook(
     When Asterisk detects an answering machine on an outbound call,
     it notifies us here so we can update the CallLog and skip the call.
     """
-    logger.info(f"AMD result received: uuid={payload.uuid[:8]}, status={payload.status}, cause={payload.cause}")
+    logger.info(
+        f"AMD result received: uuid={payload.uuid}, phone={payload.phone}, "
+        f"status={payload.status}, cause={payload.cause}, source={payload.source}"
+    )
 
-    call_log = db.query(CallLog).filter(CallLog.call_sid == payload.uuid).first()
+    call_log = None
+
+    # OpenAI provider: lookup by call_sid (UUID)
+    if payload.uuid:
+        call_log = db.query(CallLog).filter(CallLog.call_sid == payload.uuid).first()
+
+    # Ultravox provider: lookup by phone number (most recent active call)
+    if not call_log and payload.phone:
+        phone = payload.phone
+        active_statuses = [
+            CallStatus.INITIATED, CallStatus.RINGING,
+            CallStatus.CONNECTED, CallStatus.IN_PROGRESS,
+        ]
+        call_log = (
+            db.query(CallLog)
+            .filter(
+                CallLog.phone_number == phone,
+                CallLog.provider == "ultravox",
+                CallLog.status.in_(active_statuses),
+            )
+            .order_by(CallLog.created_at.desc())
+            .first()
+        )
+        # Also try without + prefix
+        if not call_log and phone.startswith("+"):
+            call_log = (
+                db.query(CallLog)
+                .filter(
+                    CallLog.phone_number == phone[1:],
+                    CallLog.provider == "ultravox",
+                    CallLog.status.in_(active_statuses),
+                )
+                .order_by(CallLog.created_at.desc())
+                .first()
+            )
+
     if not call_log:
-        logger.warning(f"AMD: CallLog not found for uuid={payload.uuid[:8]}")
+        logger.warning(f"AMD: CallLog not found for uuid={payload.uuid}, phone={payload.phone}")
         return {"status": "not_found"}
 
     call_log.amd_status = payload.status
@@ -362,7 +402,11 @@ async def amd_result_webhook(
         call_log.outcome = CallOutcome.VOICEMAIL
         call_log.hangup_cause = f"AMD:{payload.cause}"
         call_log.ended_at = datetime.utcnow()
-        logger.info(f"AMD: Marked call {payload.uuid[:8]} as {payload.status} — will not connect AI agent")
+        call_id_display = (
+            payload.uuid[:8] if payload.uuid
+            else payload.phone or "unknown"
+        )
+        logger.info(f"AMD: Marked call {call_id_display} as {payload.status} — will not connect AI agent")
 
     db.commit()
 
@@ -577,6 +621,16 @@ async def ultravox_webhook(
             elif sip_termination_reason == "SIP_TERMINATION_CANCELED":
                 call_log.status = CallStatus.FAILED
                 call_log.outcome = CallOutcome.FAILED
+
+        # AMD override: if Asterisk AMD already detected voicemail, preserve that outcome
+        # AMD webhook fires before Ultravox webhook, so amd_status is already set
+        if call_log.amd_status in ("MACHINE", "NOTSURE"):
+            call_log.status = CallStatus.COMPLETED
+            call_log.outcome = CallOutcome.VOICEMAIL
+            logger.info(
+                f"[Ultravox webhook] AMD override: {call_log.amd_status}, "
+                f"preserving outcome=VOICEMAIL"
+            )
 
         # Cost: deciminute-based (6-second increments, rounded up)
         if call_log.duration:
