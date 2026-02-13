@@ -116,23 +116,144 @@ function formatCostColor(cost: number) {
 }
 
 // ─── Provider Badge ──────────────────────────────────────────────
+const PROVIDER_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  openai:   { label: 'OpenAI',    color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+  xai:      { label: 'xAI Grok',  color: 'text-blue-500',    bg: 'bg-blue-500/10' },
+  gemini:   { label: 'Gemini',    color: 'text-amber-500',   bg: 'bg-amber-500/10' },
+  ultravox: { label: 'Ultravox',  color: 'text-violet-500',  bg: 'bg-violet-500/10' },
+};
+
 function ProviderBadge({ provider }: { provider: string | null }) {
   if (!provider) return <span className="text-xs text-muted-foreground">N/A</span>;
 
-  const isUltravox = provider === 'ultravox';
-  const isXai = provider === 'xai';
+  const cfg = PROVIDER_CONFIG[provider] || { label: provider, color: 'text-gray-500', bg: 'bg-gray-500/10' };
   return (
     <span className={cn(
       'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
-      isXai
-        ? 'bg-blue-500/10 text-blue-500'
-        : isUltravox
-          ? 'bg-violet-500/10 text-violet-500'
-          : 'bg-emerald-500/10 text-emerald-500'
+      cfg.bg, cfg.color
     )}>
       <Cpu className="h-3 w-3" />
-      {isXai ? 'xAI Grok' : isUltravox ? 'Ultravox' : 'OpenAI'}
+      {cfg.label}
     </span>
+  );
+}
+
+// ─── Cost Breakdown (per provider) ───────────────────────────────
+function CostBreakdown({ call }: { call: CallLogResponse }) {
+  const provider = call.provider || 'openai';
+  const cfg = PROVIDER_CONFIG[provider] || PROVIDER_CONFIG.openai;
+
+  const providerLabel = (
+    <div>
+      <span className="text-muted-foreground">Provider: </span>
+      <span className={cn('font-medium', cfg.color)}>{cfg.label}</span>
+    </div>
+  );
+
+  const modelLabel = call.model_used ? (
+    <div>
+      <span className="text-muted-foreground">Model: </span>
+      <span className="font-medium">{call.model_used}</span>
+    </div>
+  ) : null;
+
+  const totalLabel = (
+    <div>
+      <span className="text-muted-foreground">Total: </span>
+      <span className={cn('font-medium font-mono', formatCostColor(call.estimated_cost))}>
+        {formatCost(call.estimated_cost)}
+      </span>
+    </div>
+  );
+
+  const tokenInfo = (
+    <>
+      {call.input_tokens != null && call.input_tokens > 0 && (
+        <div>
+          <span className="text-muted-foreground">Input: </span>
+          <span className="font-medium">{call.input_tokens.toLocaleString()} tokens</span>
+        </div>
+      )}
+      {call.output_tokens != null && call.output_tokens > 0 && (
+        <div>
+          <span className="text-muted-foreground">Output: </span>
+          <span className="font-medium">{call.output_tokens.toLocaleString()} tokens</span>
+        </div>
+      )}
+      {call.cached_tokens != null && call.cached_tokens > 0 && (
+        <div>
+          <span className="text-muted-foreground">Cached: </span>
+          <span className="font-medium">{call.cached_tokens.toLocaleString()} tokens</span>
+        </div>
+      )}
+    </>
+  );
+
+  if (provider === 'ultravox') {
+    // Ultravox: per-deciminute billing ($0.005/6s)
+    return (
+      <div className="flex items-center gap-6 text-xs flex-wrap">
+        {providerLabel}
+        <div>
+          <span className="text-muted-foreground">Duration: </span>
+          <span className="font-medium">{call.duration ? `${call.duration}s` : '-'}</span>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Billed: </span>
+          <span className="font-medium">{call.duration ? `${Math.ceil(call.duration / 6)} deciminutes` : '-'}</span>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Rate: </span>
+          <span className="font-medium">$0.005/6s ($0.05/min)</span>
+        </div>
+        {totalLabel}
+      </div>
+    );
+  }
+
+  if (provider === 'xai') {
+    // xAI Grok: per-second billing ($0.05/min)
+    return (
+      <div className="flex items-center gap-6 text-xs flex-wrap">
+        {providerLabel}
+        {modelLabel}
+        <div>
+          <span className="text-muted-foreground">Duration: </span>
+          <span className="font-medium">{call.duration ? `${call.duration}s` : '-'}</span>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Rate: </span>
+          <span className="font-medium">$0.05/min (per-second)</span>
+        </div>
+        {totalLabel}
+      </div>
+    );
+  }
+
+  if (provider === 'gemini') {
+    // Gemini: token-based billing (audio + text tokens)
+    return (
+      <div className="flex items-center gap-6 text-xs flex-wrap">
+        {providerLabel}
+        {modelLabel}
+        {tokenInfo}
+        <div>
+          <span className="text-muted-foreground">Rate: </span>
+          <span className="font-medium">$3/M audio in, $12/M audio out</span>
+        </div>
+        {totalLabel}
+      </div>
+    );
+  }
+
+  // OpenAI: token-based billing with cached tokens
+  return (
+    <div className="flex items-center gap-6 text-xs flex-wrap">
+      {providerLabel}
+      {modelLabel}
+      {tokenInfo}
+      {totalLabel}
+    </div>
   );
 }
 
@@ -904,71 +1025,7 @@ export default function CallLogsPage() {
                                     Cost Breakdown
                                   </h4>
 
-                                  {call.provider === 'ultravox' ? (
-                                    // Ultravox: minute-based billing
-                                    <div className="flex items-center gap-6 text-xs">
-                                      <div>
-                                        <span className="text-muted-foreground">Provider: </span>
-                                        <span className="font-medium text-violet-500">Ultravox</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-muted-foreground">Duration: </span>
-                                        <span className="font-medium">{call.duration ? `${call.duration}s` : '-'}</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-muted-foreground">Billed Units: </span>
-                                        <span className="font-medium">{call.duration ? `${Math.ceil(call.duration / 6)} deciminutes` : '-'}</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-muted-foreground">Rate: </span>
-                                        <span className="font-medium">$0.005/6s</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-muted-foreground">Total: </span>
-                                        <span className={cn('font-medium font-mono', formatCostColor(call.estimated_cost))}>
-                                          {formatCost(call.estimated_cost)}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    // OpenAI: token-based billing
-                                    <div className="flex items-center gap-6 text-xs">
-                                      <div>
-                                        <span className="text-muted-foreground">Provider: </span>
-                                        <span className="font-medium text-emerald-500">OpenAI</span>
-                                      </div>
-                                      {call.model_used && (
-                                        <div>
-                                          <span className="text-muted-foreground">Model: </span>
-                                          <span className="font-medium">{call.model_used}</span>
-                                        </div>
-                                      )}
-                                      {call.input_tokens != null && call.input_tokens > 0 && (
-                                        <div>
-                                          <span className="text-muted-foreground">Input: </span>
-                                          <span className="font-medium">{call.input_tokens.toLocaleString()} tokens</span>
-                                        </div>
-                                      )}
-                                      {call.output_tokens != null && call.output_tokens > 0 && (
-                                        <div>
-                                          <span className="text-muted-foreground">Output: </span>
-                                          <span className="font-medium">{call.output_tokens.toLocaleString()} tokens</span>
-                                        </div>
-                                      )}
-                                      {call.cached_tokens != null && call.cached_tokens > 0 && (
-                                        <div>
-                                          <span className="text-muted-foreground">Cached: </span>
-                                          <span className="font-medium">{call.cached_tokens.toLocaleString()} tokens</span>
-                                        </div>
-                                      )}
-                                      <div>
-                                        <span className="text-muted-foreground">Total: </span>
-                                        <span className={cn('font-medium font-mono', formatCostColor(call.estimated_cost))}>
-                                          {formatCost(call.estimated_cost)}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  )}
+                                  <CostBreakdown call={call} />
                                 </div>
 
                                 {/* Tags */}
