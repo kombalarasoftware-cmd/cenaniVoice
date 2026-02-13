@@ -523,9 +523,6 @@ async def hangup_call(
     call.ended_at = datetime.utcnow()
     if call.connected_at:
         call.duration = int((call.ended_at - call.connected_at).total_seconds())
-    elif call.started_at:
-        # Fallback: use started_at (includes ring time but better than 0)
-        call.duration = int((call.ended_at - call.started_at).total_seconds())
     else:
         call.duration = 0
     db.commit()

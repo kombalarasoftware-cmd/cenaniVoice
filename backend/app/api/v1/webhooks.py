@@ -402,11 +402,10 @@ async def amd_result_webhook(
         call_log.outcome = CallOutcome.VOICEMAIL
         call_log.hangup_cause = f"AMD:{payload.cause}"
         call_log.ended_at = datetime.utcnow()
-        # Calculate duration: time between answer and AMD detection
+        # Calculate duration: only from customer answer (connected_at) to AMD detection
+        # Do NOT use started_at — that includes ringing time
         if call_log.connected_at:
             call_log.duration = int((call_log.ended_at - call_log.connected_at).total_seconds())
-        elif call_log.started_at:
-            call_log.duration = int((call_log.ended_at - call_log.started_at).total_seconds())
         call_id_display = (
             payload.uuid[:8] if payload.uuid
             else payload.phone or "unknown"
