@@ -184,9 +184,10 @@ async def _mark_call_failed(call_uuid: str, sip_code: int = 486):
     sip_map = {
         404: ("failed", "Number Not Found"),
         480: ("no-answer", "No Answer"),
-        486: ("no-answer", "User Busy"),
-        487: ("no-answer", "Request Terminated"),
+        486: ("busy", "User Busy"),
+        487: ("failed", "Request Terminated"),
         503: ("failed", "Service Unavailable"),
+        603: ("busy", "Call Rejected"),
     }
     status, hangup_cause = sip_map.get(sip_code, ("no-answer", "No Answer"))
 
@@ -198,8 +199,17 @@ async def _mark_call_failed(call_uuid: str, sip_code: int = 486):
             if call_log and call_log.status in (
                 CallStatus.RINGING, CallStatus.QUEUED, CallStatus.CONNECTED
             ):
-                call_log.status = CallStatus.NO_ANSWER if status == "no-answer" else CallStatus.FAILED
-                call_log.outcome = CallOutcome.NO_ANSWER
+                # Map status string to enum
+                status_map = {
+                    "no-answer": (CallStatus.NO_ANSWER, CallOutcome.NO_ANSWER),
+                    "busy": (CallStatus.BUSY, CallOutcome.BUSY),
+                    "failed": (CallStatus.FAILED, CallOutcome.FAILED),
+                }
+                call_status, call_outcome = status_map.get(
+                    status, (CallStatus.FAILED, CallOutcome.FAILED)
+                )
+                call_log.status = call_status
+                call_log.outcome = call_outcome
                 call_log.sip_code = sip_code
                 call_log.hangup_cause = hangup_cause
                 call_log.ended_at = datetime.utcnow()
@@ -232,6 +242,110 @@ async def _mark_call_failed(call_uuid: str, sip_code: int = 486):
             redis_client.delete(f"call_setup:{call_uuid}")
         except Exception:
             pass
+
+
+# Ultravox TerminationReasonEnum → SIP code mapping (same as webhooks.py)
+ULTRAVOX_TERMINATION_TO_SIP: dict[str, tuple[int, str]] = {
+    "SIP_TERMINATION_NORMAL": (200, "Normal Clearing"),
+    "SIP_TERMINATION_INVALID_NUMBER": (404, "Number Not Found"),
+    "SIP_TERMINATION_TIMEOUT": (480, "No Answer (Timeout)"),
+    "SIP_TERMINATION_DESTINATION_UNAVAILABLE": (503, "Destination Unavailable"),
+    "SIP_TERMINATION_BUSY": (486, "User Busy"),
+    "SIP_TERMINATION_CANCELED": (487, "Call Canceled"),
+    "SIP_TERMINATION_REJECTED": (603, "Call Rejected"),
+    "SIP_TERMINATION_UNKNOWN": (0, "Unknown"),
+}
+
+# Non-success termination reasons (call should be marked as failed)
+ULTRAVOX_FAILURE_TERMINATIONS = {
+    "SIP_TERMINATION_INVALID_NUMBER",
+    "SIP_TERMINATION_TIMEOUT",
+    "SIP_TERMINATION_DESTINATION_UNAVAILABLE",
+    "SIP_TERMINATION_BUSY",
+    "SIP_TERMINATION_CANCELED",
+    "SIP_TERMINATION_REJECTED",
+}
+
+
+async def _monitor_ultravox_call(call_uuid: str, ultravox_call_id: str):
+    """
+    Monitor an Ultravox call for early failure (busy/no-answer/invalid).
+
+    Ultravox bypasses Asterisk, so we can't use ARI channel polling.
+    Instead, we poll the Ultravox API GET /calls/{id} to check call status.
+
+    When the call ends (endReason appears), we extract sipDetails.terminationReason
+    and update CallLog with the correct SIP code + hangup_cause.
+    This catches cases where the customer declines/is busy BEFORE the
+    Ultravox webhook arrives (or when the webhook is delayed/missing).
+    """
+    from app.services.ultravox_service import UltravoxService
+
+    service = UltravoxService()
+
+    # Wait before first check — give SIP time to connect
+    await asyncio.sleep(5)
+
+    # Poll for up to 2 minutes (24 checks × 5 seconds)
+    for poll_count in range(24):
+        try:
+            call_data = await service.get_call(ultravox_call_id)
+
+            # Check if call has ended
+            end_reason = call_data.get("endReason")
+
+            if end_reason:
+                # Call has ended — extract SIP details
+                sip_details = call_data.get("sipDetails", {}) or {}
+                termination_reason = sip_details.get("terminationReason")
+
+                logger.info(
+                    f"[{call_uuid[:8]}] Ultravox monitor: call ended, "
+                    f"endReason={end_reason}, termination={termination_reason}"
+                )
+
+                # Determine if this is a failure (not normal completion)
+                if termination_reason in ULTRAVOX_FAILURE_TERMINATIONS:
+                    sip_code, hangup_cause = ULTRAVOX_TERMINATION_TO_SIP[termination_reason]
+                    await _mark_call_failed(call_uuid, sip_code=sip_code)
+                    logger.info(
+                        f"[{call_uuid[:8]}] Ultravox call failed: "
+                        f"sip_code={sip_code}, cause={hangup_cause}"
+                    )
+                    return
+
+                # Non-failure end reasons (hangup, agent_hangup)
+                if end_reason in ("unjoined", "connection_error", "system_error"):
+                    # These are failures but without SIP termination info
+                    await _mark_call_failed(call_uuid, sip_code=503)
+                    return
+
+                # Normal ending (hangup, agent_hangup) — webhook will handle it
+                logger.info(
+                    f"[{call_uuid[:8]}] Ultravox monitor: normal end "
+                    f"(endReason={end_reason}), webhook will finalize"
+                )
+                return
+
+            # Call still active — check if it's been answered
+            # Ultravox call status: "idle", "listening", "thinking", "speaking"
+            call_status = call_data.get("status", "")
+            if call_status in ("listening", "thinking", "speaking"):
+                # Call is actively connected — stop monitoring
+                logger.info(
+                    f"[{call_uuid[:8]}] Ultravox monitor: call active "
+                    f"(status={call_status}), stopping"
+                )
+                return
+
+        except Exception as e:
+            logger.debug(f"[{call_uuid[:8]}] Ultravox monitor poll error: {e}")
+
+        await asyncio.sleep(5)
+
+    # Timed out after 2 minutes — unlikely to connect
+    logger.warning(f"[{call_uuid[:8]}] Ultravox monitor: timed out after 2 minutes")
+    await _mark_call_failed(call_uuid, sip_code=480)
 
 
 class OutboundCallRequest(BaseModel):
@@ -349,6 +463,13 @@ async def initiate_outbound_call(
                 logger.warning(f"Failed to create CallLog: {e}")
                 db.rollback()
                 db_call_id = None
+
+            # Start background monitor to detect busy/no-answer/invalid
+            ultravox_call_id = result.get("ultravox_call_id", "")
+            if ultravox_call_id:
+                asyncio.ensure_future(
+                    _monitor_ultravox_call(result["call_id"], ultravox_call_id)
+                )
 
             return OutboundCallResponse(
                 success=True,
