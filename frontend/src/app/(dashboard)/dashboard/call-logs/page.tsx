@@ -255,8 +255,8 @@ function SipCodeBadge({ code }: { code: number | null }) {
 
 // ─── Call Result Badge (combines SIP + AMD + hangup into one label) ──
 function CallResultBadge({ call }: { call: CallLogResponse }) {
-  // AMD: Answering machine detected
-  if (call.amd_status === 'MACHINE') {
+  // AMD: Answering machine detected (MACHINE or NOTSURE)
+  if (call.amd_status === 'MACHINE' || call.amd_status === 'NOTSURE' || call.outcome === 'voicemail') {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/10 text-purple-500">
         🤖 Voicemail
@@ -279,6 +279,13 @@ function CallResultBadge({ call }: { call: CallLogResponse }) {
   // Hangup cause fallback
   if (call.hangup_cause) {
     const cause = call.hangup_cause.toLowerCase();
+    if (cause.startsWith('amd:')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/10 text-purple-500">
+          🤖 Voicemail
+        </span>
+      );
+    }
     if (cause.includes('normal')) {
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-500">
