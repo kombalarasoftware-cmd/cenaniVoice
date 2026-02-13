@@ -79,7 +79,7 @@ uvicorn app.main:app --reload
 
 ## 📖 Dokümantasyon
 
-Detaylı dokümantasyon için [PROJECT_PLAN.md](./PROJECT_PLAN.md) dosyasına bakın.
+Detaylı dokümantasyon için [PROJECT_PLAN.md](./docs/PROJECT_PLAN.md) dosyasına bakın.
 
 ## 📄 Lisans
 

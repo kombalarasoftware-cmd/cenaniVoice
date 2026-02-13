@@ -10,8 +10,8 @@ from TOOL_DEFINITIONS and transforms to your provider's format.
 
 Adding a new tool?
   1. Add it to TOOL_DEFINITIONS below
-  2. Add a handler in audio_bridge.py  _handle_tool_call()  (OpenAI path)
-  3. Add an HTTP endpoint in api/v1/tools.py               (Ultravox path)
+  2. Add a handler in asterisk_bridge.py  _handle_tool_call()  (OpenAI path)
+  3. Add an HTTP endpoint in api/v1/tools.py                  (Ultravox path)
   4. Done — both providers now have the tool automatically.
 """
 

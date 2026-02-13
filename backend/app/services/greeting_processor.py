@@ -35,34 +35,6 @@ from app.services.prompt_constants import (
 )
 
 
-# Turkish day names
-TURKISH_DAYS = {
-    0: "Pazartesi",
-    1: "Salı",
-    2: "Çarşamba",
-    3: "Perşembe",
-    4: "Cuma",
-    5: "Cumartesi",
-    6: "Pazar"
-}
-
-# Turkish month names
-TURKISH_MONTHS = {
-    1: "Ocak",
-    2: "Şubat",
-    3: "Mart",
-    4: "Nisan",
-    5: "Mayıs",
-    6: "Haziran",
-    7: "Temmuz",
-    8: "Ağustos",
-    9: "Eylül",
-    10: "Ekim",
-    11: "Kasım",
-    12: "Aralık"
-}
-
-
 def get_system_variables(language: str = "tr") -> Dict[str, str]:
     """Get current system variables with language-aware day/month names"""
     now = datetime.now()
@@ -71,9 +43,8 @@ def get_system_variables(language: str = "tr") -> Dict[str, str]:
     days = DAY_NAMES.get(language, DAY_NAMES.get("en", []))
     months = MONTH_NAMES.get(language, MONTH_NAMES.get("en", []))
     
-    # Fallback to Turkish legacy if language not in DAY_NAMES
-    day_name = days[now.weekday()] if days and now.weekday() < len(days) else TURKISH_DAYS.get(now.weekday(), "")
-    month_name = months[now.month - 1] if months and (now.month - 1) < len(months) else TURKISH_MONTHS.get(now.month, "")
+    day_name = days[now.weekday()] if days and now.weekday() < len(days) else ""
+    month_name = months[now.month - 1] if months and (now.month - 1) < len(months) else ""
     
     return {
         "date": now.strftime("%d.%m.%Y"),
@@ -221,106 +192,3 @@ def process_greeting(
     result = re.sub(pattern, replace_var, result)
     
     return result
-
-
-def validate_greeting_template(template: str) -> Dict[str, Any]:
-    """
-    Validate a greeting template and return info about used variables
-    
-    Returns:
-        {
-            "valid": bool,
-            "variables_used": list,
-            "unknown_variables": list,
-            "preview": str  # Preview with sample data
-        }
-    """
-    known_variables = {
-        "customer_name", "first_name", "last_name", "customer_title",
-        "addressed_name", "company", "phone", "date", "time", "day", "month", "year",
-        "agent_name", "amount", "due_date"
-    }
-    
-    # Find all variables
-    pattern = r'\{([^}]+)\}'
-    matches = re.findall(pattern, template)
-    
-    variables_used = []
-    unknown_variables = []
-    
-    for var in matches:
-        var_lower = var.lower().strip()
-        variables_used.append(var_lower)
-        if var_lower not in known_variables:
-            # Could be a custom Excel column, not necessarily unknown
-            unknown_variables.append(var_lower)
-    
-    # Generate preview with sample data
-    sample_data = {
-        "name": "Ahmet Yılmaz",
-        "phone": "+905551234567",
-        "customer_title": "Mr",
-        "custom_data": {
-            "company": "ABC Şirketi",
-            "amount": "1.500 TL",
-            "due_date": "15.02.2026"
-        }
-    }
-    
-    preview = process_greeting(template, sample_data, "Solar Agent")
-    
-    return {
-        "valid": True,
-        "variables_used": list(set(variables_used)),
-        "unknown_variables": unknown_variables,
-        "preview": preview
-    }
-
-
-def get_available_variables() -> Dict[str, str]:
-    """Get list of available variables with descriptions"""
-    return {
-        "customer_name": "Customer's full name",
-        "first_name": "Customer's first name",
-        "last_name": "Customer's last name",
-        "customer_title": "Localized title (Bey/Hanım, Mr/Mrs, Herr/Frau)",
-        "addressed_name": "Title + name in correct order (e.g. Cenani Bey, Mr Cenani)",
-        "company": "Company name",
-        "phone": "Phone number",
-        "date": "Today's date (DD.MM.YYYY)",
-        "time": "Current time (HH:MM)",
-        "day": "Day of the week",
-        "month": "Month name",
-        "year": "Year",
-        "agent_name": "AI Agent's name",
-        "amount": "Payment amount (from Excel)",
-        "due_date": "Due date (from Excel)",
-    }
-
-
-# Example usage
-if __name__ == "__main__":
-    # Test greeting
-    template = """
-Merhaba {first_name}, ben {agent_name}. 
-Bugün {day} günü, {company} adına arıyorum.
-{amount} tutarındaki ödemeniz {due_date} tarihinde yapılması gerekiyor.
-Size nasıl yardımcı olabilirim?
-"""
-    
-    customer = {
-        "name": "Mehmet Kaya",
-        "phone": "+905559876543",
-        "custom_data": {
-            "company": "XYZ Ltd.",
-            "amount": "2.350 TL",
-            "due_date": "20.02.2026"
-        }
-    }
-    
-    result = process_greeting(template, customer, "Ödeme Asistanı")
-    print(result)
-    
-    # Validate
-    validation = validate_greeting_template(template)
-    print("\nValidation:", validation)

@@ -6,7 +6,7 @@ it makes an HTTP request to these endpoints. The results are
 passed back to the AI to continue the conversation.
 
 These endpoints are the HTTP counterparts of the handlers in
-audio_bridge.py (used by OpenAI). Both paths share the same
+asterisk_bridge.py (used by OpenAI). Both paths share the same
 tool definitions from tool_registry.py.
 """
 
@@ -98,13 +98,6 @@ def _find_call_log(db: Session, call_id: Optional[str]) -> Optional[CallLog]:
 
 
 # --------------------------------------------------------- Save Customer Data
-
-class SaveCustomerDataRequest(BaseModel):
-    data_type: str  # "name", "phone", "email", "address"
-    value: str
-    confirmed: bool = False
-    details: Optional[dict] = None
-
 
 @router.post("/save-customer-data")
 async def save_customer_data(request: Request, db: Session = Depends(get_db)):
