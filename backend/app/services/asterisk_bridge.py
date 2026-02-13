@@ -1148,6 +1148,30 @@ class CallBridge:
         except Exception as e:
             logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Failed to set bridge active flag: {e}")
 
+        # Update CallLog: mark as CONNECTED with connected_at timestamp.
+        # This is critical so that hangup_call knows the call was answered
+        # (otherwise it stays RINGING and gets marked as sip_code=487 Cancelled).
+        try:
+            conn = await asyncpg.connect(
+                host=DB_HOST, port=DB_PORT, user=DB_USER,
+                password=DB_PASSWORD, database=DB_NAME,
+            )
+            try:
+                await conn.execute(
+                    """UPDATE call_logs
+                       SET status = 'CONNECTED',
+                           connected_at = COALESCE(connected_at, $2)
+                       WHERE call_sid = $1
+                         AND status IN ('RINGING', 'QUEUED')""",
+                    self.call_uuid,
+                    self.start_time,
+                )
+                logger.info(f"[{self.call_uuid[:8]}] 📞 CallLog status → CONNECTED, connected_at={self.start_time.isoformat()}")
+            finally:
+                await conn.close()
+        except Exception as e:
+            logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Failed to update CallLog to CONNECTED: {e}")
+
         try:
             # TCP_NODELAY: Disable Nagle's algorithm for lower audio latency
             sock = self.writer.get_extra_info('socket')
@@ -2417,7 +2441,8 @@ class CallBridge:
                         estimated_cost = $15,
                         transcription = CASE WHEN $17 = '' THEN transcription ELSE $17 END,
                         connected_at = COALESCE(connected_at, $18),
-                        status = 'completed',
+                        status = 'COMPLETED',
+                        outcome = 'SUCCESS',
                         ended_at = NOW()
                     WHERE call_sid = $16""",
                     sentiment,
@@ -2443,7 +2468,7 @@ class CallBridge:
                     logger.info(f"[{self.call_uuid[:8]}] CallLog not found, inserting new record")
                     await conn.execute(
                         """INSERT INTO call_logs (
-                            call_sid, status, duration, sentiment, summary,
+                            call_sid, status, outcome, duration, sentiment, summary,
                             tags, callback_scheduled, call_metadata, notes,
                             customer_name, sip_code, hangup_cause,
                             to_number, agent_id, started_at, ended_at, created_at,
@@ -2451,7 +2476,7 @@ class CallBridge:
                             model_used, input_tokens, output_tokens, cached_tokens, estimated_cost,
                             transcription
                         ) VALUES (
-                            $1, 'completed', $2, $3, $4,
+                            $1, 'COMPLETED', 'SUCCESS', $2, $3, $4,
                             $5, $6, $7, $8,
                             $9, $10, $11,
                             $12, $13, $14, $15, $14,
