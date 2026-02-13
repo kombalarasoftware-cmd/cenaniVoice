@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import logging
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import redis as redis_lib
 
@@ -335,6 +335,7 @@ class AMDResultRequest(PydanticBaseModel):
     status: str  # MACHINE, HUMAN, NOTSURE
     cause: str = ""  # AMD decision reason
     source: str = ""  # "ultravox" when from Ultravox AMD via Asterisk
+    answer_epoch: Optional[str] = None  # Unix epoch when remote party answered
 
 
 @router.post("/amd-result")
@@ -401,18 +402,34 @@ async def amd_result_webhook(
         call_log.status = CallStatus.COMPLETED
         call_log.outcome = CallOutcome.VOICEMAIL
         call_log.hangup_cause = f"AMD:{payload.cause}"
-        call_log.ended_at = datetime.utcnow()
-        # AMD detected means remote party answered (voicemail picked up).
-        # Set connected_at if not already set — it marks the answer moment.
+        now = datetime.utcnow()
+        call_log.ended_at = now
+        # Set connected_at from Asterisk's ANSWER_EPOCH (exact answer time)
+        # or fall back to estimated answer time (now - AMD analysis window)
         if not call_log.connected_at:
-            call_log.connected_at = datetime.utcnow()
-        # Duration = answer → hangup (includes voicemail greeting time)
-        call_log.duration = int((call_log.ended_at - call_log.connected_at).total_seconds())
+            if payload.answer_epoch:
+                try:
+                    call_log.connected_at = datetime.utcfromtimestamp(
+                        int(payload.answer_epoch)
+                    )
+                except (ValueError, OSError):
+                    call_log.connected_at = now - timedelta(seconds=3)
+            else:
+                # Fallback: estimate answer time as now minus AMD analysis
+                # AMD total_analysis_time = 3500ms, use 3s as conservative estimate
+                call_log.connected_at = now - timedelta(seconds=3)
+        # Duration = answer → hangup (voicemail greeting + AMD analysis time)
+        call_log.duration = int(
+            (call_log.ended_at - call_log.connected_at).total_seconds()
+        )
         call_id_display = (
             payload.uuid[:8] if payload.uuid
             else payload.phone or "unknown"
         )
-        logger.info(f"AMD: Marked call {call_id_display} as {payload.status} — will not connect AI agent")
+        logger.info(
+            f"AMD: Marked call {call_id_display} as {payload.status}, "
+            f"duration={call_log.duration}s — will not connect AI agent"
+        )
 
     db.commit()
 
