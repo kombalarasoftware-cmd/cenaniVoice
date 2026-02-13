@@ -149,11 +149,11 @@ class BehaviorSettings(BaseModel):
 
 class AdvancedSettings(BaseModel):
     temperature: float = Field(default=0.7, ge=0, le=1)
-    vad_threshold: float = Field(default=0.3, ge=0, le=1)  # Lower = more sensitive to speech
-    turn_detection: str = "server_vad"  # server_vad, semantic_vad, disabled
-    vad_eagerness: str = "auto"  # semantic_vad: low, medium, high, auto
-    silence_duration_ms: int = Field(default=800, ge=100, le=5000)  # server_vad
-    prefix_padding_ms: int = Field(default=500, ge=100, le=2000)  # server_vad
+    vad_threshold: float = Field(default=0.5, ge=0, le=1)  # Balanced sensitivity (0.0-1.0)
+    turn_detection: str = "semantic_vad"  # server_vad, semantic_vad, disabled
+    vad_eagerness: str = "low"  # semantic_vad: low, medium, high, auto
+    silence_duration_ms: int = Field(default=1000, ge=100, le=5000)  # server_vad silence duration (ms)
+    prefix_padding_ms: int = Field(default=400, ge=100, le=2000)  # server_vad prefix padding (ms)
     idle_timeout_ms: Optional[int] = Field(default=None, ge=0, le=60000)  # VAD idle timeout, None=no timeout
     interrupt_response: bool = True  # Stop AI when user speaks
     create_response: bool = True  # Auto-respond when user stops

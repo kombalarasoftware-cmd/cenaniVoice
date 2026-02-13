@@ -252,11 +252,11 @@ class Agent(Base):
     
     # Advanced settings
     temperature: Mapped[float] = mapped_column(Float, default=0.7)
-    vad_threshold: Mapped[float] = mapped_column(Float, default=0.3)  # Lower = more sensitive (0.0-1.0)
-    turn_detection: Mapped[str] = mapped_column(String(50), default="server_vad")  # server_vad, semantic_vad, disabled
-    vad_eagerness: Mapped[str] = mapped_column(String(20), default="auto")  # semantic_vad: low, medium, high, auto
-    silence_duration_ms: Mapped[int] = mapped_column(Integer, default=800)  # server_vad silence detection (ms)
-    prefix_padding_ms: Mapped[int] = mapped_column(Integer, default=500)  # server_vad prefix padding (ms)
+    vad_threshold: Mapped[float] = mapped_column(Float, default=0.5)  # Balanced sensitivity (0.0-1.0)
+    turn_detection: Mapped[str] = mapped_column(String(50), default="semantic_vad")  # server_vad, semantic_vad, disabled
+    vad_eagerness: Mapped[str] = mapped_column(String(20), default="low")  # semantic_vad: low, medium, high, auto
+    silence_duration_ms: Mapped[int] = mapped_column(Integer, default=1000)  # server_vad silence detection (ms)
+    prefix_padding_ms: Mapped[int] = mapped_column(Integer, default=400)  # server_vad prefix padding (ms)
     idle_timeout_ms: Mapped[Optional[int]] = mapped_column(Integer, default=None)  # VAD idle timeout (ms), None = no timeout
     interrupt_response: Mapped[bool] = mapped_column(Boolean, default=True)  # Allow user to interrupt model
     create_response: Mapped[bool] = mapped_column(Boolean, default=True)  # Auto create response on speech end

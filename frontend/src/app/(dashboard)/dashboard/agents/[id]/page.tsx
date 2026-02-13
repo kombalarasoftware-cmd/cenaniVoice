@@ -245,10 +245,10 @@ export default function AgentEditorPage() {
   // Advanced Settings state
   const [temperature, setTemperature] = useState(0.7);
   const [vadThreshold, setVadThreshold] = useState(0.5);
-  const [turnDetection, setTurnDetection] = useState('server_vad');
-  const [vadEagerness, setVadEagerness] = useState('auto');
-  const [silenceDurationMs, setSilenceDurationMs] = useState(800);
-  const [prefixPaddingMs, setPrefixPaddingMs] = useState(500);
+  const [turnDetection, setTurnDetection] = useState('semantic_vad');
+  const [vadEagerness, setVadEagerness] = useState('low');
+  const [silenceDurationMs, setSilenceDurationMs] = useState(1000);
+  const [prefixPaddingMs, setPrefixPaddingMs] = useState(400);
   const [idleTimeoutMs, setIdleTimeoutMs] = useState<number | null>(null);
   const [interruptResponse, setInterruptResponse] = useState(true);
   const [createResponse, setCreateResponse] = useState(true);
@@ -351,11 +351,11 @@ export default function AgentEditorPage() {
         
         // Load advanced settings
         setTemperature(data.temperature ?? 0.7);
-        setVadThreshold(data.vad_threshold ?? 0.3);  // Default: more sensitive
-        setTurnDetection(data.turn_detection || 'server_vad');
-        setVadEagerness(data.vad_eagerness || 'auto');
-        setSilenceDurationMs(data.silence_duration_ms ?? 800);
-        setPrefixPaddingMs(data.prefix_padding_ms ?? 500);
+        setVadThreshold(data.vad_threshold ?? 0.5);
+        setTurnDetection(data.turn_detection || 'semantic_vad');
+        setVadEagerness(data.vad_eagerness || 'low');
+        setSilenceDurationMs(data.silence_duration_ms ?? 1000);
+        setPrefixPaddingMs(data.prefix_padding_ms ?? 400);
         setIdleTimeoutMs(data.idle_timeout_ms ?? null);
         setInterruptResponse(data.interrupt_response ?? true);
         setCreateResponse(data.create_response ?? true);
