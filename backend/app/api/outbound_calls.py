@@ -167,7 +167,7 @@ async def _mark_call_failed(call_uuid: str, sip_code: int = 486):
             from app.models.models import CallLog, CallStatus, CallOutcome
             call_log = db.query(CallLog).filter(CallLog.call_sid == call_uuid).first()
             if call_log and call_log.status in (
-                CallStatus.RINGING, CallStatus.QUEUED, CallStatus.IN_PROGRESS
+                CallStatus.RINGING, CallStatus.QUEUED, CallStatus.CONNECTED
             ):
                 call_log.status = CallStatus.NO_ANSWER if status == "no-answer" else CallStatus.FAILED
                 call_log.outcome = CallOutcome.NO_ANSWER
@@ -187,6 +187,14 @@ async def _mark_call_failed(call_uuid: str, sip_code: int = 486):
             db.close()
     except Exception as e:
         logger.error(f"[{call_uuid[:8]}] Failed to update CallLog: {e}")
+
+    # Set call status in Redis so frontend transcript polling detects the failure
+    if redis_client:
+        try:
+            redis_client.setex(f"call_status:{call_uuid}", 300, status)
+            logger.info(f"[{call_uuid[:8]}] Redis call_status set to '{status}'")
+        except Exception as re:
+            logger.error(f"[{call_uuid[:8]}] Failed to set call_status in Redis: {re}")
 
     # Clean up Redis keys
     if redis_client:

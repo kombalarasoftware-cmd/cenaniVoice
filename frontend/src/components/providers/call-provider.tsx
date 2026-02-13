@@ -272,6 +272,33 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
         if (response.ok) {
           const data = await response.json();
+
+          // Check for call failure (customer declined / no answer / busy)
+          const failureStatuses = ['no-answer', 'failed', 'busy', 'no_answer'];
+          if (data.status && failureStatuses.includes(data.status)) {
+            // Stop polling immediately
+            if (transcriptIntervalRef.current) {
+              clearInterval(transcriptIntervalRef.current);
+              transcriptIntervalRef.current = null;
+            }
+            if (eventSourceRef.current) {
+              eventSourceRef.current.close();
+              eventSourceRef.current = null;
+            }
+            if (durationIntervalRef.current) {
+              clearInterval(durationIntervalRef.current);
+              durationIntervalRef.current = null;
+            }
+            setCallStatus('ended');
+            setCallId(null);
+            setChannelId(null);
+            setDbCallId(null);
+            setIsUserSpeaking(false);
+            setIsAgentSpeaking(false);
+            toast.error('Customer did not answer the call');
+            return;
+          }
+
           if (data.transcript && Array.isArray(data.transcript)) {
             const newMessages: Message[] = data.transcript.map(
               (t: { role: string; text?: string; content?: string }, i: number) => ({
