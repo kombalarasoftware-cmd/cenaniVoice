@@ -2303,7 +2303,7 @@ A: Credit card, bank transfer, automatic payment order.
                     <thead>
                       <tr className="bg-muted/50 border-b border-border">
                         <th className="text-left px-4 py-3 text-sm font-medium">Prefix</th>
-                        <th className="text-left px-4 py-3 text-sm font-medium">Price/Second</th>
+                        <th className="text-left px-4 py-3 text-sm font-medium">Price/Minute</th>
                         <th className="text-left px-4 py-3 text-sm font-medium">Description</th>
                         <th className="w-16 px-4 py-3"></th>
                       </tr>
@@ -2388,9 +2388,9 @@ A: Credit card, bank transfer, automatic payment order.
                   <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                     <li>The system matches the <strong>longest prefix</strong> first (most specific wins)</li>
                     <li>Example: Prefix &quot;49&quot; = 0.10, Prefix &quot;495&quot; = 0.15</li>
-                    <li>Call to +491234... → matches &quot;49&quot; → 0.10/sec</li>
-                    <li>Call to +495234... → matches &quot;495&quot; → 0.15/sec</li>
-                    <li>Cost = Duration (seconds) × Price per second</li>
+                    <li>Call to +491234... → matches &quot;49&quot; → 0.10/min</li>
+                    <li>Call to +495234... → matches &quot;495&quot; → 0.15/min</li>
+                    <li>Cost = Duration (seconds) × (Price per minute / 60)</li>
                   </ul>
                 </div>
               </div>

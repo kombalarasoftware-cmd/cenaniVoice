@@ -772,7 +772,8 @@ async def agent_call_log(
             price_ps = matched.price_per_second
             matched_prefix = matched.prefix
             tariff_desc = matched.description
-            tariff_cost = round(duration * price_ps, 6)
+            # price_ps is per-minute rate, divide by 60 for per-second
+            tariff_cost = round(duration * (price_ps / 60), 6)
             total_tariff_cost += tariff_cost
 
         items.append(AgentCallLogItem(

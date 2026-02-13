@@ -256,7 +256,7 @@ export default function AgentCallLogPage(): React.ReactElement {
   // CSV Export
   const handleExport = (): void => {
     if (calls.length === 0) return;
-    const csvHeaders = ['Date', 'Customer', 'Number', 'Duration (s)', 'Status', 'Outcome', 'Provider', 'Prefix', 'Rate/sec', 'Cost', 'Campaign'];
+    const csvHeaders = ['Date', 'Customer', 'Number', 'Duration (s)', 'Status', 'Outcome', 'Provider', 'Prefix', 'Rate/min', 'Cost', 'Campaign'];
     const csvRows = calls.map(c => [
       c.started_at ? formatDate(c.started_at) : '',
       c.customer_name || '',
@@ -450,7 +450,7 @@ export default function AgentCallLogPage(): React.ReactElement {
                   <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Provider</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Prefix</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Rate/sec</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Rate/min</th>
                   <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Cost</th>
                   <th className="w-8"></th>
                 </tr>
@@ -511,7 +511,7 @@ export default function AgentCallLogPage(): React.ReactElement {
                           )}
                         </td>
                         <td className="px-4 py-3 text-sm text-right font-mono">
-                          {call.price_per_second != null ? `$${call.price_per_second.toFixed(4)}` : '—'}
+                          {call.price_per_second != null ? `$${call.price_per_second.toFixed(4)}/min` : '—'}
                         </td>
                         <td className={cn('px-4 py-3 text-sm text-right font-bold', formatCostColor(call.tariff_cost))}>
                           {formatCost(call.tariff_cost)}
@@ -556,7 +556,7 @@ export default function AgentCallLogPage(): React.ReactElement {
                                 <span className="text-muted-foreground">Calculation: </span>
                                 {call.price_per_second != null && call.duration > 0 ? (
                                   <span className="font-mono text-xs">
-                                    {call.duration}s × ${call.price_per_second.toFixed(4)} = {formatCost(call.tariff_cost)}
+                                    {call.duration}s × (${call.price_per_second.toFixed(4)}/60) = {formatCost(call.tariff_cost)}
                                   </span>
                                 ) : (
                                   <span className="text-muted-foreground">No tariff match</span>
