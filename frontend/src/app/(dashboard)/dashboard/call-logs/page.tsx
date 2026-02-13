@@ -21,6 +21,9 @@ import {
   Loader2,
   DollarSign,
   Cpu,
+  MessageSquare,
+  User,
+  Bot,
 } from 'lucide-react';
 
 import { API_V1 as API_BASE } from '@/lib/api';
@@ -61,6 +64,27 @@ interface CallsResponse {
   total: number;
   page: number;
   page_size: number;
+}
+
+interface TranscriptMessage {
+  role: string;
+  content: string;
+  timestamp: string;
+}
+
+interface TranscriptResponse {
+  call_id: number;
+  call_sid: string;
+  transcription: string | null;
+  messages: TranscriptMessage[];
+  message_count: number;
+  source: string;
+  sentiment: string | null;
+  summary: string | null;
+  agent_name: string | null;
+  customer_name: string | null;
+  duration: number;
+  started_at: string | null;
 }
 
 interface FiltersResponse {
@@ -470,6 +494,203 @@ function CallResultBadge({ call }: { call: CallLogResponse }) {
   return <span className="text-xs text-muted-foreground">—</span>;
 }
 
+// ─── Transcript Modal ─────────────────────────────────────────────
+function TranscriptModal({
+  callId,
+  callInfo,
+  onClose,
+}: {
+  callId: number;
+  callInfo: CallLogResponse;
+  onClose: () => void;
+}): React.ReactElement {
+  const [loading, setLoading] = useState(true);
+  const [transcript, setTranscript] = useState<TranscriptResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchTranscript = async (): Promise<void> => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`${API_BASE}/calls/${callId}/transcription`, { headers: headers() });
+        if (res.ok) {
+          const data: TranscriptResponse = await res.json();
+          setTranscript(data);
+        } else {
+          setError('Failed to load transcript');
+        }
+      } catch {
+        setError('Connection error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTranscript();
+  }, [callId]);
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Modal */}
+      <div className="relative z-10 w-full max-w-2xl max-h-[85vh] mx-4 bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/30">
+          <div className="flex items-center gap-3">
+            <MessageSquare className="h-5 w-5 text-primary-500" />
+            <div>
+              <h3 className="text-lg font-semibold">Conversation Transcript</h3>
+              <p className="text-xs text-muted-foreground">
+                {callInfo.customer_name || callInfo.to_number}
+                {callInfo.agent_name ? ` — ${callInfo.agent_name}` : ''}
+                {callInfo.started_at ? ` • ${formatDate(callInfo.started_at)}` : ''}
+                {callInfo.duration ? ` • ${formatDuration(callInfo.duration)}` : ''}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-muted transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
+              <span className="ml-3 text-muted-foreground">Loading transcript...</span>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <AlertCircle className="h-10 w-10 text-red-500 mb-3" />
+              <p className="text-red-500 font-medium">{error}</p>
+            </div>
+          ) : !transcript || transcript.messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <MessageSquare className="h-10 w-10 text-muted-foreground mb-3" />
+              <p className="text-muted-foreground font-medium">No transcript available</p>
+              <p className="text-xs text-muted-foreground mt-1">This call may not have a recorded conversation</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Summary */}
+              {transcript.summary && (
+                <div className="mb-6 p-4 rounded-xl bg-primary-500/5 border border-primary-500/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle className="h-4 w-4 text-primary-500" />
+                    <span className="text-sm font-semibold text-primary-500">Summary</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{transcript.summary}</p>
+                </div>
+              )}
+
+              {/* Messages */}
+              {transcript.messages.map((msg, idx) => {
+                const isAgent = msg.role === 'assistant' || msg.role === 'agent';
+                const isUser = msg.role === 'user';
+                const isSystem = !isAgent && !isUser;
+
+                if (isSystem) {
+                  return (
+                    <div key={idx} className="flex justify-center">
+                      <span className="text-xs text-muted-foreground bg-muted px-3 py-1 rounded-full">
+                        {msg.content}
+                      </span>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={idx}
+                    className={cn(
+                      'flex gap-3',
+                      isUser ? 'flex-row-reverse' : 'flex-row'
+                    )}
+                  >
+                    {/* Avatar */}
+                    <div className={cn(
+                      'flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center',
+                      isAgent ? 'bg-primary-500/10' : 'bg-blue-500/10'
+                    )}>
+                      {isAgent ? (
+                        <Bot className="h-4 w-4 text-primary-500" />
+                      ) : (
+                        <User className="h-4 w-4 text-blue-500" />
+                      )}
+                    </div>
+
+                    {/* Bubble */}
+                    <div className={cn(
+                      'max-w-[80%] rounded-2xl px-4 py-2.5',
+                      isAgent
+                        ? 'bg-muted/60 border border-border rounded-tl-md'
+                        : 'bg-blue-500/10 border border-blue-500/20 rounded-tr-md'
+                    )}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={cn(
+                          'text-xs font-semibold',
+                          isAgent ? 'text-primary-500' : 'text-blue-500'
+                        )}>
+                          {isAgent ? (transcript.agent_name || 'Agent') : (transcript.customer_name || 'Customer')}
+                        </span>
+                        {msg.timestamp && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm leading-relaxed">{msg.content}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-6 py-3 border-t border-border bg-muted/20">
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            {transcript && transcript.message_count > 0 && (
+              <span>{transcript.message_count} messages</span>
+            )}
+            {transcript?.sentiment && (
+              <span className={cn(
+                'font-medium',
+                transcript.sentiment === 'positive' ? 'text-green-500' :
+                transcript.sentiment === 'negative' ? 'text-red-500' : 'text-muted-foreground'
+              )}>
+                Sentiment: {transcript.sentiment}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm rounded-lg bg-muted hover:bg-muted/80 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────
 export default function CallLogsPage() {
   const [loading, setLoading] = useState(true);
@@ -478,6 +699,7 @@ export default function CallLogsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  const [transcriptCallId, setTranscriptCallId] = useState<number | null>(null);
 
   // Filters
   const [filters, setFilters] = useState<Filters>({
@@ -1045,6 +1267,20 @@ export default function CallLogsPage() {
                                   </div>
                                 )}
 
+                                {/* View Transcript Button */}
+                                <div className="pl-6">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTranscriptCallId(call.id);
+                                    }}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 text-white transition-colors text-sm font-medium"
+                                  >
+                                    <MessageSquare className="h-4 w-4" />
+                                    View Transcript
+                                  </button>
+                                </div>
+
                                 {/* Call IDs */}
                                 <div className="pl-6 pt-2 border-t border-border">
                                   <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -1153,6 +1389,19 @@ export default function CallLogsPage() {
           </>
         )}
       </div>
+
+      {/* Transcript Modal */}
+      {transcriptCallId !== null && (() => {
+        const selectedCall = calls.find(c => c.id === transcriptCallId);
+        if (!selectedCall) return null;
+        return (
+          <TranscriptModal
+            callId={transcriptCallId}
+            callInfo={selectedCall}
+            onClose={() => setTranscriptCallId(null)}
+          />
+        );
+      })()}
     </div>
   );
 }

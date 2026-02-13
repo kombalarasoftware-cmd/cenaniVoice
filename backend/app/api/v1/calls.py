@@ -300,7 +300,12 @@ async def get_call_transcription(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get call transcription"""
+    """Get call transcription with parsed messages.
+
+    Returns structured transcript messages (role + content) by:
+    1. Trying Redis first (available for ~1h after call ends)
+    2. Falling back to DB transcription field (persisted permanently)
+    """
     call = db.query(CallLog).outerjoin(CallLog.campaign).outerjoin(CallLog.agent).filter(
         CallLog.id == call_id,
         or_(
@@ -313,11 +318,70 @@ async def get_call_transcription(
     if not call:
         raise HTTPException(status_code=404, detail="Call not found")
 
+    messages: list[dict] = []
+    source = "none"
+
+    # 1) Try Redis (structured JSON, available for recent calls)
+    if redis_client and call.call_sid:
+        try:
+            transcript_key = f"call_transcript:{call.call_sid}"
+            key_type = redis_client.type(transcript_key)
+            if key_type == "list":
+                raw_items = redis_client.lrange(transcript_key, 0, -1)
+                for item in reversed(raw_items):
+                    try:
+                        entry = json.loads(item)
+                        content = entry.get("content", "").strip()
+                        if content:
+                            messages.append({
+                                "role": entry.get("role", "unknown"),
+                                "content": content,
+                                "timestamp": entry.get("timestamp", ""),
+                            })
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                if messages:
+                    source = "redis"
+        except Exception:
+            pass
+
+    # 2) Fallback: parse DB transcription field "[role]: content" format
+    if not messages and call.transcription:
+        import re
+        for line in call.transcription.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            match = re.match(r"^\[(\w+)\]:\s*(.+)$", line)
+            if match:
+                messages.append({
+                    "role": match.group(1),
+                    "content": match.group(2),
+                    "timestamp": "",
+                })
+            else:
+                # Unstructured line — append as system message
+                messages.append({
+                    "role": "system",
+                    "content": line,
+                    "timestamp": "",
+                })
+        if messages:
+            source = "database"
+
     return {
         "call_id": call.id,
+        "call_sid": call.call_sid,
         "transcription": call.transcription,
+        "messages": messages,
+        "message_count": len(messages),
+        "source": source,
         "sentiment": call.sentiment,
-        "summary": call.summary
+        "summary": call.summary,
+        "agent_name": call.agent.name if call.agent else None,
+        "customer_name": call.customer_name,
+        "duration": call.duration,
+        "started_at": call.started_at.isoformat() if call.started_at else None,
     }
 
 
