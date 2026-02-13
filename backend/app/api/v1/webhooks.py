@@ -362,6 +362,66 @@ async def amd_result_webhook(
 
 
 # =============================================================================
+# CALL FAILED WEBHOOK RECEIVER
+# Called by Asterisk dialplan or channel monitor when outbound call fails
+# =============================================================================
+
+class CallFailedRequest(PydanticBaseModel):
+    uuid: str
+    status: str = "BUSY"  # BUSY, NOANSWER, CONGESTION, CHANUNAVAIL
+    cause: str = ""  # Asterisk HANGUPCAUSE
+
+
+DIALSTATUS_TO_SIP = {
+    "BUSY": (486, "User Busy"),
+    "NOANSWER": (480, "No Answer"),
+    "CONGESTION": (503, "Network Congestion"),
+    "CHANUNAVAIL": (503, "Channel Unavailable"),
+    "CANCEL": (487, "Request Terminated"),
+}
+
+
+@router.post("/call-failed")
+async def call_failed_webhook(
+    payload: CallFailedRequest,
+    db: Session = Depends(get_db),
+    _sig: None = Depends(verify_incoming_webhook_signature),
+):
+    """
+    Receive call-failed notification from Asterisk dialplan.
+
+    When an outbound call fails (busy, no-answer, congestion) before
+    the AudioSocket bridge starts, Asterisk notifies us here.
+    """
+    sip_code, hangup_cause = DIALSTATUS_TO_SIP.get(
+        payload.status, (480, payload.status)
+    )
+    logger.info(
+        f"Call failed: uuid={payload.uuid[:8]}, status={payload.status}, "
+        f"sip_code={sip_code}, cause={payload.cause}"
+    )
+
+    call_log = db.query(CallLog).filter(CallLog.call_sid == payload.uuid).first()
+    if not call_log:
+        logger.warning(f"Call failed: CallLog not found for uuid={payload.uuid[:8]}")
+        return {"status": "not_found"}
+
+    # Only update if not already completed/failed
+    if call_log.status in (CallStatus.RINGING, CallStatus.QUEUED, CallStatus.IN_PROGRESS):
+        call_log.status = CallStatus.NO_ANSWER
+        call_log.outcome = CallOutcome.NO_ANSWER
+        call_log.sip_code = sip_code
+        call_log.hangup_cause = hangup_cause
+        call_log.ended_at = datetime.utcnow()
+        db.commit()
+        logger.info(f"Call failed: Marked call {payload.uuid[:8]} as {call_log.status}")
+    else:
+        logger.info(f"Call failed: Call {payload.uuid[:8]} already in state {call_log.status}, skipping")
+
+    return {"status": "ok", "sip_code": sip_code}
+
+
+# =============================================================================
 # ULTRAVOX WEBHOOK RECEIVER
 # =============================================================================
 

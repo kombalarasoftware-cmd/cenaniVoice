@@ -98,6 +98,105 @@ ARI_PASSWORD = settings.ASTERISK_ARI_PASSWORD
 ARI_APP = "voiceai"
 
 
+async def _monitor_outbound_channel(call_uuid: str, channel_id: str):
+    """
+    Monitor ARI channel for early failure (busy/no-answer/congestion).
+
+    After ARI originate, the channel dials the customer. If the customer
+    answers, the AudioSocket bridge starts and sets call_bridge_active:{uuid}.
+    If the customer rejects (busy) or doesn't answer, the ARI channel is
+    destroyed without the bridge ever starting.
+
+    This function polls the ARI channel status and updates CallLog when the
+    channel disappears before the bridge starts.
+    """
+    # Wait before first check — give time for SIP negotiation
+    await asyncio.sleep(5)
+
+    auth = aiohttp.BasicAuth(ARI_USERNAME, ARI_PASSWORD)
+    ari_url = f"http://{ARI_HOST}:{ARI_PORT}/ari/channels/{channel_id}"
+
+    # Poll for up to 2 minutes (24 checks × 5 seconds)
+    for _ in range(24):
+        try:
+            # If bridge has taken over, stop monitoring
+            if redis_client and redis_client.exists(f"call_bridge_active:{call_uuid}"):
+                logger.info(f"[{call_uuid[:8]}] Channel monitor: bridge active, stopping")
+                return
+
+            async with aiohttp.ClientSession(auth=auth) as session:
+                async with session.get(ari_url) as response:
+                    if response.status == 404:
+                        # Channel gone — double-check bridge didn't just start
+                        if redis_client and redis_client.exists(f"call_bridge_active:{call_uuid}"):
+                            logger.info(f"[{call_uuid[:8]}] Channel monitor: bridge active (late), stopping")
+                            return
+
+                        # Bridge never started → call failed before answer
+                        logger.warning(
+                            f"[{call_uuid[:8]}] Channel monitor: channel {channel_id} gone, "
+                            f"bridge never started — marking call as failed"
+                        )
+                        await _mark_call_failed(call_uuid, sip_code=486)
+                        return
+                    # Channel still exists — continue monitoring
+        except Exception as e:
+            logger.debug(f"[{call_uuid[:8]}] Channel monitor poll error: {e}")
+
+        await asyncio.sleep(5)
+
+    # Timed out (2 minutes) — assume something went wrong
+    logger.warning(f"[{call_uuid[:8]}] Channel monitor: timed out after 2 minutes")
+
+
+async def _mark_call_failed(call_uuid: str, sip_code: int = 486):
+    """Update CallLog to reflect a failed outbound call (busy/no-answer)."""
+    from app.core.database import SessionLocal
+
+    sip_map = {
+        486: ("no-answer", "User Busy"),
+        480: ("no-answer", "No Answer"),
+        487: ("no-answer", "Request Terminated"),
+        503: ("failed", "Service Unavailable"),
+    }
+    status, hangup_cause = sip_map.get(sip_code, ("no-answer", "No Answer"))
+
+    try:
+        db = SessionLocal()
+        try:
+            from app.models.models import CallLog, CallStatus, CallOutcome
+            call_log = db.query(CallLog).filter(CallLog.call_sid == call_uuid).first()
+            if call_log and call_log.status in (
+                CallStatus.RINGING, CallStatus.QUEUED, CallStatus.IN_PROGRESS
+            ):
+                call_log.status = CallStatus.NO_ANSWER if status == "no-answer" else CallStatus.FAILED
+                call_log.outcome = CallOutcome.NO_ANSWER
+                call_log.sip_code = sip_code
+                call_log.hangup_cause = hangup_cause
+                call_log.ended_at = datetime.utcnow()
+                db.commit()
+                logger.info(
+                    f"[{call_uuid[:8]}] CallLog updated: status={call_log.status}, "
+                    f"sip_code={sip_code}, cause={hangup_cause}"
+                )
+            elif call_log:
+                logger.info(f"[{call_uuid[:8]}] CallLog already updated (status={call_log.status}), skipping")
+            else:
+                logger.warning(f"[{call_uuid[:8]}] CallLog not found for uuid")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"[{call_uuid[:8]}] Failed to update CallLog: {e}")
+
+    # Clean up Redis keys
+    if redis_client:
+        try:
+            redis_client.delete(f"call_channel:{call_uuid}")
+            redis_client.delete(f"call_setup:{call_uuid}")
+        except Exception:
+            pass
+
+
 class OutboundCallRequest(BaseModel):
     """Request model for initiating an outbound call"""
     phone_number: str = Field(..., description="Phone number to call (without +, e.g., 491234567890)")
@@ -391,6 +490,13 @@ async def initiate_outbound_call(
                     logger.warning(f"Failed to create CallLog: {e}")
                     db.rollback()
                     db_call_id = None
+
+                # Start background channel monitor to detect busy/no-answer
+                # before the AudioSocket bridge starts
+                if channel_id:
+                    asyncio.create_task(
+                        _monitor_outbound_channel(call_uuid, channel_id)
+                    )
 
                 return OutboundCallResponse(
                     success=True,

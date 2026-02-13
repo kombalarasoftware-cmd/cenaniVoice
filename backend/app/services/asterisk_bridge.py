@@ -1129,6 +1129,20 @@ class CallBridge:
             "transfer_requested": False,
         }
 
+        # Signal that the bridge has started processing this call.
+        # The outbound channel monitor checks this flag to know
+        # whether the bridge took over (answered) or the call failed.
+        try:
+            import redis.asyncio as redis_async
+            r = redis_async.from_url(REDIS_URL, decode_responses=True)
+            try:
+                await r.setex(f"call_bridge_active:{self.call_uuid}", 600, "1")
+                logger.info(f"[{self.call_uuid[:8]}] ✅ Bridge active flag set in Redis")
+            finally:
+                await r.close()
+        except Exception as e:
+            logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Failed to set bridge active flag: {e}")
+
         try:
             # TCP_NODELAY: Disable Nagle's algorithm for lower audio latency
             sock = self.writer.get_extra_info('socket')
@@ -2138,6 +2152,17 @@ class CallBridge:
             pass
 
         call_data = active_calls.pop(self.call_uuid, {})
+
+        # Clear bridge active flag from Redis
+        try:
+            import redis.asyncio as redis_async
+            r = redis_async.from_url(REDIS_URL, decode_responses=True)
+            try:
+                await r.delete(f"call_bridge_active:{self.call_uuid}")
+            finally:
+                await r.close()
+        except Exception:
+            pass
         
         # ================================================================
         # POST-CALL PROCESSING - Summary, sentiment, quality score to DB
