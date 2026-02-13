@@ -167,6 +167,10 @@ class UltravoxService:
 
         Uses POST /calls/{call_id}/send_data_message with a hang_up payload.
         Ref: https://docs.ultravox.ai/api-reference/calls/calls-send-data-message-post
+
+        Returns dict with 'joined' key:
+        - joined=True: hang_up sent successfully (call was active)
+        - joined=False: call was not joined yet or already ended (422)
         """
         async with self._client() as client:
             payload: dict[str, Any] = {"type": "hang_up"}
@@ -178,13 +182,14 @@ class UltravoxService:
             )
             if response.status_code in (200, 204):
                 logger.info(f"Ultravox hang_up sent successfully for call {call_id[:8]}")
-                return {"success": True, "message": "Call ended"}
+                return {"success": True, "joined": True, "message": "Call ended"}
             if response.status_code == 422:
-                # Call is not active (not joined yet or already ended)
-                logger.info(f"Ultravox call {call_id[:8]} is not active (422)")
-                return {"success": True, "message": "Call already ended"}
+                # Call was not joined yet (still ringing) or already ended
+                # Caller should try DELETE to cancel the SIP leg
+                logger.info(f"Ultravox call {call_id[:8]} not active (422) — needs DELETE to cancel SIP")
+                return {"success": False, "joined": False, "message": "Call not joined"}
             response.raise_for_status()
-            return {"success": True, "message": "Call ended"}
+            return {"success": True, "joined": True, "message": "Call ended"}
 
     async def delete_call(self, call_id: str) -> dict:
         """Delete a call record (for cleanup after call ends).

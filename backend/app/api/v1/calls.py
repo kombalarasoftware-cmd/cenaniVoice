@@ -354,15 +354,36 @@ async def hangup_call(
     hangup_sent = False
 
     if call.provider == "ultravox" and call.ultravox_call_id:
-        # Ultravox: send hang_up data message via API
+        # Ultravox call termination strategy:
+        # 1. Try send_data_message with hang_up (works for active/answered calls)
+        # 2. If 422 (not joined = still ringing), DELETE the call to cancel SIP INVITE
+        from app.services.ultravox_service import UltravoxService
+        ultravox_svc = UltravoxService()
         try:
-            from app.services.ultravox_service import UltravoxService
-            ultravox_svc = UltravoxService()
-            await ultravox_svc.end_call(call.ultravox_call_id)
-            hangup_sent = True
-            logger.info(f"Ultravox hangup sent for call {call_id} (ultravox_id={call.ultravox_call_id})")
+            result = await ultravox_svc.end_call(call.ultravox_call_id)
+            if result.get("joined"):
+                # Call was active and hang_up was sent — SIP BYE will be triggered
+                hangup_sent = True
+                logger.info(f"Ultravox hangup sent for call {call_id} (ultravox_id={call.ultravox_call_id})")
+            else:
+                # 422: Call was still ringing (not joined) — DELETE to send SIP CANCEL
+                logger.info(f"Ultravox call {call_id} still ringing, sending DELETE to cancel SIP")
+                try:
+                    del_result = await ultravox_svc.delete_call(call.ultravox_call_id)
+                    if del_result.get("success"):
+                        hangup_sent = True
+                        logger.info(f"Ultravox DELETE cancelled ringing call {call_id}")
+                    else:
+                        # 425 Too Early — call might still be setting up, retry after delay
+                        import asyncio
+                        await asyncio.sleep(2)
+                        del_result2 = await ultravox_svc.delete_call(call.ultravox_call_id)
+                        hangup_sent = del_result2.get("success", False)
+                        logger.info(f"Ultravox DELETE retry for call {call_id}: success={hangup_sent}")
+                except Exception as del_err:
+                    logger.error(f"Ultravox DELETE failed for ringing call {call_id}: {del_err}")
         except Exception as e:
-            logger.warning(f"Ultravox hang_up failed for call {call_id}, trying DELETE: {e}")
+            logger.warning(f"Ultravox hang_up failed for call {call_id}: {e}")
             # Fallback: force-terminate via DELETE
             try:
                 await ultravox_svc.delete_call(call.ultravox_call_id)

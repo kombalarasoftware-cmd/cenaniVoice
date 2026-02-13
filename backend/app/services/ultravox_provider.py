@@ -226,7 +226,14 @@ class UltravoxProvider(CallProvider):
 
         try:
             result = await self.service.end_call(ultravox_call_id)
-            return result
+            if result.get("joined"):
+                return result
+            # 422: call was still ringing — DELETE to cancel SIP leg
+            logger.info(f"Ultravox call not joined, deleting to cancel SIP")
+            try:
+                return await self.service.delete_call(ultravox_call_id)
+            except Exception:
+                return result  # Return original result if DELETE also fails
         except Exception as e:
             logger.warning(f"Ultravox end_call failed, trying DELETE: {e}")
             try:
