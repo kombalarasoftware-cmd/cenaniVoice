@@ -364,8 +364,8 @@ async def amd_result_webhook(
     if not call_log and payload.phone:
         phone = payload.phone
         active_statuses = [
-            CallStatus.INITIATED, CallStatus.RINGING,
-            CallStatus.CONNECTED, CallStatus.IN_PROGRESS,
+            CallStatus.QUEUED, CallStatus.RINGING,
+            CallStatus.CONNECTED, CallStatus.TALKING,
         ]
         call_log = (
             db.query(CallLog)
