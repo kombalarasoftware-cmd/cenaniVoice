@@ -408,3 +408,64 @@ async def get_my_permissions(
         return PagePermissions().model_dump()
 
     return role_perm.permissions
+
+
+# ============ Pricing Information ============
+
+@router.get("/pricing")
+async def get_pricing_info(
+    current_user: User = Depends(get_current_user),
+):
+    """Get current provider pricing rates used for cost estimation."""
+    return {
+        "openai": {
+            "gpt-realtime-mini": {
+                "billing_model": "token",
+                "input_text": 0.60,
+                "input_audio": 10.00,
+                "cached_input_text": 0.06,
+                "cached_input_audio": 0.30,
+                "output_text": 2.40,
+                "output_audio": 20.00,
+                "unit": "per 1M tokens",
+            },
+            "gpt-realtime": {
+                "billing_model": "token",
+                "input_text": 4.00,
+                "input_audio": 32.00,
+                "cached_input_text": 0.40,
+                "cached_input_audio": 0.40,
+                "output_text": 16.00,
+                "output_audio": 64.00,
+                "unit": "per 1M tokens",
+            },
+        },
+        "xai": {
+            "grok-2-realtime": {
+                "billing_model": "per_second",
+                "rate_per_minute": 0.05,
+                "rate_per_second": 0.05 / 60,
+                "unit": "per second",
+            },
+        },
+        "ultravox": {
+            "ultravox": {
+                "billing_model": "deciminute",
+                "rate_per_minute": 0.05,
+                "rate_per_deciminute": 0.005,
+                "deciminute_seconds": 6,
+                "unit": "per 6 seconds",
+            },
+        },
+        "gemini": {
+            "gemini-live-2.5-flash-native-audio": {
+                "billing_model": "token",
+                "input_text": 0.50,
+                "input_audio": 3.00,
+                "output_text": 2.00,
+                "output_audio": 12.00,
+                "unit": "per 1M tokens",
+                "platform": "Vertex AI",
+            },
+        },
+    }

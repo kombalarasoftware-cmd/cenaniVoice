@@ -26,9 +26,14 @@ import {
   EyeOff,
   Loader2,
   UsersRound,
+  DollarSign,
+  Cpu,
+  Clock,
+  Zap,
+  Info,
 } from 'lucide-react';
 
-type SettingsTab = 'general' | 'sip' | 'api' | 'webhooks' | 'notifications' | 'security' | 'roles';
+type SettingsTab = 'general' | 'sip' | 'pricing' | 'api' | 'webhooks' | 'notifications' | 'security' | 'roles';
 
 interface PagePermissions {
   dashboard: boolean;
@@ -261,6 +266,7 @@ export default function SettingsPage() {
   const tabs = [
     { id: 'general' as SettingsTab, label: 'General', icon: Settings },
     { id: 'sip' as SettingsTab, label: 'SIP Trunk', icon: Phone },
+    { id: 'pricing' as SettingsTab, label: 'Pricing', icon: DollarSign },
     { id: 'api' as SettingsTab, label: 'API Keys', icon: Key },
     { id: 'webhooks' as SettingsTab, label: 'Webhooks', icon: Webhook },
     { id: 'notifications' as SettingsTab, label: 'Notifications', icon: Bell },
@@ -555,6 +561,252 @@ export default function SettingsPage() {
                       Save Changes
                     </button>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Pricing Settings */}
+            {activeTab === 'pricing' && (
+              <div className="space-y-6">
+                {/* Overview Card */}
+                <div className="p-6 rounded-xl bg-card border border-border">
+                  <h3 className="font-semibold mb-2 flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-primary-500" />
+                    Provider Pricing Overview
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-6">
+                    Current pricing rates used for cost estimation in Call Logs. These rates are based on official provider pricing.
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* OpenAI */}
+                    <div className="p-5 rounded-xl border border-border bg-muted/20">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
+                          <Zap className="h-5 w-5 text-emerald-500" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold">OpenAI Realtime</h4>
+                          <p className="text-xs text-muted-foreground">Token-based billing</p>
+                        </div>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Model</span>
+                          <span className="font-mono font-medium">gpt-realtime-mini</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Input Audio</span>
+                          <span className="font-mono font-medium text-amber-500">$10.00 / 1M tokens</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Output Audio</span>
+                          <span className="font-mono font-medium text-amber-500">$20.00 / 1M tokens</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Cached Input</span>
+                          <span className="font-mono font-medium text-green-500">$0.30 / 1M tokens</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Input Text</span>
+                          <span className="font-mono font-medium">$0.60 / 1M tokens</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Output Text</span>
+                          <span className="font-mono font-medium">$2.40 / 1M tokens</span>
+                        </div>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Info className="h-3 w-3" />
+                          gpt-realtime (full) costs ~3x more per token
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* xAI Grok */}
+                    <div className="p-5 rounded-xl border border-border bg-muted/20">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
+                          <Cpu className="h-5 w-5 text-blue-500" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold">xAI Grok</h4>
+                          <p className="text-xs text-muted-foreground">Per-second billing</p>
+                        </div>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Model</span>
+                          <span className="font-mono font-medium">grok-2-realtime</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Rate</span>
+                          <span className="font-mono font-medium text-blue-500">$0.05 / minute</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Per Second</span>
+                          <span className="font-mono font-medium">$0.000833</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Billing Unit</span>
+                          <span className="font-mono font-medium">Per second</span>
+                        </div>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Info className="h-3 w-3" />
+                          Flat rate regardless of input/output
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Ultravox */}
+                    <div className="p-5 rounded-xl border border-border bg-muted/20">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10">
+                          <Phone className="h-5 w-5 text-purple-500" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold">Ultravox</h4>
+                          <p className="text-xs text-muted-foreground">Per 6-second increment</p>
+                        </div>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Model</span>
+                          <span className="font-mono font-medium">ultravox</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Rate</span>
+                          <span className="font-mono font-medium text-purple-500">$0.05 / minute</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Per Deciminute</span>
+                          <span className="font-mono font-medium">$0.005 / 6 sec</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Billing Unit</span>
+                          <span className="font-mono font-medium">6 sec (rounded up)</span>
+                        </div>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Info className="h-3 w-3" />
+                          Billed via Ultravox webhook (deciminute)
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Google Gemini */}
+                    <div className="p-5 rounded-xl border border-border bg-muted/20">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/10">
+                          <Globe className="h-5 w-5 text-orange-500" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold">Google Gemini (Vertex AI)</h4>
+                          <p className="text-xs text-muted-foreground">Token-based billing</p>
+                        </div>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Model</span>
+                          <span className="font-mono font-medium text-xs">gemini-2.5-flash-native-audio</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Input Audio</span>
+                          <span className="font-mono font-medium text-orange-500">$3.00 / 1M tokens</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Output Audio</span>
+                          <span className="font-mono font-medium text-orange-500">$12.00 / 1M tokens</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Input Text</span>
+                          <span className="font-mono font-medium">$0.50 / 1M tokens</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                          <span className="text-muted-foreground">Output Text</span>
+                          <span className="font-mono font-medium">$2.00 / 1M tokens</span>
+                        </div>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Info className="h-3 w-3" />
+                          Vertex AI Live API pricing (same as Developer API)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cost Comparison Table */}
+                <div className="p-6 rounded-xl bg-card border border-border">
+                  <h3 className="font-semibold mb-4 flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-secondary-500" />
+                    Cost Comparison (1-Minute Call)
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border">
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Provider</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Billing Model</th>
+                          <th className="text-right py-3 px-4 font-medium text-muted-foreground">Est. Cost / Min</th>
+                          <th className="text-right py-3 px-4 font-medium text-muted-foreground">Est. Cost / Hour</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b border-border/50">
+                          <td className="py-3 px-4 font-medium">OpenAI (mini)</td>
+                          <td className="py-3 px-4 text-muted-foreground">Token-based</td>
+                          <td className="py-3 px-4 text-right font-mono">~$0.045</td>
+                          <td className="py-3 px-4 text-right font-mono">~$2.70</td>
+                        </tr>
+                        <tr className="border-b border-border/50">
+                          <td className="py-3 px-4 font-medium">OpenAI (full)</td>
+                          <td className="py-3 px-4 text-muted-foreground">Token-based</td>
+                          <td className="py-3 px-4 text-right font-mono">~$0.144</td>
+                          <td className="py-3 px-4 text-right font-mono">~$8.64</td>
+                        </tr>
+                        <tr className="border-b border-border/50">
+                          <td className="py-3 px-4 font-medium">xAI Grok</td>
+                          <td className="py-3 px-4 text-muted-foreground">Per-second</td>
+                          <td className="py-3 px-4 text-right font-mono">$0.050</td>
+                          <td className="py-3 px-4 text-right font-mono">$3.00</td>
+                        </tr>
+                        <tr className="border-b border-border/50">
+                          <td className="py-3 px-4 font-medium">Ultravox</td>
+                          <td className="py-3 px-4 text-muted-foreground">Per 6-sec</td>
+                          <td className="py-3 px-4 text-right font-mono">$0.050</td>
+                          <td className="py-3 px-4 text-right font-mono">$3.00</td>
+                        </tr>
+                        <tr>
+                          <td className="py-3 px-4 font-medium">Gemini Flash</td>
+                          <td className="py-3 px-4 text-muted-foreground">Token-based</td>
+                          <td className="py-3 px-4 text-right font-mono">~$0.023</td>
+                          <td className="py-3 px-4 text-right font-mono">~$1.35</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-4 flex items-center gap-1">
+                    <Info className="h-3 w-3 flex-shrink-0" />
+                    Token-based estimates assume ~1500 audio tokens/min input + ~750 tokens/min output. Actual costs vary by conversation.
+                  </p>
+                </div>
+
+                {/* Info */}
+                <div className="p-4 rounded-xl bg-muted/30">
+                  <h4 className="font-medium mb-2">How Cost Calculation Works</h4>
+                  <ul className="space-y-1 text-sm text-muted-foreground">
+                    <li>&#8226; <strong>OpenAI</strong> — Exact token counts from response.done events (text + audio split)</li>
+                    <li>&#8226; <strong>xAI Grok</strong> — Call duration (seconds) &times; per-second rate ($0.000833/s)</li>
+                    <li>&#8226; <strong>Ultravox</strong> — Duration rounded up to 6-second increments (deciminutes) &times; $0.005</li>
+                    <li>&#8226; <strong>Gemini</strong> — Token counts from usageMetadata (prompt + response tokens)</li>
+                    <li>&#8226; Costs shown in Call Logs are <strong>estimates</strong> and may differ from actual billing</li>
+                  </ul>
                 </div>
               </div>
             )}

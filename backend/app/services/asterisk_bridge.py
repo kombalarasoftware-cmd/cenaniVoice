@@ -155,12 +155,17 @@ COST_PER_TOKEN = {
     },
 }
 
-# xAI Grok Voice Agent Pricing (per minute flat rate)
-XAI_COST_PER_MINUTE = 0.10  # $0.10/min estimated (xAI per-minute billing)
+# xAI Grok Voice Agent Pricing (per-second billing)
+# https://docs.x.ai/docs/models — $0.05/minute
+XAI_COST_PER_MINUTE = 0.05  # $0.05/min
+XAI_COST_PER_SECOND = XAI_COST_PER_MINUTE / 60  # ~$0.000833/sec
 
-# Google Gemini Live API Pricing (per 1M tokens)
+# Google Gemini Live API Pricing (Vertex AI — per 1M tokens)
+# https://cloud.google.com/vertex-ai/generative-ai/pricing
 GEMINI_COST_PER_TOKEN = {
+    "input_text": 0.50 / 1_000_000,
     "input_audio": 3.00 / 1_000_000,
+    "output_text": 2.00 / 1_000_000,
     "output_audio": 12.00 / 1_000_000,
 }
 
@@ -1743,8 +1748,8 @@ class CallBridge:
                             f"[{self.call_uuid[:8]}] 📊 Tokens: "
                             f"in={usage.get('input_tokens', 0)} out={usage.get('output_tokens', 0)}"
                         )
-                        # Save usage to Redis for cost tracking
-                        asyncio.create_task(save_usage_to_redis(self.call_uuid, usage, MODEL))
+                        # Save usage to Redis for cost tracking — use actual model, not global MODEL
+                        asyncio.create_task(save_usage_to_redis(self.call_uuid, usage, self.agent_model))
 
                 elif event_type == "error":
                     error = event.get("error", {})
@@ -1954,11 +1959,29 @@ class CallBridge:
                 # ── Usage/metadata ──
                 usage_metadata = event.get("usageMetadata")
                 if usage_metadata:
+                    prompt_tokens = usage_metadata.get("promptTokenCount", 0)
+                    response_tokens = usage_metadata.get("responseTokenCount", 0)
                     logger.debug(
                         f"[{self.call_uuid[:8]}] 📊 Gemini tokens: "
-                        f"prompt={usage_metadata.get('promptTokenCount', 0)} "
-                        f"response={usage_metadata.get('responseTokenCount', 0)}"
+                        f"prompt={prompt_tokens} response={response_tokens}"
                     )
+                    # Save Gemini usage to Redis for cost tracking
+                    gemini_usage = {
+                        "input_tokens": prompt_tokens,
+                        "output_tokens": response_tokens,
+                        "input_token_details": {
+                            "text_tokens": 0,
+                            "audio_tokens": prompt_tokens,
+                            "cached_tokens": 0,
+                        },
+                        "output_token_details": {
+                            "text_tokens": 0,
+                            "audio_tokens": response_tokens,
+                        },
+                    }
+                    asyncio.create_task(save_usage_to_redis(
+                        self.call_uuid, gemini_usage, self.agent_model
+                    ))
 
         except websockets.exceptions.ConnectionClosed as e:
             logger.warning(f"[{self.call_uuid[:8]}] 🔌 Gemini kapandı: {e}")
@@ -2261,7 +2284,7 @@ class CallBridge:
         except Exception as e:
             logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Post-call Redis hatası: {e}")
         
-        # Fetch token usage from Redis and calculate cost
+        # Fetch token usage from Redis and calculate cost (provider-aware)
         input_tokens = 0
         output_tokens = 0
         cached_tokens = 0
@@ -2279,53 +2302,87 @@ class CallBridge:
                     output_tokens = usage.get("output_tokens", 0)
                     model_used = usage.get("model", model_used)
 
-                    # Calculate cost from token details
-                    pricing = COST_PER_TOKEN.get(model_used, COST_PER_TOKEN["gpt-realtime-mini"])
-
-                    input_details = usage.get("input_token_details", {})
-                    output_details = usage.get("output_token_details", {})
-
-                    input_text = input_details.get("text_tokens", 0)
-                    input_audio = input_details.get("audio_tokens", 0)
-                    cached_text = input_details.get("cached_tokens", 0)
-                    cached_audio = 0
-
-                    # Handle cached_tokens_details if available
-                    cached_details = input_details.get("cached_tokens_details", {})
-                    if cached_details:
-                        cached_text = cached_details.get("text_tokens", 0)
-                        cached_audio = cached_details.get("audio_tokens", 0)
-
-                    cached_tokens = cached_text + cached_audio
-
-                    output_text = output_details.get("text_tokens", 0)
-                    output_audio = output_details.get("audio_tokens", 0)
-
-                    # If no details, estimate 80% text / 20% audio
-                    if not input_details:
-                        input_text = int(input_tokens * 0.8)
-                        input_audio = input_tokens - input_text
-
-                    if not output_details:
-                        output_text = int(output_tokens * 0.8)
-                        output_audio = output_tokens - output_text
-
-                    # Uncached input tokens
-                    uncached_text = max(0, input_text - cached_text)
-                    uncached_audio = max(0, input_audio - cached_audio)
-
-                    # Calculate cost
-                    estimated_cost = (
-                        uncached_text * pricing["input_text"] +
-                        uncached_audio * pricing["input_audio"] +
-                        cached_text * pricing["cached_input_text"] +
-                        cached_audio * pricing["cached_input_audio"] +
-                        output_text * pricing["output_text"] +
-                        output_audio * pricing["output_audio"]
+                if self.provider == "xai":
+                    # xAI Grok: per-second billing at $0.05/min
+                    estimated_cost = duration * XAI_COST_PER_SECOND
+                    logger.info(
+                        f"[{self.call_uuid[:8]}] 💰 xAI Cost: ${estimated_cost:.6f} "
+                        f"({duration:.1f}s × ${XAI_COST_PER_SECOND:.6f}/s, model={model_used})"
                     )
 
+                elif self.provider == "gemini":
+                    # Gemini: token-based pricing via GEMINI_COST_PER_TOKEN
+                    if usage_data:
+                        usage = json.loads(usage_data)
+                        input_details = usage.get("input_token_details", {})
+                        output_details = usage.get("output_token_details", {})
+
+                        input_audio = input_details.get("audio_tokens", 0) or input_tokens
+                        input_text = input_details.get("text_tokens", 0)
+                        output_audio = output_details.get("audio_tokens", 0) or output_tokens
+                        output_text = output_details.get("text_tokens", 0)
+
+                        estimated_cost = (
+                            input_audio * GEMINI_COST_PER_TOKEN["input_audio"] +
+                            input_text * GEMINI_COST_PER_TOKEN["input_text"] +
+                            output_audio * GEMINI_COST_PER_TOKEN["output_audio"] +
+                            output_text * GEMINI_COST_PER_TOKEN["output_text"]
+                        )
                     logger.info(
-                        f"[{self.call_uuid[:8]}] 💰 Cost: ${estimated_cost:.6f} "
+                        f"[{self.call_uuid[:8]}] 💰 Gemini Cost: ${estimated_cost:.6f} "
+                        f"(in={input_tokens} out={output_tokens} model={model_used})"
+                    )
+
+                else:
+                    # OpenAI: token-based pricing with cached token support
+                    if usage_data:
+                        usage = json.loads(usage_data)
+                        pricing = COST_PER_TOKEN.get(model_used, COST_PER_TOKEN["gpt-realtime-mini"])
+
+                        input_details = usage.get("input_token_details", {})
+                        output_details = usage.get("output_token_details", {})
+
+                        input_text = input_details.get("text_tokens", 0)
+                        input_audio = input_details.get("audio_tokens", 0)
+                        cached_text = input_details.get("cached_tokens", 0)
+                        cached_audio = 0
+
+                        # Handle cached_tokens_details if available
+                        cached_details = input_details.get("cached_tokens_details", {})
+                        if cached_details:
+                            cached_text = cached_details.get("text_tokens", 0)
+                            cached_audio = cached_details.get("audio_tokens", 0)
+
+                        cached_tokens = cached_text + cached_audio
+
+                        output_text = output_details.get("text_tokens", 0)
+                        output_audio = output_details.get("audio_tokens", 0)
+
+                        # If no details, estimate 80% audio / 20% text (voice calls)
+                        if not input_details:
+                            input_audio = int(input_tokens * 0.8)
+                            input_text = input_tokens - input_audio
+
+                        if not output_details:
+                            output_audio = int(output_tokens * 0.8)
+                            output_text = output_tokens - output_audio
+
+                        # Uncached input tokens
+                        uncached_text = max(0, input_text - cached_text)
+                        uncached_audio = max(0, input_audio - cached_audio)
+
+                        # Calculate cost
+                        estimated_cost = (
+                            uncached_text * pricing["input_text"] +
+                            uncached_audio * pricing["input_audio"] +
+                            cached_text * pricing["cached_input_text"] +
+                            cached_audio * pricing["cached_input_audio"] +
+                            output_text * pricing["output_text"] +
+                            output_audio * pricing["output_audio"]
+                        )
+
+                    logger.info(
+                        f"[{self.call_uuid[:8]}] 💰 OpenAI Cost: ${estimated_cost:.6f} "
                         f"(in={input_tokens} out={output_tokens} cached={cached_tokens} model={model_used})"
                     )
             finally:
