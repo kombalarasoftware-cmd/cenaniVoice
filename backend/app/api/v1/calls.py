@@ -550,6 +550,63 @@ async def hangup_call(
         call.duration = int((call.ended_at - call.connected_at).total_seconds())
     else:
         call.duration = 0
+
+    # ── Immediate cost calculation for all providers ─────────────────
+    # Ensures cost is available right away, webhook/bridge can refine later
+    import math
+    if call.duration and call.duration > 0:
+        provider = call.provider or "openai"
+        if provider == "ultravox":
+            # Deciminute-based: $0.005 per 6-second increment
+            deciminutes = math.ceil(call.duration / 6)
+            call.estimated_cost = round(deciminutes * 0.005, 4)
+        elif provider == "xai":
+            # Per-second billing: $0.05/min
+            call.estimated_cost = round(call.duration * (0.05 / 60), 4)
+        elif provider in ("openai", "gemini"):
+            # Token-based — try to get from Redis, else estimate from duration
+            try:
+                usage_data = redis_client.get(f"call_usage:{call.call_sid}") if redis_client else None
+                if usage_data:
+                    usage = json.loads(usage_data)
+                    input_tokens = usage.get("input_tokens", 0)
+                    output_tokens = usage.get("output_tokens", 0)
+                    cached_tokens = 0
+                    if provider == "openai":
+                        # OpenAI Realtime mini pricing
+                        input_details = usage.get("input_token_details", {})
+                        cached_details = input_details.get("cached_tokens_details", {})
+                        if cached_details:
+                            cached_tokens = cached_details.get("text_tokens", 0) + cached_details.get("audio_tokens", 0)
+                        elif input_details:
+                            cached_tokens = input_details.get("cached_tokens", 0)
+                        call.input_tokens = input_tokens
+                        call.output_tokens = output_tokens
+                        call.cached_tokens = cached_tokens
+                        # Estimate: ~$0.06/min for realtime voice
+                        call.estimated_cost = round(call.duration * (0.06 / 60), 4)
+                    else:
+                        # Gemini: ~$0.04/min estimate
+                        call.input_tokens = input_tokens
+                        call.output_tokens = output_tokens
+                        call.estimated_cost = round(call.duration * (0.04 / 60), 4)
+                else:
+                    # No token data yet — duration-based estimate
+                    rate_per_min = 0.06 if provider == "openai" else 0.04
+                    call.estimated_cost = round(call.duration * (rate_per_min / 60), 4)
+            except Exception as e:
+                logger.warning(f"Cost calculation from Redis failed: {e}")
+                rate_per_min = 0.06 if provider == "openai" else 0.04
+                call.estimated_cost = round(call.duration * (rate_per_min / 60), 4)
+
+        if not call.model_used and provider == "ultravox":
+            call.model_used = "ultravox"
+
+        logger.info(
+            f"Hangup cost for call {call_id}: provider={provider}, "
+            f"duration={call.duration}s, cost=${call.estimated_cost}"
+        )
+
     db.commit()
 
     # Broadcast call update
