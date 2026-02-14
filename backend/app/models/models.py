@@ -2,12 +2,18 @@ from datetime import datetime
 from typing import Optional, List, Any
 from sqlalchemy import (
     Integer, String, Text, Boolean, DateTime,
-    ForeignKey, Float, JSON, Enum as SQLEnum,
+    ForeignKey, Float, JSON, Enum as _SQLEnum,
     Index, UniqueConstraint, func
 )
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 import enum
 from app.core.database import Base
+
+
+def SQLEnum(enum_class, **kwargs):
+    """Wrapper to ensure SQLAlchemy uses .value (lowercase) for DB enum mapping."""
+    kwargs.setdefault("values_callable", lambda obj: [e.value for e in obj])
+    return _SQLEnum(enum_class, **kwargs)
 
 
 class UserRole(str, enum.Enum):
