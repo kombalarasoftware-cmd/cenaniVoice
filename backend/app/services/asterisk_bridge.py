@@ -457,9 +457,25 @@ async def save_audio_to_redis(call_uuid: str, audio_data: bytes, channel: str = 
     """
     Append audio buffer to Redis for post-call recording (MinIO).
     Uses a shared connection pool to avoid creating new connections per chunk.
+    Batches audio internally — callers fire-and-forget every chunk, but Redis
+    write only happens when the internal buffer exceeds ~1s of audio.
     channel: "output" (agent/AI audio) or "input" (customer audio)
     """
     global _redis_audio_pool
+    # --- Accumulate in memory before hitting Redis ---
+    # This drastically reduces Redis operations from 25/s to ~1/s per channel
+    if not hasattr(save_audio_to_redis, "_buffers"):
+        save_audio_to_redis._buffers = {}  # type: ignore[attr-defined]
+        save_audio_to_redis._error_count = 0  # type: ignore[attr-defined]
+    buf_key = f"{channel}:{call_uuid}"
+    buf = save_audio_to_redis._buffers.setdefault(buf_key, bytearray())  # type: ignore[attr-defined]
+    buf.extend(audio_data)
+    # Flush threshold: ~1 second of 24kHz 16-bit mono audio = 48000 bytes
+    if len(buf) < 48000:
+        return True  # accumulated, not flushed yet
+    # Drain buffer
+    data_to_write = bytes(buf)
+    buf.clear()
     try:
         if _redis_audio_pool is None:
             import redis.asyncio as redis_async
@@ -468,16 +484,20 @@ async def save_audio_to_redis(call_uuid: str, audio_data: bytes, channel: str = 
                 max_connections=10,
             )
         audio_key = f"call_audio_{channel}:{call_uuid}"
-        await _redis_audio_pool.append(audio_key, audio_data)
+        await _redis_audio_pool.append(audio_key, data_to_write)
         # EXPIRE only on first write (avoids redundant EXPIRE calls on every chunk)
         ttl_flag_key = f"call_audio_ttl:{channel}:{call_uuid}"
         is_new = await _redis_audio_pool.setnx(ttl_flag_key, b"1")
         if is_new:
             await _redis_audio_pool.expire(audio_key, 3600)
             await _redis_audio_pool.expire(ttl_flag_key, 3600)
+        save_audio_to_redis._error_count = 0  # type: ignore[attr-defined]
         return True
     except Exception as e:
-        logger.warning(f"[{call_uuid[:8]}] ⚠️ Audio save error ({channel}): {e}")
+        # Log only first 3 errors per call to avoid log spam
+        save_audio_to_redis._error_count += 1  # type: ignore[attr-defined]
+        if save_audio_to_redis._error_count <= 3:  # type: ignore[attr-defined]
+            logger.warning(f"[{call_uuid[:8]}] ⚠️ Audio save error ({channel}): {e}")
     return False
 
 
@@ -1128,6 +1148,12 @@ class CallBridge:
             logger.info(f"[{self.call_uuid[:8]}] Agent '{call_setup.get('agent_name', 'Unknown')}' loaded from Redis: "
                         f"voice={self.agent_voice}, model={self.agent_model}, lang={self.agent_language}, vad={self.agent_vad_threshold}")
 
+            # xAI: use minimal input buffer (20ms = single chunk pass-through)
+            # xAI's server_vad is latency-sensitive; less buffering = faster detection
+            if self.provider == "xai":
+                self.buffer_target_ms = 20
+                self.buffer_target_bytes = ASTERISK_SAMPLE_RATE * 2 * self.buffer_target_ms // 1000
+
             # ================================================================
             # Adjust start_time to SIP answer time for accurate duration.
             # AMD detection + AudioSocket setup takes ~2-3s after SIP answer.
@@ -1226,6 +1252,11 @@ class CallBridge:
                         logger.info(f"[{self.call_uuid[:8]}] ✅ Agent '{agent_data['name']}' yüklendi (ARI fallback): "
                                     f"voice={self.agent_voice}, model={self.agent_model}, lang={self.agent_language}, "
                                     f"vad={self.agent_turn_detection}, provider={self.provider}")
+
+                        # xAI: minimal input buffer for faster VAD
+                        if self.provider == "xai":
+                            self.buffer_target_ms = 20
+                            self.buffer_target_bytes = ASTERISK_SAMPLE_RATE * 2 * self.buffer_target_ms // 1000
                     else:
                         logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Agent ID {agent_id} database'de bulunamadı, default ayarlar kullanılıyor")
                 except Exception as e:
