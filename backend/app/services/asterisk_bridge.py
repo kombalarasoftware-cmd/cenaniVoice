@@ -1013,6 +1013,11 @@ class CallBridge:
         self.conversation_phase = "opening"  # opening, gathering, resolution, closing
         self.turn_count = 0  # Number of complete turns (user + agent)
 
+        # xAI barge-in flag — suppress residual audio after user interrupts
+        # xAI does NOT support response.cancel, so the bridge must discard
+        # incoming audio.delta until xAI starts a fresh response cycle.
+        self._xai_barge_in = False
+
         # Audio buffer - küçük chunk'ları biriktirip toplu gönderim
         # 100ms = 5x 20ms chunk → kesik ses sorununu önler
         self.audio_buffer = bytearray()
@@ -1788,7 +1793,10 @@ class CallBridge:
                         # interruption internally when server_vad detects speech.
                         # Sending response.cancel corrupts xAI's conversation
                         # state and breaks auto-response after user speech.
-                        logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — clearing local output buffer (xAI auto-interrupt)")
+                        # Set barge-in flag to suppress residual audio.delta
+                        # events from the interrupted response.
+                        self._xai_barge_in = True
+                        logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — barge-in active, suppressing agent audio (xAI)")
                     else:
                         # OpenAI supports response.cancel — send it to stop generation
                         logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — clearing output buffer and cancelling response")
@@ -1798,7 +1806,21 @@ class CallBridge:
                     self.last_user_activity_time = time.monotonic()
                     logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STOPPED")
 
+                elif event_type == "response.created":
+                    # New response cycle — clear xAI barge-in suppression
+                    if self._xai_barge_in:
+                        self._xai_barge_in = False
+                        self.output_buffer.clear()
+                        is_playing = False
+                        next_send_time = None
+                        logger.info(f"[{self.call_uuid[:8]}] 🔄 New response started — barge-in cleared, resuming audio")
+
                 elif event_type in ("response.audio.delta", "response.output_audio.delta"):
+                    # If xAI barge-in is active, discard residual audio from
+                    # the interrupted response — don't play it to caller.
+                    if self._xai_barge_in:
+                        continue
+
                     audio_b64 = event.get("delta", "")
                     if audio_b64:
                         audio_pcm_24k = base64.b64decode(audio_b64)
@@ -1835,6 +1857,13 @@ class CallBridge:
                         await self.writer.drain()
                 
                 elif event_type in ("response.audio.done", "response.output_audio.done"):
+                    # If barge-in active, just discard — don't flush residual audio
+                    if self._xai_barge_in:
+                        self.output_buffer.clear()
+                        is_playing = False
+                        next_send_time = None
+                        continue
+
                     # Yanıt bitti, kalan buffer'ı temizle
                     while len(self.output_buffer) >= ASTERISK_CHUNK_BYTES:
                         chunk = bytes(self.output_buffer[:ASTERISK_CHUNK_BYTES])
