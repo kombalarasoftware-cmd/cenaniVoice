@@ -1572,17 +1572,24 @@ class CallBridge:
         if self.provider == "xai":
             # xAI Grok session config
             # Docs: https://docs.x.ai/developers/model-capabilities/audio/voice-agent
-            # xAI Voice Agent API — documented params only:
-            # voice, instructions, turn_detection, audio, tools
-            # Undocumented: model, temperature, input_audio_transcription,
-            #   max_response_output_tokens — omitted to avoid state corruption.
-            # xAI supports server_vad only (no semantic_vad, no threshold/padding params in docs)
+            # xAI Voice Agent API uses OpenAI-compatible protocol.
+            # Documented session params: voice, instructions, turn_detection, audio, tools
+            # Additional OpenAI-compatible params (model, temperature, modalities,
+            # input_audio_transcription) are sent for better language detection
+            # and response quality. xAI silently ignores unsupported fields.
             config = {
                 "type": "session.update",
                 "session": {
+                    "model": self.agent_model,
+                    "modalities": ["text", "audio"],
                     "voice": self.agent_voice,
                     "instructions": instructions,
+                    "temperature": self.agent_temperature,
                     "turn_detection": {"type": "server_vad"},
+                    "input_audio_transcription": {
+                        "model": "grok-2-realtime",
+                        "language": self.agent_language,
+                    },
                     "audio": {
                         "input": {"format": {"type": "audio/pcm", "rate": 24000}},
                         "output": {"format": {"type": "audio/pcm", "rate": 24000}},
@@ -1619,7 +1626,8 @@ class CallBridge:
         
         await self.openai_ws.send(json.dumps(config))
         if self.provider == "xai":
-            logger.info(f"[{self.call_uuid[:8]}] ⚙️ Session yapılandırıldı (xAI): voice={self.agent_voice}, lang={self.agent_language}, "
+            logger.info(f"[{self.call_uuid[:8]}] ⚙️ Session yapılandırıldı (xAI): voice={self.agent_voice}, "
+                         f"model={self.agent_model}, lang={self.agent_language}, temp={self.agent_temperature}, "
                          f"vad=server_vad (auto-interrupt)")
         else:
             # Enable adaptive VAD for OpenAI — the only provider supporting mid-call session.update
@@ -1742,10 +1750,28 @@ class CallBridge:
                 language=self.agent_language or "tr",
             )
             
-            greeting_instruction = f"Greet the customer by saying EXACTLY this text: '{greeting}'"
+            # Language-aware greeting instruction to avoid confusing the AI's
+            # language context.  English wrapper text caused xAI to mix languages.
+            lang = (self.agent_language or "tr").lower()
+            if lang == "tr":
+                greeting_instruction = f"Müşteriye tam olarak şu metni söyle: '{greeting}'"
+            elif lang == "en":
+                greeting_instruction = f"Greet the customer by saying EXACTLY this text: '{greeting}'"
+            elif lang == "de":
+                greeting_instruction = f"Begrüße den Kunden mit genau diesem Text: '{greeting}'"
+            elif lang == "fr":
+                greeting_instruction = f"Saluez le client en disant EXACTEMENT ce texte: '{greeting}'"
+            elif lang == "es":
+                greeting_instruction = f"Saluda al cliente diciendo EXACTAMENTE este texto: '{greeting}'"
+            else:
+                greeting_instruction = f"Greet the customer by saying EXACTLY this text: '{greeting}'"
         else:
-            # Default greeting
-            greeting_instruction = "Greet the customer with a brief welcome message."
+            # Default greeting - language-aware
+            lang = (self.agent_language or "tr").lower()
+            if lang == "tr":
+                greeting_instruction = "Müşteriye kısa ve sıcak bir karşılama mesajı söyle."
+            else:
+                greeting_instruction = "Greet the customer with a brief welcome message."
         
         # Build response.create payload
         response_payload = {

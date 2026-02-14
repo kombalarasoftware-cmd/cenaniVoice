@@ -267,12 +267,16 @@ class PromptBuilder:
             "inject natural pauses by using an ellipsis between sentences."
         )
 
-        # Gemini-specific: strong language enforcement
-        if ctx.provider == "gemini":
+        # Provider-specific: strong language enforcement
+        # Both Gemini and xAI need explicit language direction — they lack
+        # a dedicated language parameter in their session config.
+        if ctx.provider in ("gemini", "xai"):
             lang_name = _get_language_name(lang)
             rules += (
-                f"\n\nRESPOND IN {lang_name.upper()}. "
-                f"YOU MUST RESPOND UNMISTAKABLY IN {lang_name.upper()}."
+                f"\n\nCRITICAL LANGUAGE RULE: You MUST speak and understand {lang_name.upper()} ONLY. "
+                f"The customer is speaking {lang_name}. "
+                f"ALL your responses must be in {lang_name}. "
+                f"Never switch to another language."
             )
 
         sections.append(rules)
