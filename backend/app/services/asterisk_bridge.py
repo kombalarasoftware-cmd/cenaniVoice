@@ -133,6 +133,9 @@ DB_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "")
 # Redis ayarları (call setup bilgileri için)
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 
+# Shared Redis connection pool for audio recording (avoids new connection per chunk)
+_redis_audio_pool = None
+
 if AUDIOSOCKET_BIND_HOST:
     AUDIOSOCKET_BIND = AUDIOSOCKET_BIND_HOST
 elif AUDIOSOCKET_HOST in LOCAL_BIND_HOSTS:
@@ -452,24 +455,24 @@ async def save_usage_to_redis(call_uuid: str, usage: Dict[str, Any], model: str 
 
 async def save_audio_to_redis(call_uuid: str, audio_data: bytes, channel: str = "output") -> bool:
     """
-    Audio buffer'ı Redis'e ekle (recording için).
-    Mevcut audio'ya append eder.
-    channel: "output" (agent/AI sesi) veya "input" (müşteri sesi)
+    Append audio buffer to Redis for post-call recording.
+    Uses a shared connection pool to avoid creating new connections per chunk.
+    channel: "output" (agent/AI audio) or "input" (customer audio)
     """
+    global _redis_audio_pool
     try:
-        import redis.asyncio as redis_async
-        r = redis_async.from_url(REDIS_URL, decode_responses=False)
-        try:
-            audio_key = f"call_audio_{channel}:{call_uuid}"
-            # Append audio data
-            await r.append(audio_key, audio_data)
-            # 1 saat TTL (her ekleme TTL'i sıfırlar)
-            await r.expire(audio_key, 3600)
-            return True
-        finally:
-            await r.close()
+        if _redis_audio_pool is None:
+            import redis.asyncio as redis_async
+            _redis_audio_pool = redis_async.from_url(
+                REDIS_URL, decode_responses=False,
+                max_connections=10,
+            )
+        audio_key = f"call_audio_{channel}:{call_uuid}"
+        await _redis_audio_pool.append(audio_key, audio_data)
+        await _redis_audio_pool.expire(audio_key, 3600)
+        return True
     except Exception as e:
-        logger.warning(f"[{call_uuid[:8]}] ⚠️ Audio kaydetme hatası ({channel}): {e}")
+        logger.warning(f"[{call_uuid[:8]}] ⚠️ Audio save error ({channel}): {e}")
     return False
 
 
@@ -1234,10 +1237,10 @@ class CallBridge:
             try:
                 await conn.execute(
                     """UPDATE call_logs
-                       SET status = 'connected'::callstatus,
+                       SET status = 'connected',
                            connected_at = COALESCE(connected_at, $2)
                        WHERE call_sid = $1
-                         AND status::text IN ('ringing', 'queued')""",
+                         AND status IN ('ringing', 'queued')""",
                     self.call_uuid,
                     self.start_time,
                 )
@@ -2778,11 +2781,11 @@ class CallBridge:
                         transcription = CASE WHEN $17 = '' THEN transcription ELSE $17 END,
                         connected_at = COALESCE(connected_at, $18),
                         status = CASE
-                            WHEN status::text IN ('no_answer', 'busy', 'failed') AND $19 = 'completed' THEN status
+                            WHEN status IN ('no_answer', 'busy', 'failed') AND $19 = 'completed' THEN status
                             ELSE $19::callstatus
                         END,
                         outcome = CASE
-                            WHEN outcome::text = 'voicemail' AND $20 = 'success' THEN outcome
+                            WHEN outcome = 'voicemail' AND $20 = 'success' THEN outcome
                             ELSE $20::calloutcome
                         END,
                         ended_at = NOW(),
