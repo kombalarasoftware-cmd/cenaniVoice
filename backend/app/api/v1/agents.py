@@ -133,12 +133,17 @@ async def create_agent(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new agent"""
+    provider = agent_data.provider or "openai"
     agent = Agent(
         name=agent_data.name,
         description=agent_data.description,
-        provider=agent_data.provider or "openai",
+        provider=provider,
         owner_id=current_user.id
     )
+    
+    # Apply provider-specific optimal defaults BEFORE user overrides.
+    # Each provider has different capabilities — set the best starting point.
+    _apply_provider_defaults(agent, provider)
     
     # Apply voice settings
     if agent_data.voice_settings:
@@ -226,6 +231,74 @@ async def create_agent(
     db.refresh(agent)
     
     return agent
+
+
+# ============ Provider-Specific Optimal Defaults ============
+
+# Best starting defaults per provider based on API capabilities.
+# Applied when creating a new agent, before user overrides.
+PROVIDER_OPTIMAL_DEFAULTS: dict[str, dict] = {
+    "openai": {
+        "temperature": 0.7,
+        "turn_detection": "semantic_vad",
+        "vad_eagerness": "low",
+        "vad_threshold": 0.5,
+        "silence_duration_ms": 1000,
+        "prefix_padding_ms": 400,
+        "noise_reduction": True,
+        "transcript_model": "gpt-4o-transcribe",
+        "max_output_tokens": 500,
+    },
+    "gemini": {
+        # Gemini maps to AutomaticActivityDetection:
+        #   vad_threshold < 0.5 → HIGH start sensitivity
+        #   vad_eagerness → endOfSpeechSensitivity
+        "temperature": 0.7,
+        "turn_detection": "server_vad",  # Gemini uses its own VAD, not semantic
+        "vad_eagerness": "medium",
+        "vad_threshold": 0.4,  # Slightly sensitive → HIGH start detection
+        "silence_duration_ms": 1200,  # Gemini needs more silence for accurate turns
+        "prefix_padding_ms": 500,  # More padding for Gemini STT accuracy
+        "noise_reduction": False,  # Not supported by Gemini
+        "transcript_model": "gpt-4o-transcribe",  # Not used by Gemini but stored
+        "max_output_tokens": 500,
+    },
+    "xai": {
+        # xAI supports only server_vad on/off, no fine-tuning params
+        "temperature": 0.7,
+        "turn_detection": "server_vad",
+        "vad_eagerness": "medium",
+        "vad_threshold": 0.5,
+        "silence_duration_ms": 1000,
+        "prefix_padding_ms": 400,
+        "noise_reduction": False,  # Not supported
+        "transcript_model": "gpt-4o-transcribe",
+        "max_output_tokens": 500,
+    },
+    "ultravox": {
+        # Ultravox uses vadSettings: turnEndpointDelay, frameActivationThreshold
+        "temperature": 0.0,  # Ultravox default
+        "turn_detection": "server_vad",
+        "vad_eagerness": "high",  # Maps to minimumInterruptionDuration
+        "vad_threshold": 0.1,  # Low frameActivationThreshold for fast detection
+        "silence_duration_ms": 800,
+        "prefix_padding_ms": 400,
+        "noise_reduction": False,
+        "transcript_model": "gpt-4o-transcribe",
+        "max_output_tokens": 500,
+    },
+}
+
+
+def _apply_provider_defaults(agent: Agent, provider: str) -> None:
+    """Apply provider-specific optimal defaults to an agent.
+
+    Called during agent creation before user overrides are applied.
+    """
+    defaults = PROVIDER_OPTIMAL_DEFAULTS.get(provider, PROVIDER_OPTIMAL_DEFAULTS["openai"])
+    for key, value in defaults.items():
+        if hasattr(agent, key):
+            setattr(agent, key, value)
 
 
 # ============ Agent Call Log with Tariff Cost ============
@@ -417,6 +490,10 @@ async def update_agent(
     if agent_data.status is not None:
         agent.status = ModelAgentStatus(agent_data.status.value)
     if agent_data.provider is not None:
+        # When provider changes, apply optimal defaults for the new provider
+        # BEFORE user overrides (advanced_settings) are applied below.
+        if agent_data.provider != agent.provider:
+            _apply_provider_defaults(agent, agent_data.provider)
         agent.provider = agent_data.provider
     
     # Update voice settings

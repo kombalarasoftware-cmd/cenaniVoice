@@ -82,11 +82,16 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, Any]] = {
             "auto_transcribe": False,
             "human_transfer": True,
             # Advanced — VAD / Turn Detection
+            # Gemini maps these to AutomaticActivityDetection params:
+            #   vad_threshold → startOfSpeechSensitivity (HIGH if < 0.5, else LOW)
+            #   vad_eagerness → endOfSpeechSensitivity (HIGH/LOW)
+            #   silence_duration_ms → silenceDurationMs
+            #   prefix_padding_ms → prefixPaddingMs
             "turn_detection": False,
-            "vad_threshold": False,
-            "vad_eagerness": False,
-            "silence_duration_ms": False,
-            "prefix_padding_ms": False,
+            "vad_threshold": True,
+            "vad_eagerness": True,
+            "silence_duration_ms": True,
+            "prefix_padding_ms": True,
             "create_response": False,
             # Advanced — Model behavior
             "max_output_tokens": False,

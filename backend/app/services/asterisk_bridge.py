@@ -544,12 +544,12 @@ async def get_agent_from_db(agent_id: int) -> Optional[Dict[str, Any]]:
                     "greeting_uninterruptible": row.get("greeting_uninterruptible") if row.get("greeting_uninterruptible") is not None else False,
                     "first_message_delay": row.get("first_message_delay") or 0,
                     "transcript_model": row["transcript_model"] or "gpt-4o-transcribe",
-                    "temperature": row["temperature"] or 0.6,
-                    "vad_threshold": row["vad_threshold"] or 0.3,
-                    "silence_duration_ms": row["silence_duration_ms"] or 800,
-                    "prefix_padding_ms": row["prefix_padding_ms"] or 200,
+                    "temperature": row["temperature"] or 0.7,
+                    "vad_threshold": row["vad_threshold"] or 0.5,
+                    "silence_duration_ms": row["silence_duration_ms"] or 1000,
+                    "prefix_padding_ms": row["prefix_padding_ms"] or 400,
                     "turn_detection": row["turn_detection"] or "semantic_vad",
-                    "vad_eagerness": row["vad_eagerness"] or "high",
+                    "vad_eagerness": row["vad_eagerness"] or "low",
                     "max_output_tokens": row["max_output_tokens"] or 500,
                     "noise_reduction": row["noise_reduction"] if row["noise_reduction"] is not None else True,
                     "interrupt_response": row["interrupt_response"] if row["interrupt_response"] is not None else True,
@@ -986,18 +986,18 @@ class CallBridge:
         self.customer_data = {}  # Customer data dict for greeting variable replacement
         self.greeting_message = None  # Agent's custom greeting message
         self.first_speaker = "agent"
-        self.agent_temperature = 0.6
-        # VAD settings - optimized for IMMEDIATE barge-in
+        self.agent_temperature = 0.7
+        # VAD settings - defaults match DB model (models.py Agent class)
         # CRITICAL RULE: Agent MUST stop speaking and listen the moment customer starts talking.
         # This is a non-negotiable system requirement. Never weaken these settings.
-        self.agent_vad_threshold = 0.3  # Low threshold = detect speech faster
-        self.agent_silence_duration_ms = 800  # Shorter silence = faster response (was 1000)
-        self.agent_prefix_padding_ms = 200  # Minimal prefix = catch speech start immediately (was 400)
+        self.agent_vad_threshold = 0.5  # Balanced sensitivity (matches DB default)
+        self.agent_silence_duration_ms = 1000  # Silence detection ms (matches DB default)
+        self.agent_prefix_padding_ms = 400  # Prefix padding ms (matches DB default)
         self.agent_interrupt_response = True  # ALWAYS True - non-negotiable
         self.agent_create_response = True
         self.agent_noise_reduction = True
         self.agent_turn_detection = "semantic_vad"  # Semantic VAD for better turn detection
-        self.agent_vad_eagerness = "high"  # High eagerness = respond to interruptions immediately (was low)
+        self.agent_vad_eagerness = "low"  # Matches DB default; semantic_vad eagerness
         # Transcription settings
         self.agent_transcript_model = "gpt-4o-transcribe"  # Best accuracy (was hardcoded gpt-4o-mini-transcribe)
         self.agent_max_output_tokens = 500  # Configurable from DB
@@ -1045,6 +1045,13 @@ class CallBridge:
         self.last_user_activity_time: float = time.monotonic()
         self.inactivity_messages: list = []  # Loaded from Redis call_setup
         self.inactivity_message_index: int = 0  # Next message to send
+
+        # Adaptive VAD tracking (OpenAI only — the only provider that supports mid-call session.update)
+        # Tracks speech events to detect issues and auto-adjust VAD parameters.
+        self._adaptive_vad_enabled = False  # Enabled after session config, OpenAI only
+        self._speech_events: list[dict] = []  # {type: "start"|"stop", time: monotonic}
+        self._last_vad_adjust_time: float = 0.0
+        self._vad_adjust_count: int = 0  # How many times we've adjusted (max 3 per call)
 
         # İstatistikler
         self.stats = {
@@ -1097,17 +1104,17 @@ class CallBridge:
             self.agent_id = int(agent_id_val) if agent_id_val else None
             self.greeting_message = call_setup.get("greeting_message") or None
             self.first_speaker = call_setup.get("first_speaker") or "agent"
-            self.agent_temperature = float(call_setup.get("temperature", 0.6))
-            # VAD and interrupt settings — barge-in optimized
+            self.agent_temperature = float(call_setup.get("temperature", 0.7))
+            # VAD and interrupt settings — defaults match DB model
             # CRITICAL: interrupt_response is ALWAYS True (non-negotiable system rule)
-            self.agent_vad_threshold = float(call_setup.get("vad_threshold", 0.3))
-            self.agent_silence_duration_ms = int(call_setup.get("silence_duration_ms", 800))
-            self.agent_prefix_padding_ms = int(call_setup.get("prefix_padding_ms", 200))
+            self.agent_vad_threshold = float(call_setup.get("vad_threshold", 0.5))
+            self.agent_silence_duration_ms = int(call_setup.get("silence_duration_ms", 1000))
+            self.agent_prefix_padding_ms = int(call_setup.get("prefix_padding_ms", 400))
             self.agent_interrupt_response = True  # FORCED True — agent must always stop when customer speaks
             self.agent_create_response = call_setup.get("create_response", True)
             self.agent_noise_reduction = call_setup.get("noise_reduction", True)
             self.agent_turn_detection = call_setup.get("turn_detection", "semantic_vad")
-            self.agent_vad_eagerness = call_setup.get("vad_eagerness", "high")
+            self.agent_vad_eagerness = call_setup.get("vad_eagerness", "low")
             # Transcription & output settings from DB
             self.agent_transcript_model = call_setup.get("transcript_model", "gpt-4o-transcribe")
             self.agent_max_output_tokens = int(call_setup.get("max_output_tokens", 500))
@@ -1201,12 +1208,12 @@ class CallBridge:
                         self.first_speaker = agent_data.get("first_speaker") or self.first_speaker
                         # Comprehension-critical settings from DB
                         self.agent_transcript_model = agent_data.get("transcript_model", "gpt-4o-transcribe")
-                        self.agent_temperature = float(agent_data.get("temperature", 0.6))
-                        self.agent_vad_threshold = float(agent_data.get("vad_threshold", 0.3))
-                        self.agent_silence_duration_ms = int(agent_data.get("silence_duration_ms", 800))
-                        self.agent_prefix_padding_ms = int(agent_data.get("prefix_padding_ms", 200))
+                        self.agent_temperature = float(agent_data.get("temperature", 0.7))
+                        self.agent_vad_threshold = float(agent_data.get("vad_threshold", 0.5))
+                        self.agent_silence_duration_ms = int(agent_data.get("silence_duration_ms", 1000))
+                        self.agent_prefix_padding_ms = int(agent_data.get("prefix_padding_ms", 400))
                         self.agent_turn_detection = agent_data.get("turn_detection", "semantic_vad")
-                        self.agent_vad_eagerness = agent_data.get("vad_eagerness", "high")
+                        self.agent_vad_eagerness = agent_data.get("vad_eagerness", "low")
                         self.agent_max_output_tokens = int(agent_data.get("max_output_tokens", 500))
                         self.agent_noise_reduction = agent_data.get("noise_reduction", True)
                         self.agent_interrupt_response = True  # FORCED True — non-negotiable
@@ -1407,6 +1414,21 @@ class CallBridge:
         
         # Build and send setup message (must be first message)
         instructions = self.agent_prompt or "You are a helpful voice assistant."
+        gemini_lang = GEMINI_LANGUAGE_MAP.get(self.agent_language, "en-US")
+        
+        # Build Gemini VAD (AutomaticActivityDetection) config
+        # Maps agent DB settings to Gemini API parameters.
+        # Gemini uses HIGH/LOW sensitivity enums, not numeric thresholds.
+        # Lower vad_threshold (more sensitive) → HIGH start sensitivity
+        # Higher eagerness → HIGH end sensitivity (faster turn-taking)
+        start_sensitivity = "START_SENSITIVITY_HIGH" if self.agent_vad_threshold < 0.5 else "START_SENSITIVITY_LOW"
+        end_sensitivity_map = {
+            "high": "END_SENSITIVITY_HIGH",
+            "medium": "END_SENSITIVITY_HIGH",
+            "low": "END_SENSITIVITY_LOW",
+            "auto": "END_SENSITIVITY_HIGH",
+        }
+        end_sensitivity = end_sensitivity_map.get(self.agent_vad_eagerness, "END_SENSITIVITY_HIGH")
         
         setup_msg = {
             "setup": {
@@ -1419,9 +1441,7 @@ class CallBridge:
                                 "voiceName": self.agent_voice
                             }
                         },
-                        "languageCode": GEMINI_LANGUAGE_MAP.get(
-                            self.agent_language, "en-US"
-                        ),
+                        "languageCode": gemini_lang,
                     },
                     "temperature": self.agent_temperature,
                 },
@@ -1429,15 +1449,32 @@ class CallBridge:
                     "parts": [{"text": instructions}]
                 },
                 "tools": _build_gemini_tools(),
-                # Enable input/output audio transcription for realtime transcript
-                "inputAudioTranscription": {},
+                # Gemini VAD configuration — prevents wrong language detection
+                # and improves speech boundary accuracy
+                "realtimeInputConfig": {
+                    "automaticActivityDetection": {
+                        "disabled": False,
+                        "startOfSpeechSensitivity": start_sensitivity,
+                        "endOfSpeechSensitivity": end_sensitivity,
+                        "prefixPaddingMs": self.agent_prefix_padding_ms,
+                        "silenceDurationMs": self.agent_silence_duration_ms,
+                    },
+                },
+                # Enable input/output audio transcription with language hint
+                "inputAudioTranscription": {
+                    "languageCode": gemini_lang,
+                },
                 "outputAudioTranscription": {},
             }
         }
         
         await self.openai_ws.send(json.dumps(setup_msg))
-        gemini_lang = GEMINI_LANGUAGE_MAP.get(self.agent_language, "en-US")
-        logger.info(f"[{self.call_uuid[:8]}] ⚙️ Gemini setup gönderildi: voice={self.agent_voice}, model={self.agent_model}, lang={gemini_lang}")
+        logger.info(
+            f"[{self.call_uuid[:8]}] ⚙️ Gemini setup gönderildi: voice={self.agent_voice}, "
+            f"model={self.agent_model}, lang={gemini_lang}, "
+            f"vad_start={start_sensitivity}, vad_end={end_sensitivity}, "
+            f"prefix={self.agent_prefix_padding_ms}ms, silence={self.agent_silence_duration_ms}ms"
+        )
         
         # Wait for setupComplete
         try:
@@ -1587,9 +1624,100 @@ class CallBridge:
             logger.info(f"[{self.call_uuid[:8]}] ⚙️ Session yapılandırıldı (xAI): voice={self.agent_voice}, lang={self.agent_language}, "
                          f"vad=server_vad (auto-interrupt)")
         else:
+            # Enable adaptive VAD for OpenAI — the only provider supporting mid-call session.update
+            self._adaptive_vad_enabled = True
+            self._last_vad_adjust_time = time.monotonic()
             logger.info(f"[{self.call_uuid[:8]}] ⚙️ Session yapılandırıldı: voice={self.agent_voice}, lang={self.agent_language}, "
                          f"temp={self.agent_temperature}, vad={self.agent_turn_detection}, transcript={self.agent_transcript_model}, "
-                         f"noise_reduction={self.agent_noise_reduction}")
+                         f"noise_reduction={self.agent_noise_reduction}, adaptive_vad=enabled")
+
+    async def _maybe_adjust_vad(self) -> None:
+        """Analyze recent speech events and auto-adjust VAD if needed (OpenAI only).
+
+        Detects two problems:
+        1. Rapid fire: Many short speech_started→stopped bursts (<300ms) indicate
+           noise or echo being misdetected as speech → raise threshold.
+        2. Long silence gaps: No speech events for extended periods despite audio
+           flowing in → lower threshold to be more sensitive.
+
+        Only adjusts server_vad params. Max 3 adjustments per call to avoid oscillation.
+        Requires at least 30s between adjustments.
+        """
+        if self._vad_adjust_count >= 3:
+            return
+        now = time.monotonic()
+        if now - self._last_vad_adjust_time < 30.0:
+            return
+        # Need at least 4 speech events to analyze pattern
+        if len(self._speech_events) < 4:
+            return
+
+        # Analyze the last 30s of speech events
+        recent = [e for e in self._speech_events if now - e["time"] < 30.0]
+        if len(recent) < 4:
+            return
+
+        # Count short speech bursts (start→stop < 300ms = likely noise/echo)
+        short_bursts = 0
+        for i in range(len(recent) - 1):
+            if recent[i]["type"] == "start" and recent[i + 1]["type"] == "stop":
+                duration = recent[i + 1]["time"] - recent[i]["time"]
+                if duration < 0.3:
+                    short_bursts += 1
+
+        new_config = None
+        reason = ""
+
+        if short_bursts >= 3:
+            # Too many false detections — raise threshold, increase silence duration
+            new_threshold = min(self.agent_vad_threshold + 0.15, 0.9)
+            new_silence = min(self.agent_silence_duration_ms + 200, 1500)
+            if self.agent_turn_detection == "server_vad":
+                new_config = {
+                    "type": "session.update",
+                    "session": {
+                        "turn_detection": {
+                            "type": "server_vad",
+                            "threshold": new_threshold,
+                            "silence_duration_ms": new_silence,
+                            "prefix_padding_ms": self.agent_prefix_padding_ms,
+                            "create_response": self.agent_create_response,
+                            "interrupt_response": True,
+                        }
+                    }
+                }
+                self.agent_vad_threshold = new_threshold
+                self.agent_silence_duration_ms = new_silence
+                reason = f"noise detected ({short_bursts} short bursts), threshold {new_threshold:.2f}, silence {new_silence}ms"
+            elif self.agent_turn_detection == "semantic_vad":
+                # For semantic_vad, reduce eagerness to avoid false triggers
+                eagerness_downgrade = {"high": "medium", "medium": "low", "low": "low", "auto": "medium"}
+                new_eagerness = eagerness_downgrade.get(self.agent_vad_eagerness, "medium")
+                if new_eagerness != self.agent_vad_eagerness:
+                    new_config = {
+                        "type": "session.update",
+                        "session": {
+                            "turn_detection": {
+                                "type": "semantic_vad",
+                                "eagerness": new_eagerness,
+                                "create_response": self.agent_create_response,
+                                "interrupt_response": True,
+                            }
+                        }
+                    }
+                    self.agent_vad_eagerness = new_eagerness
+                    reason = f"noise detected ({short_bursts} short bursts), eagerness → {new_eagerness}"
+
+        if new_config:
+            try:
+                await self.openai_ws.send(json.dumps(new_config))
+                self._vad_adjust_count += 1
+                self._last_vad_adjust_time = now
+                # Clear old events after adjustment
+                self._speech_events = [e for e in self._speech_events if now - e["time"] < 5.0]
+                logger.info(f"[{self.call_uuid[:8]}] 🔧 Adaptive VAD #{self._vad_adjust_count}: {reason}")
+            except Exception as e:
+                logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Adaptive VAD session.update failed: {e}")
 
     async def _trigger_greeting(self):
         """Trigger initial greeting based on agent settings."""
@@ -1794,8 +1922,11 @@ class CallBridge:
                 elif event_type == "input_audio_buffer.speech_started":
                     # User started speaking — IMMEDIATELY stop AI and listen.
                     # This is a non-negotiable system rule: agent must always yield to customer.
-                    self.last_user_activity_time = time.monotonic()
+                    now = time.monotonic()
+                    self.last_user_activity_time = now
                     self.inactivity_message_index = 0  # Reset inactivity counter
+                    # Track for adaptive VAD
+                    self._speech_events.append({"type": "start", "time": now})
                     # Clear output buffer to stop AI audio immediately
                     self.output_buffer.clear()
                     is_playing = False
@@ -1822,8 +1953,14 @@ class CallBridge:
                         await self.openai_ws.send(json.dumps({"type": "response.cancel"}))
 
                 elif event_type == "input_audio_buffer.speech_stopped":
-                    self.last_user_activity_time = time.monotonic()
+                    now = time.monotonic()
+                    self.last_user_activity_time = now
+                    # Track for adaptive VAD
+                    self._speech_events.append({"type": "stop", "time": now})
                     logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STOPPED")
+                    # Adaptive VAD check (OpenAI only)
+                    if self._adaptive_vad_enabled:
+                        await self._maybe_adjust_vad()
 
                 elif event_type == "response.created":
                     # New response cycle — clear xAI barge-in suppression
