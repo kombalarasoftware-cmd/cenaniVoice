@@ -102,6 +102,15 @@ GOOGLE_PROJECT_ID = os.environ.get("GOOGLE_PROJECT_ID", "")
 GOOGLE_LOCATION = os.environ.get("GOOGLE_LOCATION", "us-central1")
 GEMINI_DEFAULT_MODEL = "gemini-live-2.5-flash-native-audio"
 
+# Language code mapping: agent_language (ISO 639-1) → BCP-47 for Gemini
+GEMINI_LANGUAGE_MAP = {
+    "tr": "tr-TR", "en": "en-US", "de": "de-DE", "fr": "fr-FR",
+    "es": "es-ES", "ar": "ar-XA", "it": "it-IT", "pt": "pt-BR",
+    "ru": "ru-RU", "ja": "ja-JP", "ko": "ko-KR", "zh": "cmn-CN",
+    "nl": "nl-NL", "pl": "pl-PL", "hi": "hi-IN", "vi": "vi-VN",
+    "id": "id-ID", "th": "th-TH",
+}
+
 # AudioSocket server ayarları
 AUDIOSOCKET_HOST = os.environ.get("AUDIOSOCKET_HOST", "0.0.0.0")
 AUDIOSOCKET_PORT = int(os.environ.get("AUDIOSOCKET_PORT", "9092"))
@@ -1378,7 +1387,10 @@ class CallBridge:
                             "prebuiltVoiceConfig": {
                                 "voiceName": self.agent_voice
                             }
-                        }
+                        },
+                        "languageCode": GEMINI_LANGUAGE_MAP.get(
+                            self.agent_language, "en-US"
+                        ),
                     },
                     "temperature": self.agent_temperature,
                 },
@@ -1386,13 +1398,15 @@ class CallBridge:
                     "parts": [{"text": instructions}]
                 },
                 "tools": _build_gemini_tools(),
-                # Enable input audio transcription for realtime transcript
+                # Enable input/output audio transcription for realtime transcript
                 "inputAudioTranscription": {},
+                "outputAudioTranscription": {},
             }
         }
         
         await self.openai_ws.send(json.dumps(setup_msg))
-        logger.info(f"[{self.call_uuid[:8]}] ⚙️ Gemini setup gönderildi: voice={self.agent_voice}, model={self.agent_model}")
+        gemini_lang = GEMINI_LANGUAGE_MAP.get(self.agent_language, "en-US")
+        logger.info(f"[{self.call_uuid[:8]}] ⚙️ Gemini setup gönderildi: voice={self.agent_voice}, model={self.agent_model}, lang={gemini_lang}")
         
         # Wait for setupComplete
         try:
@@ -2046,6 +2060,14 @@ class CallBridge:
                             self.last_user_activity_time = time.monotonic()
                             self.inactivity_message_index = 0
 
+                    # Output transcription from Gemini (agent speech text)
+                    output_transcription = server_content.get("outputTranscription")
+                    if output_transcription:
+                        text = output_transcription.get("text", "")
+                        if text:
+                            logger.info(f"[{self.call_uuid[:8]}] 🤖 Agent: \"{text}\"")
+                            await save_transcript_to_redis(self.call_uuid, "assistant", text)
+
                 # ── Tool calls ──
                 tool_call = event.get("toolCall")
                 if tool_call:
@@ -2657,19 +2679,20 @@ class CallBridge:
             )
 
         # Determine final status and outcome based on SIP code and call data
-        final_status = "COMPLETED"
-        final_outcome = "SUCCESS"
+        # Values must be lowercase to match PostgreSQL enum types (callstatus, calloutcome)
+        final_status = "completed"
+        final_outcome = "success"
 
         if self.sip_code and self.sip_code != 200:
             if self.sip_code in (480, 408):
-                final_status = "NO_ANSWER"
-                final_outcome = "NO_ANSWER"
+                final_status = "no_answer"
+                final_outcome = "no_answer"
             elif self.sip_code == 486:
-                final_status = "BUSY"
-                final_outcome = "BUSY"
+                final_status = "busy"
+                final_outcome = "busy"
             elif self.sip_code >= 400:
-                final_status = "FAILED"
-                final_outcome = "FAILED"
+                final_status = "failed"
+                final_outcome = "failed"
 
         # Check AMD status — preserve VOICEMAIL outcome if already set
         amd_status_key = f"call_amd:{self.call_uuid}"
@@ -2681,7 +2704,7 @@ class CallBridge:
                 if amd_data:
                     amd_info = json.loads(amd_data)
                     if amd_info.get("amd_status") == "MACHINE":
-                        final_outcome = "VOICEMAIL"
+                        final_outcome = "voicemail"
             finally:
                 await r_amd.close()
         except Exception:
@@ -2715,12 +2738,12 @@ class CallBridge:
                         transcription = CASE WHEN $17 = '' THEN transcription ELSE $17 END,
                         connected_at = COALESCE(connected_at, $18),
                         status = CASE
-                            WHEN status IN ('NO_ANSWER', 'BUSY', 'FAILED') AND $19 = 'COMPLETED' THEN status
-                            ELSE $19
+                            WHEN status::text IN ('no_answer', 'busy', 'failed') AND $19 = 'completed' THEN status
+                            ELSE $19::callstatus
                         END,
                         outcome = CASE
-                            WHEN outcome = 'VOICEMAIL' AND $20 = 'SUCCESS' THEN outcome
-                            ELSE $20
+                            WHEN outcome::text = 'voicemail' AND $20 = 'success' THEN outcome
+                            ELSE $20::calloutcome
                         END,
                         ended_at = NOW(),
                         provider = COALESCE(provider, $21)
