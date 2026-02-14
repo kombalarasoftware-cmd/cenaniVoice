@@ -1572,18 +1572,29 @@ class CallBridge:
         if self.provider == "xai":
             # xAI Grok session config
             # Docs: https://docs.x.ai/developers/model-capabilities/audio/voice-agent
-            # xAI Voice Agent API — ONLY documented session params:
+            # xAI Voice Agent API — documented session params:
             #   voice, instructions, turn_detection, audio, tools
-            # WARNING: Sending undocumented params (model, temperature, modalities,
-            # input_audio_transcription) causes silent transcription degradation —
-            # xAI accepts them without error but its internal STT quality drops
-            # drastically, producing garbled text ("... devam etmek istiyorum" loops).
+            #
+            # input_audio_transcription with ONLY language field:
+            #   xAI claims OpenAI API compatibility and supports 100+ languages
+            #   with auto-detection. However, telephony-quality audio (8kHz G.711
+            #   upsampled to 24kHz PCM) causes language mis-identification —
+            #   Turkish speech gets transcribed as English ("Do I want to...").
+            #   Adding language hint helps the STT pipeline without breaking it.
+            #
+            # WARNING: Do NOT add model, temperature, or modalities to xAI
+            #   session config — these undocumented params cause silent STT
+            #   degradation. Only input_audio_transcription.language is safe.
+            #
             # xAI supports server_vad only (no semantic_vad, no threshold/padding)
             config = {
                 "type": "session.update",
                 "session": {
                     "voice": self.agent_voice,
                     "instructions": instructions,
+                    "input_audio_transcription": {
+                        "language": self.agent_language,
+                    },
                     "turn_detection": {"type": "server_vad"},
                     "audio": {
                         "input": {"format": {"type": "audio/pcm", "rate": 24000}},

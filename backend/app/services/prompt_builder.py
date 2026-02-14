@@ -184,6 +184,13 @@ class PromptBuilder:
         """Build a complete system prompt from context."""
         sections: list[str] = []
 
+        # Layer 0: Language preamble for providers without explicit language param
+        # xAI's integrated voice stack uses instructions as STT language hint.
+        # Placing the language directive BEFORE all other content helps the
+        # auto-detection system identify the expected language from the start.
+        if ctx.provider == "xai":
+            cls._add_language_preamble(sections, ctx)
+
         # Layer 1: Agent DB sections
         cls._add_agent_sections(sections, ctx)
 
@@ -209,6 +216,36 @@ class PromptBuilder:
         prompt = cls._apply_template_variables(prompt, ctx)
 
         return prompt
+
+    # ------------------------------------------------------------------ Layer 0
+
+    @classmethod
+    def _add_language_preamble(cls, sections: list[str], ctx: PromptContext) -> None:
+        """Prepend a strong bilingual language directive for providers without
+        an explicit STT language parameter (e.g. xAI).
+
+        xAI's integrated voice stack auto-detects the input language.
+        Placing the language directive at position 0 — in BOTH English and
+        the target language — dramatically improves recognition accuracy for
+        non-English telephony audio.
+
+        Ref: https://docs.x.ai/developers/model-capabilities/audio/voice
+        "You can also specify a preferred language or accent in your system
+        instructions for consistent multilingual experiences."
+        """
+        lang = ctx.language or "tr"
+        lang_name = _get_language_name(lang)
+        native_name = _get_native_language_name(lang)
+
+        preamble = (
+            f"[LANGUAGE: {lang_name.upper()}]\n"
+            f"This is a {lang_name} language phone call. "
+            f"The customer speaks {lang_name}. "
+            f"You MUST understand {lang_name} speech and respond ONLY in {lang_name}.\n"
+            f"[DİL: {native_name.upper()}]\n"
+            f"{_get_native_language_directive(lang)}"
+        )
+        sections.append(preamble)
 
     # ------------------------------------------------------------------ Layer 1
 
@@ -416,3 +453,61 @@ _LANGUAGE_NAMES: dict[str, str] = {
 def _get_language_name(lang_code: str) -> str:
     """Get the English name for a language code."""
     return _LANGUAGE_NAMES.get(lang_code, lang_code.upper())
+
+
+_NATIVE_LANGUAGE_NAMES: dict[str, str] = {
+    "tr": "Türkçe",
+    "en": "English",
+    "de": "Deutsch",
+    "fr": "Français",
+    "es": "Español",
+    "it": "Italiano",
+    "pt": "Português",
+    "nl": "Nederlands",
+    "ar": "العربية",
+    "zh": "中文",
+    "ja": "日本語",
+    "ko": "한국어",
+}
+
+
+def _get_native_language_name(lang_code: str) -> str:
+    """Get the native name for a language code (e.g. 'tr' -> 'Türkçe')."""
+    return _NATIVE_LANGUAGE_NAMES.get(lang_code, lang_code.upper())
+
+
+_NATIVE_LANGUAGE_DIRECTIVES: dict[str, str] = {
+    "tr": (
+        "Bu bir Türkçe telefon görüşmesidir. "
+        "Müşteri Türkçe konuşmaktadır. "
+        "Sadece Türkçe anlayın ve Türkçe yanıt verin."
+    ),
+    "en": (
+        "This is an English phone call. "
+        "The customer speaks English. "
+        "Understand and respond in English only."
+    ),
+    "de": (
+        "Dies ist ein deutschsprachiges Telefongespräch. "
+        "Der Kunde spricht Deutsch. "
+        "Verstehen und antworten Sie nur auf Deutsch."
+    ),
+    "fr": (
+        "Ceci est un appel téléphonique en français. "
+        "Le client parle français. "
+        "Comprenez et répondez uniquement en français."
+    ),
+    "es": (
+        "Esta es una llamada telefónica en español. "
+        "El cliente habla español. "
+        "Entienda y responda solo en español."
+    ),
+}
+
+
+def _get_native_language_directive(lang_code: str) -> str:
+    """Get multi-sentence directive in the target language."""
+    return _NATIVE_LANGUAGE_DIRECTIVES.get(
+        lang_code,
+        _NATIVE_LANGUAGE_DIRECTIVES["en"],
+    )
