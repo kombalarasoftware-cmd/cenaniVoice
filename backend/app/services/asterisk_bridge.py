@@ -2641,6 +2641,21 @@ class CallBridge:
         except Exception as e:
             logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Usage/cost hesaplama hatası: {e}")
 
+        # Add Whisper transcription cost (applies to ALL providers)
+        whisper_cost = 0.0
+        if whisper_result.get("success"):
+            whisper_input_dur = whisper_result.get("input_duration", 0)
+            whisper_output_dur = whisper_result.get("output_duration", 0)
+            # Whisper API: $0.006 per minute per channel
+            whisper_cost = (whisper_input_dur + whisper_output_dur) * (0.006 / 60)
+            estimated_cost += whisper_cost
+            metadata["whisper_cost"] = round(whisper_cost, 6)
+            logger.info(
+                f"[{self.call_uuid[:8]}] 🎤 Whisper Cost: ${whisper_cost:.6f} "
+                f"(input={whisper_input_dur:.1f}s + output={whisper_output_dur:.1f}s, "
+                f"total_cost=${estimated_cost:.6f})"
+            )
+
         # Determine final status and outcome based on SIP code and call data
         final_status = "COMPLETED"
         final_outcome = "SUCCESS"
