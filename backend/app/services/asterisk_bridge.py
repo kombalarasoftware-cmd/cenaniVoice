@@ -1515,31 +1515,22 @@ class CallBridge:
         if self.provider == "xai":
             # xAI Grok session config
             # Docs: https://docs.x.ai/developers/model-capabilities/audio/voice-agent
-            # xAI supports server_vad only
-            xai_turn_detection = {
-                "type": "server_vad",
-                "threshold": self.agent_vad_threshold,
-                "prefix_padding_ms": self.agent_prefix_padding_ms,
-                "silence_duration_ms": self.agent_silence_duration_ms,
-            }
-            
+            # xAI Voice Agent API — documented params only:
+            # voice, instructions, turn_detection, audio, tools
+            # Undocumented: model, temperature, input_audio_transcription,
+            #   max_response_output_tokens — omitted to avoid state corruption.
+            # xAI supports server_vad only (no semantic_vad, no threshold/padding params in docs)
             config = {
                 "type": "session.update",
                 "session": {
-                    "model": self.agent_model,  # xAI requires model in session
                     "voice": self.agent_voice,
                     "instructions": instructions,
-                    "temperature": self.agent_temperature,
-                    "turn_detection": xai_turn_detection,
-                    "input_audio_transcription": {
-                        "model": "gpt-4o-transcribe",
-                    },
+                    "turn_detection": {"type": "server_vad"},
                     "audio": {
                         "input": {"format": {"type": "audio/pcm", "rate": 24000}},
                         "output": {"format": {"type": "audio/pcm", "rate": 24000}},
                     },
                     "tools": _build_tools(),
-                    "max_response_output_tokens": self.agent_max_output_tokens,
                 }
             }
         else:
@@ -1570,9 +1561,13 @@ class CallBridge:
                 logger.info(f"[{self.call_uuid[:8]}] 🔇 Noise reduction aktif: near_field")
         
         await self.openai_ws.send(json.dumps(config))
-        logger.info(f"[{self.call_uuid[:8]}] ⚙️ Session yapılandırıldı: voice={self.agent_voice}, lang={self.agent_language}, "
-                     f"temp={self.agent_temperature}, vad={self.agent_turn_detection}, transcript={self.agent_transcript_model}, "
-                     f"noise_reduction={self.agent_noise_reduction}")
+        if self.provider == "xai":
+            logger.info(f"[{self.call_uuid[:8]}] ⚙️ Session yapılandırıldı (xAI): voice={self.agent_voice}, lang={self.agent_language}, "
+                         f"vad=server_vad (auto-interrupt)")
+        else:
+            logger.info(f"[{self.call_uuid[:8]}] ⚙️ Session yapılandırıldı: voice={self.agent_voice}, lang={self.agent_language}, "
+                         f"temp={self.agent_temperature}, vad={self.agent_turn_detection}, transcript={self.agent_transcript_model}, "
+                         f"noise_reduction={self.agent_noise_reduction}")
 
     async def _trigger_greeting(self):
         """Trigger initial greeting based on agent settings."""
@@ -1752,6 +1747,10 @@ class CallBridge:
                 event = json.loads(message)
                 event_type = event.get("type", "")
 
+                # Log non-audio events for debugging (audio deltas are too frequent)
+                if event_type and "audio.delta" not in event_type:
+                    logger.debug(f"[{self.call_uuid[:8]}] 📨 WS event: {event_type}")
+
                 # Publish event to Redis for SSE streaming (filtered events only)
                 publishable_events = [
                     "session.created", "session.updated", "conversation.created",
@@ -1774,13 +1773,21 @@ class CallBridge:
                     # This is a non-negotiable system rule: agent must always yield to customer.
                     self.last_user_activity_time = time.monotonic()
                     self.inactivity_message_index = 0  # Reset inactivity counter
-                    logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — clearing output buffer and cancelling response")
                     # Clear output buffer to stop AI audio immediately
                     self.output_buffer.clear()
                     is_playing = False
                     next_send_time = None
-                    # Send response.cancel to stop AI generation
-                    await self.openai_ws.send(json.dumps({"type": "response.cancel"}))
+
+                    if self.provider == "xai":
+                        # xAI does NOT support response.cancel — it handles
+                        # interruption internally when server_vad detects speech.
+                        # Sending response.cancel corrupts xAI's conversation
+                        # state and breaks auto-response after user speech.
+                        logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — clearing local output buffer (xAI auto-interrupt)")
+                    else:
+                        # OpenAI supports response.cancel — send it to stop generation
+                        logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — clearing output buffer and cancelling response")
+                        await self.openai_ws.send(json.dumps({"type": "response.cancel"}))
 
                 elif event_type == "input_audio_buffer.speech_stopped":
                     self.last_user_activity_time = time.monotonic()
@@ -2203,7 +2210,11 @@ class CallBridge:
             "type": "conversation.item.create",
             "item": {"type": "function_call_output", "call_id": call_id, "output": result}
         }))
-        await self.openai_ws.send(json.dumps({"type": "response.create"}))
+        # xAI requires modalities in response.create to produce audio output
+        response_create: dict = {"type": "response.create"}
+        if self.provider == "xai":
+            response_create["response"] = {"modalities": ["text", "audio"]}
+        await self.openai_ws.send(json.dumps(response_create))
 
         call_data = active_calls.get(self.call_uuid, {})
         if call_data.get("transfer_requested"):
