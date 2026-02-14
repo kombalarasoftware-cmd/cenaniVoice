@@ -1318,15 +1318,7 @@ class CallBridge:
             sock = self.writer.get_extra_info('socket')
             if sock:
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                # Reduce TCP send buffer to minimize audio queued in kernel
-                # Default is 128KB+ which can hold seconds of audio.
-                # 8KB ≈ 170ms of 24kHz mono 16-bit audio — enough for smooth
-                # streaming but small enough for fast barge-in interruption.
-                try:
-                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 8192)
-                    logger.debug(f"[{self.call_uuid[:8]}] 🔧 TCP_NODELAY + SO_SNDBUF=8KB set")
-                except OSError:
-                    logger.debug(f"[{self.call_uuid[:8]}] 🔧 TCP_NODELAY enabled (SO_SNDBUF unchanged)")
+                logger.debug(f"[{self.call_uuid[:8]}] 🔧 TCP_NODELAY enabled")
 
             t_connect_start = time.monotonic()
             await self._connect_openai()
@@ -2017,24 +2009,24 @@ class CallBridge:
                             # After greeting, activate barge-in to suppress
                             # residual audio.delta from the interrupted response.
                             self._xai_barge_in = True
-                            # Flush silence to Asterisk to override any queued audio
-                            # in the TCP/socket buffer — makes barge-in feel instant.
-                            # 15 frames × 20ms = 300ms — enough to override TCP
-                            # kernel buffer + Asterisk-side jitter buffer.
+                            # Write a few silence frames to override audio in
+                            # asyncio write buffer. Keep small to avoid blocking
+                            # the event loop (drain can stall input audio path).
                             silence_frame = build_audiosocket_message(MSG_AUDIO_24K, b"\x00" * ASTERISK_CHUNK_BYTES)
-                            for _ in range(15):
+                            for _ in range(5):  # 5 x 20ms = 100ms silence
                                 self.writer.write(silence_frame)
-                            await self.writer.drain()
-                            logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — barge-in active, 300ms silence flush (xAI)")
+                            # No await drain() — let it flush naturally to avoid
+                            # blocking the event loop and starving input audio.
+                            logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — barge-in active, 100ms silence (xAI)")
                     else:
                         # OpenAI supports response.cancel — send it to stop generation
                         logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — clearing output buffer and cancelling response")
                         await self.openai_ws.send(json.dumps({"type": "response.cancel"}))
-                        # Flush silence to override queued audio in TCP buffer
+                        # Small silence flush — override asyncio write buffer only
                         silence_frame = build_audiosocket_message(MSG_AUDIO_24K, b"\x00" * ASTERISK_CHUNK_BYTES)
-                        for _ in range(15):  # 15 × 20ms = 300ms silence flush
+                        for _ in range(5):  # 5 × 20ms = 100ms silence
                             self.writer.write(silence_frame)
-                        await self.writer.drain()
+                        # No drain() — avoid blocking event loop
 
                 elif event_type == "input_audio_buffer.speech_stopped":
                     now = time.monotonic()
