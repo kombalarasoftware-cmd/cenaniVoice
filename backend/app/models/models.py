@@ -250,6 +250,9 @@ class Agent(Base):
     silence_timeout: Mapped[int] = mapped_column(Integer, default=10)
     max_retries: Mapped[int] = mapped_column(Integer, default=3)
     retry_delay: Mapped[int] = mapped_column(Integer, default=60)
+    initial_output_medium: Mapped[str] = mapped_column(String(50), default="unspecified")  # unspecified, voice, text
+    join_timeout: Mapped[int] = mapped_column(Integer, default=30)  # seconds to wait for call to be joined
+    time_exceeded_message: Mapped[Optional[str]] = mapped_column(Text, default=None)  # custom message when max duration reached
     
     # Behavior settings
     interruptible: Mapped[bool] = mapped_column(Boolean, default=True)

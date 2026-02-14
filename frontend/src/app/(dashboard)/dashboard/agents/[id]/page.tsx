@@ -46,6 +46,9 @@ interface ProviderSettings {
   transcript_model: boolean;
   greeting_uninterruptible: boolean;
   first_message_delay: boolean;
+  initial_output_medium: boolean;
+  join_timeout: boolean;
+  time_exceeded_message: boolean;
 }
 
 interface ProviderCapability {
@@ -293,6 +296,11 @@ export default function AgentEditorPage() {
   const [maxOutputTokens, setMaxOutputTokens] = useState(500);
   const [transcriptModel, setTranscriptModel] = useState('gpt-4o-transcribe');
 
+  // Ultravox-specific call settings
+  const [initialOutputMedium, setInitialOutputMedium] = useState('unspecified');
+  const [joinTimeout, setJoinTimeout] = useState(30);
+  const [timeExceededMessage, setTimeExceededMessage] = useState('');
+
   // Smart Features (Smart Features)
   const [leadCaptureEnabled, setLeadCaptureEnabled] = useState(false);
   const [leadCaptureTriggers, setLeadCaptureTriggers] = useState<string[]>(['interested', 'callback']);
@@ -400,6 +408,11 @@ export default function AgentEditorPage() {
         setNoiseReduction(data.noise_reduction ?? true);
         setMaxOutputTokens(data.max_output_tokens ?? 500);
         setTranscriptModel(data.transcript_model || 'gpt-4o-transcribe');
+        
+        // Load Ultravox-specific call settings
+        setInitialOutputMedium(data.initial_output_medium || 'unspecified');
+        setJoinTimeout(data.join_timeout ?? 30);
+        setTimeExceededMessage(data.time_exceeded_message || '');
         
         // Load inactivity messages
         if (data.inactivity_messages && Array.isArray(data.inactivity_messages)) {
@@ -796,6 +809,9 @@ export default function AgentEditorPage() {
             max_duration: maxDuration,
             max_retries: 3,
             retry_delay: 60,
+            initial_output_medium: initialOutputMedium,
+            join_timeout: joinTimeout,
+            time_exceeded_message: timeExceededMessage || null,
           },
           behavior_settings: {
             interruptible: !uninterruptible,
@@ -2696,7 +2712,57 @@ A: Credit card, bank transfer, automatic payment order.
                       className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
+
+                  {/* Initial Output Medium — Ultravox only */}
+                  {cap('initial_output_medium') && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Initial Output Medium</label>
+                    <select
+                      value={initialOutputMedium}
+                      onChange={(e) => { setInitialOutputMedium(e.target.value); setHasChanges(true); }}
+                      className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                      <option value="unspecified">Unspecified (auto)</option>
+                      <option value="voice">Voice</option>
+                      <option value="text">Text</option>
+                    </select>
+                    <p className="text-xs text-muted-foreground">Controls the initial output format of the agent</p>
+                  </div>
+                  )}
+
+                  {/* Join Timeout — Ultravox only */}
+                  {cap('join_timeout') && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Join Timeout (seconds)</label>
+                    <input
+                      type="number"
+                      value={joinTimeout}
+                      onChange={(e) => { setJoinTimeout(parseInt(e.target.value) || 30); setHasChanges(true); }}
+                      min={5}
+                      max={120}
+                      className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                    <p className="text-xs text-muted-foreground">How long to wait for the call to be connected</p>
+                  </div>
+                  )}
                 </div>
+
+                {/* Time Exceeded Message — Ultravox only */}
+                {cap('time_exceeded_message') && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Time Exceeded Message</label>
+                  <textarea
+                    value={timeExceededMessage}
+                    onChange={(e) => { setTimeExceededMessage(e.target.value); setHasChanges(true); }}
+                    placeholder="Example: Sorry, we've reached our time limit. Thank you, goodbye."
+                    rows={2}
+                    className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Message spoken before hanging up when max duration is reached. Leave empty for auto-generated message based on language.
+                  </p>
+                </div>
+                )}
 
                 {/* Toggle Switches - Dynamic based on provider */}
                 <div className="grid grid-cols-2 gap-4">

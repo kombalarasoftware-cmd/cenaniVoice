@@ -154,6 +154,10 @@ async def create_agent(
         agent.silence_timeout = agent_data.call_settings.silence_timeout
         agent.max_retries = agent_data.call_settings.max_retries
         agent.retry_delay = agent_data.call_settings.retry_delay
+        agent.initial_output_medium = agent_data.call_settings.initial_output_medium
+        agent.join_timeout = agent_data.call_settings.join_timeout
+        if agent_data.call_settings.time_exceeded_message is not None:
+            agent.time_exceeded_message = agent_data.call_settings.time_exceeded_message
     
     # Apply behavior settings
     if agent_data.behavior_settings:
@@ -288,6 +292,10 @@ async def update_agent(
         agent.silence_timeout = agent_data.call_settings.silence_timeout
         agent.max_retries = agent_data.call_settings.max_retries
         agent.retry_delay = agent_data.call_settings.retry_delay
+        agent.initial_output_medium = agent_data.call_settings.initial_output_medium
+        agent.join_timeout = agent_data.call_settings.join_timeout
+        if agent_data.call_settings.time_exceeded_message is not None:
+            agent.time_exceeded_message = agent_data.call_settings.time_exceeded_message
     
     # Update behavior settings
     if agent_data.behavior_settings:

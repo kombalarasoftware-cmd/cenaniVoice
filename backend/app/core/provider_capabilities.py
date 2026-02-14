@@ -35,6 +35,10 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, Any]] = {
             # Greeting
             "greeting_uninterruptible": True,
             "first_message_delay": True,
+            # Ultravox-specific call settings
+            "initial_output_medium": False,
+            "join_timeout": False,
+            "time_exceeded_message": False,
         },
     },
     "xai": {
@@ -61,6 +65,10 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, Any]] = {
             # Greeting
             "greeting_uninterruptible": True,
             "first_message_delay": True,
+            # Ultravox-specific call settings
+            "initial_output_medium": False,
+            "join_timeout": False,
+            "time_exceeded_message": False,
         },
     },
     "gemini": {
@@ -87,6 +95,10 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, Any]] = {
             # Greeting
             "greeting_uninterruptible": True,
             "first_message_delay": True,
+            # Ultravox-specific call settings
+            "initial_output_medium": False,
+            "join_timeout": False,
+            "time_exceeded_message": False,
         },
     },
     "ultravox": {
@@ -113,6 +125,10 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, Any]] = {
             # Greeting
             "greeting_uninterruptible": False,
             "first_message_delay": False,
+            # Ultravox-specific call settings
+            "initial_output_medium": True,
+            "join_timeout": True,
+            "time_exceeded_message": True,
         },
     },
 }

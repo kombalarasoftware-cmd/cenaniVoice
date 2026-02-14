@@ -138,6 +138,9 @@ class CallSettings(BaseModel):
     silence_timeout: int = Field(default=10, ge=5, le=30)
     max_retries: int = Field(default=3, ge=1, le=10)
     retry_delay: int = Field(default=60, ge=30, le=1440)
+    initial_output_medium: str = Field(default="unspecified", description="Initial output medium: unspecified, voice, text")
+    join_timeout: int = Field(default=30, ge=5, le=120, description="Seconds to wait for call to be joined")
+    time_exceeded_message: Optional[str] = Field(default=None, description="Custom message spoken when max duration reached")
 
 
 class BehaviorSettings(BaseModel):
@@ -493,6 +496,9 @@ class AgentDetailResponse(AgentResponse):
     noise_reduction: bool = True
     max_output_tokens: int = 500
     transcript_model: str = "gpt-4o-transcribe"
+    initial_output_medium: str = "unspecified"
+    join_timeout: int = 30
+    time_exceeded_message: Optional[str] = None
 
 
 # ============ Campaign Schemas ============

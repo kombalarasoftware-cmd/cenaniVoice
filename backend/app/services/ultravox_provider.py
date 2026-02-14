@@ -143,14 +143,25 @@ class UltravoxProvider(CallProvider):
 
         # Build time exceeded message (spoken before hanging up at max duration)
         language = getattr(agent, "language", "en") or "en"
-        time_exceeded_messages = {
-            "tr": "Görüşme süremiz doldu. Yardımcı olabildiysem ne mutlu, iyi günler.",
-            "en": "I'm afraid we've reached our time limit. Thank you for your time, goodbye.",
-            "de": "Unsere Gesprächszeit ist leider abgelaufen. Vielen Dank für Ihre Zeit, auf Wiedersehen.",
-            "fr": "Je suis désolé, notre temps de conversation est écoulé. Merci pour votre temps, au revoir.",
-            "es": "Lo siento, nuestro tiempo de conversación ha terminado. Gracias por su tiempo, adiós.",
-        }
-        time_exceeded_msg = time_exceeded_messages.get(language, time_exceeded_messages["en"])
+        # Use custom message if set, otherwise auto-generate per language
+        custom_time_msg = getattr(agent, "time_exceeded_message", None)
+        if custom_time_msg:
+            time_exceeded_msg = custom_time_msg
+        else:
+            time_exceeded_messages = {
+                "tr": "Görüşme süremiz doldu. Yardımcı olabildiysem ne mutlu, iyi günler.",
+                "en": "I'm afraid we've reached our time limit. Thank you for your time, goodbye.",
+                "de": "Unsere Gesprächszeit ist leider abgelaufen. Vielen Dank für Ihre Zeit, auf Wiedersehen.",
+                "fr": "Je suis désolé, notre temps de conversation est écoulé. Merci pour votre temps, au revoir.",
+                "es": "Lo siento, nuestro tiempo de conversación ha terminado. Gracias por su tiempo, adiós.",
+            }
+            time_exceeded_msg = time_exceeded_messages.get(language, time_exceeded_messages["en"])
+
+        # Initial output medium
+        initial_output_medium = getattr(agent, "initial_output_medium", "unspecified") or "unspecified"
+
+        # Join timeout
+        join_timeout_sec = getattr(agent, "join_timeout", 30) or 30
 
         # Inactivity messages from agent configuration
         inactivity_messages = getattr(agent, "inactivity_messages", None) or []
@@ -176,6 +187,8 @@ class UltravoxProvider(CallProvider):
                 greeting_text=greeting_text,
                 time_exceeded_message=time_exceeded_msg,
                 inactivity_messages=inactivity_messages,
+                initial_output_medium=initial_output_medium,
+                join_timeout=f"{join_timeout_sec}s",
             )
 
             ultravox_call_id = result.get("callId", "")

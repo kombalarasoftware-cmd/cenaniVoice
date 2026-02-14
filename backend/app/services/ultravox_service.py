@@ -62,6 +62,8 @@ class UltravoxService:
         template_context: Optional[dict] = None,
         time_exceeded_message: Optional[str] = None,
         inactivity_messages: Optional[list] = None,
+        initial_output_medium: Optional[str] = None,
+        join_timeout: Optional[str] = None,
     ) -> dict:
         """
         Create an outbound SIP call via Ultravox API.
@@ -99,6 +101,19 @@ class UltravoxService:
             "recordingEnabled": recording_enabled,
             "maxDuration": max_duration,
         }
+
+        # Initial output medium (voice, text, or unspecified)
+        medium_map = {
+            "unspecified": "MESSAGE_MEDIUM_UNSPECIFIED",
+            "voice": "MESSAGE_MEDIUM_VOICE",
+            "text": "MESSAGE_MEDIUM_TEXT",
+        }
+        if initial_output_medium and initial_output_medium != "unspecified":
+            payload["initialOutputMedium"] = medium_map.get(initial_output_medium, "MESSAGE_MEDIUM_UNSPECIFIED")
+
+        # Join timeout
+        if join_timeout:
+            payload["joinTimeout"] = join_timeout
 
         # Add SIP authentication if credentials provided
         if sip_username:
