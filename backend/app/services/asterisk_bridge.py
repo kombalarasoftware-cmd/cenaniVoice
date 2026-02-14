@@ -1092,6 +1092,44 @@ class CallBridge:
             self.inactivity_messages = call_setup.get("inactivity_messages") or []
             logger.info(f"[{self.call_uuid[:8]}] Agent '{call_setup.get('agent_name', 'Unknown')}' loaded from Redis: "
                         f"voice={self.agent_voice}, model={self.agent_model}, lang={self.agent_language}, vad={self.agent_vad_threshold}")
+
+            # ================================================================
+            # Adjust start_time to SIP answer time for accurate duration.
+            # AMD detection + AudioSocket setup takes ~2-3s after SIP answer.
+            # Read ANSWER_EPOCH from Asterisk channel variable via ARI.
+            # ================================================================
+            try:
+                import redis.asyncio as redis_async
+                r = redis_async.from_url(REDIS_URL, decode_responses=True)
+                try:
+                    channel_id = await r.get(f"call_channel:{self.call_uuid}")
+                finally:
+                    await r.close()
+
+                if channel_id:
+                    import urllib.parse
+                    encoded_ch = urllib.parse.quote(channel_id, safe="")
+                    ari_var_url = (
+                        f"http://{ARI_HOST}:{ARI_PORT}/ari/channels/"
+                        f"{encoded_ch}/variable?variable=ANSWER_EPOCH"
+                    )
+                    auth = aiohttp.BasicAuth(ARI_USERNAME, ARI_PASSWORD)
+                    async with aiohttp.ClientSession(auth=auth) as session:
+                        async with session.get(ari_var_url) as resp:
+                            if resp.status == 200:
+                                data = await resp.json()
+                                epoch_str = data.get("value")
+                                if epoch_str:
+                                    sip_answer_time = datetime.fromtimestamp(int(epoch_str))
+                                    drift = (self.start_time - sip_answer_time).total_seconds()
+                                    self.start_time = sip_answer_time
+                                    logger.info(
+                                        f"[{self.call_uuid[:8]}] ⏱️ SIP answer epoch={epoch_str}, "
+                                        f"start_time adjusted (drift={drift:.1f}s)"
+                                    )
+            except Exception as e:
+                logger.debug(f"[{self.call_uuid[:8]}] ⏱️ Could not read ANSWER_EPOCH: {e}")
+
         else:
             # ================================================================
             # 2) Redis'te yoksa ARI + DB fallback (inbound çağrılar)
