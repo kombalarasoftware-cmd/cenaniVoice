@@ -1460,10 +1460,8 @@ class CallBridge:
                         "silenceDurationMs": self.agent_silence_duration_ms,
                     },
                 },
-                # Enable input/output audio transcription with language hint
-                "inputAudioTranscription": {
-                    "languageCode": gemini_lang,
-                },
+                # Enable input/output audio transcription
+                "inputAudioTranscription": {},
                 "outputAudioTranscription": {},
             }
         }
