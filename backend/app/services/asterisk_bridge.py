@@ -1386,6 +1386,8 @@ class CallBridge:
                     "parts": [{"text": instructions}]
                 },
                 "tools": _build_gemini_tools(),
+                # Enable input audio transcription for realtime transcript
+                "inputAudioTranscription": {},
             }
         }
         
@@ -2427,9 +2429,12 @@ class CallBridge:
         satisfaction = call_data.get("customer_satisfaction", "neutral")
 
         # ================================================================
-        # TRANSCRIPT: Read from Redis and prepare for DB persistence
+        # TRANSCRIPT: Hybrid approach — realtime + Whisper post-call
+        # 1. Read realtime transcript from Redis (collected during call)
+        # 2. Run Whisper on recorded audio (accurate post-call STT)
+        # 3. Merge: prefer Whisper for accuracy, realtime as fallback
         # ================================================================
-        transcription_text = ""
+        realtime_transcript = ""
         try:
             import redis.asyncio as redis_async
             r = redis_async.from_url(REDIS_URL, decode_responses=True)
@@ -2449,12 +2454,44 @@ class CallBridge:
                                 lines.append(f"[{role}]: {content}")
                         except json.JSONDecodeError:
                             pass
-                    transcription_text = "\n".join(lines)
-                    logger.info(f"[{self.call_uuid[:8]}] 📝 Transcript read from Redis: {len(lines)} messages")
+                    realtime_transcript = "\n".join(lines)
+                    logger.info(f"[{self.call_uuid[:8]}] 📝 Realtime transcript: {len(lines)} messages")
             finally:
                 await r.close()
         except Exception as t_err:
-            logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Transcript Redis read error: {t_err}")
+            logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Realtime transcript read error: {t_err}")
+
+        # Whisper post-call transcription on recorded audio
+        whisper_result = {"success": False, "transcript_text": "", "messages": []}
+        if duration >= 3:  # Only run Whisper for calls longer than 3 seconds
+            try:
+                from app.services.whisper_transcriber import transcribe_call_audio, merge_transcripts
+                whisper_result = await transcribe_call_audio(
+                    call_uuid=self.call_uuid,
+                    language=self.agent_language,
+                    redis_url=REDIS_URL,
+                )
+                if whisper_result["success"]:
+                    logger.info(
+                        f"[{self.call_uuid[:8]}] 🎤 Whisper transcript: "
+                        f"{len(whisper_result['messages'])} messages, "
+                        f"input={whisper_result['input_duration']:.1f}s, "
+                        f"output={whisper_result['output_duration']:.1f}s"
+                    )
+                else:
+                    logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Whisper transcription returned no result")
+            except Exception as w_err:
+                logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Whisper transcription error: {w_err}")
+
+        # Merge: prefer Whisper for accuracy, realtime as fallback
+        try:
+            from app.services.whisper_transcriber import merge_transcripts
+            transcription_text = merge_transcripts(realtime_transcript, whisper_result)
+        except Exception:
+            transcription_text = realtime_transcript
+
+        if not transcription_text:
+            logger.warning(f"[{self.call_uuid[:8]}] ⚠️ No transcript available (realtime and Whisper both empty)")
         
         # Build metadata
         metadata = {
@@ -2472,6 +2509,9 @@ class CallBridge:
             "model_used": self.agent_model,
             "transcript_model": self.agent_transcript_model,
             "vad_type": self.agent_turn_detection,
+            "transcript_source": "whisper" if whisper_result.get("success") else "realtime",
+            "whisper_input_duration": whisper_result.get("input_duration", 0),
+            "whisper_output_duration": whisper_result.get("output_duration", 0),
         }
         
         # Save to Redis for immediate access
