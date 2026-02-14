@@ -793,6 +793,8 @@ async def agent_call_log(
             price_per_second=price_ps,
             tariff_cost=tariff_cost,
             tariff_description=tariff_desc,
+            summary=call.summary,
+            has_transcription=bool(call.transcription) or bool(call.ultravox_call_id),
         ))
 
     return AgentCallLogResponse(

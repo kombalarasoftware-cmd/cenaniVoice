@@ -1298,6 +1298,9 @@ class AgentCallLogItem(BaseModel):
     price_per_second: Optional[float] = None
     tariff_cost: Optional[float] = None  # duration * price_per_second
     tariff_description: Optional[str] = None
+    # Transcript / Summary
+    summary: Optional[str] = None
+    has_transcription: bool = False
 
 
 class AgentCallLogResponse(BaseModel):

@@ -22,6 +22,9 @@ import {
   DollarSign,
   Cpu,
   Bot,
+  MessageSquare,
+  FileText,
+  User,
 } from 'lucide-react';
 
 import { API_V1 as API_BASE } from '@/lib/api';
@@ -44,6 +47,8 @@ interface AgentCallLogItem {
   price_per_second: number | null;
   tariff_cost: number | null;
   tariff_description: string | null;
+  summary: string | null;
+  has_transcription: boolean;
 }
 
 interface AgentCallLogResponse {
@@ -59,6 +64,19 @@ interface AgentCallLogResponse {
 interface AgentOption {
   id: number;
   name: string;
+}
+
+interface TranscriptMessage {
+  role: string;
+  content: string;
+  timestamp: string;
+}
+
+interface TranscriptData {
+  messages: TranscriptMessage[];
+  message_count: number;
+  source: string;
+  summary: string | null;
 }
 
 interface Filters {
@@ -162,6 +180,10 @@ export default function AgentCallLogPage(): React.ReactElement {
   const [showFilters, setShowFilters] = useState(false);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
 
+  // Transcript
+  const [transcripts, setTranscripts] = useState<Record<number, TranscriptData | null>>({});
+  const [loadingTranscript, setLoadingTranscript] = useState<number | null>(null);
+
   // Summary
   const [totalDuration, setTotalDuration] = useState(0);
   const [totalTariffCost, setTotalTariffCost] = useState(0);
@@ -252,6 +274,36 @@ export default function AgentCallLogPage(): React.ReactElement {
   };
 
   const hasActiveFilters = Object.values(filters).some(v => v !== '');
+
+  // Fetch transcript when row is expanded
+  const fetchTranscript = useCallback(async (callId: number): Promise<void> => {
+    if (transcripts[callId] !== undefined) return; // Already loaded or loading
+    setLoadingTranscript(callId);
+    try {
+      const resp = await fetch(`${API_BASE}/calls/${callId}/transcription`, { headers: headers() });
+      if (resp.ok) {
+        const data: TranscriptData = await resp.json();
+        setTranscripts(prev => ({ ...prev, [callId]: data }));
+      } else {
+        setTranscripts(prev => ({ ...prev, [callId]: null }));
+      }
+    } catch {
+      setTranscripts(prev => ({ ...prev, [callId]: null }));
+    } finally {
+      setLoadingTranscript(null);
+    }
+  }, [transcripts]);
+
+  const handleRowClick = useCallback((callId: number, hasTranscription: boolean): void => {
+    if (expandedRow === callId) {
+      setExpandedRow(null);
+    } else {
+      setExpandedRow(callId);
+      if (hasTranscription) {
+        fetchTranscript(callId);
+      }
+    }
+  }, [expandedRow, fetchTranscript]);
 
   // CSV Export
   const handleExport = (): void => {
@@ -480,7 +532,7 @@ export default function AgentCallLogPage(): React.ReactElement {
                           'border-b border-border hover:bg-muted/30 transition-colors cursor-pointer',
                           expandedRow === call.id && 'bg-muted/30'
                         )}
-                        onClick={() => setExpandedRow(expandedRow === call.id ? null : call.id)}
+                        onClick={() => handleRowClick(call.id, call.has_transcription)}
                       >
                         <td className="px-4 py-3 text-sm">
                           {call.started_at ? formatDate(call.started_at) : '-'}
@@ -527,6 +579,7 @@ export default function AgentCallLogPage(): React.ReactElement {
                       {expandedRow === call.id && (
                         <tr className="bg-muted/20 border-b border-border">
                           <td colSpan={10} className="px-6 py-4">
+                            {/* Call Details Grid */}
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                               <div>
                                 <span className="text-muted-foreground">Call SID: </span>
@@ -563,6 +616,80 @@ export default function AgentCallLogPage(): React.ReactElement {
                                 )}
                               </div>
                             </div>
+
+                            {/* Summary */}
+                            {(call.summary || transcripts[call.id]?.summary) && (
+                              <div className="mt-4 p-3 bg-primary-500/5 border border-primary-500/20 rounded-lg">
+                                <div className="flex items-center gap-2 text-sm font-medium text-primary-500 mb-1">
+                                  <FileText className="h-4 w-4" />
+                                  Summary
+                                </div>
+                                <p className="text-sm text-foreground">
+                                  {call.summary || transcripts[call.id]?.summary}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Transcript */}
+                            {call.has_transcription && (
+                              <div className="mt-4">
+                                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
+                                  <MessageSquare className="h-4 w-4" />
+                                  Conversation Transcript
+                                  {transcripts[call.id]?.source && (
+                                    <span className="text-xs px-2 py-0.5 bg-muted rounded-full">
+                                      {transcripts[call.id]?.source}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {loadingTranscript === call.id ? (
+                                  <div className="flex items-center gap-2 py-4">
+                                    <Loader2 className="h-4 w-4 animate-spin text-primary-500" />
+                                    <span className="text-sm text-muted-foreground">Loading transcript...</span>
+                                  </div>
+                                ) : transcripts[call.id]?.messages && transcripts[call.id]!.messages.length > 0 ? (
+                                  <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
+                                    {transcripts[call.id]!.messages.map((msg, idx) => (
+                                      <div
+                                        key={idx}
+                                        className={cn(
+                                          'flex gap-3 text-sm',
+                                          msg.role === 'agent' ? 'justify-start' : 'justify-end'
+                                        )}
+                                      >
+                                        <div
+                                          className={cn(
+                                            'max-w-[80%] px-3 py-2 rounded-lg',
+                                            msg.role === 'agent'
+                                              ? 'bg-primary-500/10 text-foreground'
+                                              : msg.role === 'user'
+                                              ? 'bg-blue-500/10 text-foreground'
+                                              : 'bg-muted text-muted-foreground'
+                                          )}
+                                        >
+                                          <div className="flex items-center gap-1.5 mb-0.5">
+                                            {msg.role === 'agent' ? (
+                                              <Bot className="h-3 w-3 text-primary-500" />
+                                            ) : msg.role === 'user' ? (
+                                              <User className="h-3 w-3 text-blue-500" />
+                                            ) : null}
+                                            <span className="text-xs font-medium opacity-60 capitalize">
+                                              {msg.role === 'agent' ? 'AI Agent' : msg.role === 'user' ? 'Customer' : msg.role}
+                                            </span>
+                                          </div>
+                                          <p className="leading-relaxed">{msg.content}</p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : transcripts[call.id] === null ? (
+                                  <p className="text-sm text-muted-foreground py-2">
+                                    Transcript not available
+                                  </p>
+                                ) : null}
+                              </div>
+                            )}
                           </td>
                         </tr>
                       )}
