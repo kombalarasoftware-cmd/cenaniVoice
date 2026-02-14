@@ -269,6 +269,143 @@ ULTRAVOX_FAILURE_TERMINATIONS = {
 }
 
 
+async def _finalize_ultravox_call(
+    call_uuid: str,
+    ultravox_call_id: str,
+    call_data: dict,
+):
+    """
+    Finalize an Ultravox call: fetch transcript, summary, recording from
+    Ultravox cloud API and persist into CallLog.
+
+    Called by _monitor_ultravox_call when the call ends normally.
+    """
+    from app.services.ultravox_service import UltravoxService
+    from app.core.database import SessionLocal
+    from app.models.models import CallLog, CallStatus, CallOutcome
+
+    service = UltravoxService()
+    short_id = call_uuid[:8]
+
+    # 1. Fetch transcript messages from Ultravox API
+    transcript_text = ""
+    try:
+        messages = await service.get_call_messages(ultravox_call_id)
+        lines: list[str] = []
+        for msg in messages:
+            role_raw = msg.get("role", "")
+            # Normalise Ultravox roles → our format
+            if "AGENT" in role_raw:
+                role = "agent"
+            elif "USER" in role_raw:
+                role = "user"
+            elif "TOOL" in role_raw:
+                role = "tool"
+            else:
+                role = "system"
+            text = (msg.get("text") or "").strip()
+            if text:
+                lines.append(f"[{role}]: {text}")
+        transcript_text = "\n".join(lines)
+        logger.info(f"[{short_id}] Ultravox transcript fetched: {len(messages)} messages")
+    except Exception as e:
+        logger.warning(f"[{short_id}] Failed to fetch Ultravox transcript: {e}")
+
+    # 2. Extract summary from call data (already available from get_call)
+    summary = call_data.get("shortSummary") or call_data.get("summary") or ""
+
+    # 3. Fetch recording URL
+    recording_url = None
+    try:
+        recording_url = await service.get_call_recording(ultravox_call_id)
+        if recording_url:
+            logger.info(f"[{short_id}] Ultravox recording URL obtained")
+    except Exception as e:
+        logger.debug(f"[{short_id}] No recording available: {e}")
+
+    # 4. Calculate duration
+    duration = 0
+    try:
+        created = call_data.get("created")
+        ended = call_data.get("ended")
+        if created and ended:
+            dt_start = datetime.fromisoformat(created.replace("Z", "+00:00"))
+            dt_end = datetime.fromisoformat(ended.replace("Z", "+00:00"))
+            duration = int((dt_end - dt_start).total_seconds())
+    except Exception:
+        pass
+
+    # 5. Update CallLog in database
+    try:
+        db = SessionLocal()
+        try:
+            call_log = db.query(CallLog).filter(CallLog.call_sid == call_uuid).first()
+            if call_log:
+                call_log.status = CallStatus.COMPLETED
+                call_log.outcome = CallOutcome.COMPLETED
+                call_log.ended_at = datetime.utcnow()
+                if duration > 0:
+                    call_log.duration = duration
+                if transcript_text:
+                    call_log.transcription = transcript_text
+                if summary:
+                    call_log.summary = summary
+                if recording_url:
+                    call_log.recording_url = recording_url
+
+                # SIP details
+                sip_details = call_data.get("sipDetails", {}) or {}
+                term_reason = sip_details.get("terminationReason", "")
+                if term_reason:
+                    sip_code, hangup_cause = ULTRAVOX_TERMINATION_TO_SIP.get(
+                        term_reason, (200, "Normal Clearing")
+                    )
+                    call_log.sip_code = sip_code
+                    call_log.hangup_cause = hangup_cause
+
+                db.commit()
+                logger.info(
+                    f"[{short_id}] CallLog finalized: status=completed, "
+                    f"duration={duration}s, transcript={len(transcript_text)} chars, "
+                    f"summary={len(summary)} chars"
+                )
+            else:
+                logger.warning(f"[{short_id}] CallLog not found for finalization")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"[{short_id}] Failed to finalize CallLog: {e}")
+
+    # 6. Also push transcript to Redis (for live frontend polling)
+    if redis_client and transcript_text:
+        try:
+            transcript_key = f"call_transcript:{call_uuid}"
+            for line in transcript_text.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                import re
+                match = re.match(r"^\[(\w+)\]:\s*(.+)$", line)
+                if match:
+                    entry = json.dumps({
+                        "role": match.group(1),
+                        "content": match.group(2),
+                        "timestamp": datetime.utcnow().isoformat(),
+                    })
+                    redis_client.lpush(transcript_key, entry)
+            redis_client.expire(transcript_key, 3600)  # 1 hour TTL
+            logger.info(f"[{short_id}] Transcript pushed to Redis")
+        except Exception as e:
+            logger.debug(f"[{short_id}] Redis transcript push error: {e}")
+
+    # 7. Set call status in Redis for frontend
+    if redis_client:
+        try:
+            redis_client.setex(f"call_status:{call_uuid}", 300, "completed")
+        except Exception:
+            pass
+
+
 async def _monitor_ultravox_call(call_uuid: str, ultravox_call_id: str):
     """
     Monitor an Ultravox call for early failure (busy/no-answer/invalid).
@@ -288,7 +425,8 @@ async def _monitor_ultravox_call(call_uuid: str, ultravox_call_id: str):
     # Wait before first check — give SIP time to connect
     await asyncio.sleep(5)
 
-    # Poll for up to 2 minutes (24 checks × 5 seconds)
+    # Phase 1: Check for early failure (24 checks × 5 seconds = 2 minutes)
+    call_connected = False
     for poll_count in range(24):
         try:
             call_data = await service.get_call(ultravox_call_id)
@@ -322,23 +460,25 @@ async def _monitor_ultravox_call(call_uuid: str, ultravox_call_id: str):
                     await _mark_call_failed(call_uuid, sip_code=503)
                     return
 
-                # Normal ending (hangup, agent_hangup) — webhook will handle it
+                # Normal ending (hangup, agent_hangup) — fetch transcript & finalize
                 logger.info(
                     f"[{call_uuid[:8]}] Ultravox monitor: normal end "
-                    f"(endReason={end_reason}), webhook will finalize"
+                    f"(endReason={end_reason}), fetching transcript"
                 )
+                await _finalize_ultravox_call(call_uuid, ultravox_call_id, call_data)
                 return
 
             # Call still active — check if it's been answered
             # Ultravox call status: "idle", "listening", "thinking", "speaking"
             call_status = call_data.get("status", "")
             if call_status in ("listening", "thinking", "speaking"):
-                # Call is actively connected — stop monitoring
+                # Call is actively connected — move to phase 2 (wait for end)
                 logger.info(
                     f"[{call_uuid[:8]}] Ultravox monitor: call active "
-                    f"(status={call_status}), stopping"
+                    f"(status={call_status}), switching to completion monitor"
                 )
-                return
+                call_connected = True
+                break
 
         except Exception as e:
             logger.debug(f"[{call_uuid[:8]}] Ultravox monitor poll error: {e}")
@@ -347,7 +487,34 @@ async def _monitor_ultravox_call(call_uuid: str, ultravox_call_id: str):
 
     # Timed out after 2 minutes — unlikely to connect
     logger.warning(f"[{call_uuid[:8]}] Ultravox monitor: timed out after 2 minutes")
-    await _mark_call_failed(call_uuid, sip_code=480)
+    if not call_connected:
+        await _mark_call_failed(call_uuid, sip_code=480)
+        return
+
+    # Phase 2: Call connected — poll until call ends (max 60 min)
+    # Poll every 10 seconds for up to 360 checks (60 minutes)
+    for _ in range(360):
+        await asyncio.sleep(10)
+        try:
+            call_data = await service.get_call(ultravox_call_id)
+            end_reason = call_data.get("endReason")
+            if end_reason:
+                sip_details = call_data.get("sipDetails", {}) or {}
+                termination_reason = sip_details.get("terminationReason")
+                logger.info(
+                    f"[{call_uuid[:8]}] Ultravox call ended during conversation: "
+                    f"endReason={end_reason}, termination={termination_reason}"
+                )
+                if termination_reason in ULTRAVOX_FAILURE_TERMINATIONS:
+                    sip_code, hangup_cause = ULTRAVOX_TERMINATION_TO_SIP[termination_reason]
+                    await _mark_call_failed(call_uuid, sip_code=sip_code)
+                else:
+                    await _finalize_ultravox_call(call_uuid, ultravox_call_id, call_data)
+                return
+        except Exception as e:
+            logger.debug(f"[{call_uuid[:8]}] Ultravox phase-2 poll error: {e}")
+
+    logger.warning(f"[{call_uuid[:8]}] Ultravox monitor phase-2: timed out after 60 minutes")
 
 
 class OutboundCallRequest(BaseModel):

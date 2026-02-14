@@ -369,6 +369,56 @@ async def get_call_transcription(
         if messages:
             source = "database"
 
+    # 3) Ultravox on-demand: fetch transcript from Ultravox cloud API
+    if not messages and call.ultravox_call_id and call.provider == "ultravox":
+        try:
+            from app.services.ultravox_service import UltravoxService
+            service = UltravoxService()
+            uv_messages = await service.get_call_messages(call.ultravox_call_id)
+            lines: list[str] = []
+            for msg in uv_messages:
+                role_raw = msg.get("role", "")
+                if "AGENT" in role_raw:
+                    role = "agent"
+                elif "USER" in role_raw:
+                    role = "user"
+                elif "TOOL" in role_raw:
+                    role = "tool"
+                else:
+                    role = "system"
+                text = (msg.get("text") or "").strip()
+                if text:
+                    messages.append({
+                        "role": role,
+                        "content": text,
+                        "timestamp": "",
+                    })
+                    lines.append(f"[{role}]: {text}")
+            if messages:
+                source = "ultravox_api"
+                # Persist to DB so we don't need to fetch again
+                transcript_text = "\n".join(lines)
+                call.transcription = transcript_text
+                # Also fetch summary if missing
+                if not call.summary:
+                    try:
+                        call_data = await service.get_call(call.ultravox_call_id)
+                        call.summary = call_data.get("shortSummary") or call_data.get("summary") or ""
+                    except Exception:
+                        pass
+                # Fetch recording URL if missing
+                if not call.recording_url:
+                    try:
+                        rec_url = await service.get_call_recording(call.ultravox_call_id)
+                        if rec_url:
+                            call.recording_url = rec_url
+                    except Exception:
+                        pass
+                db.commit()
+                logger.info(f"Ultravox transcript fetched on-demand for call {call.id}: {len(uv_messages)} messages")
+        except Exception as e:
+            logger.warning(f"Ultravox on-demand transcript fetch failed for call {call.id}: {e}")
+
     return {
         "call_id": call.id,
         "call_sid": call.call_sid,
