@@ -1023,15 +1023,18 @@ class CallBridge:
         # Do NOT activate barge-in until the greeting has fully played.
         self._greeting_done = False
 
-        # Audio buffer - küçük chunk'ları biriktirip toplu gönderim
-        # 100ms = 5x 20ms chunk → kesik ses sorununu önler
+        # Audio INPUT buffer — collect small Asterisk chunks before sending to AI
+        # Lower = less latency for speech detection (AI hears sooner)
+        # 40ms = 2x 20ms chunk → good balance of WS efficiency + low latency
+        # Previously 100ms — caused noticeable delay in speech detection
         self.audio_buffer = bytearray()
-        self.buffer_target_ms = 100  # 60→100ms arttırıldı
+        self.buffer_target_ms = 40  # 100→40ms: 60ms latency reduction for faster VAD
         self.buffer_target_bytes = ASTERISK_SAMPLE_RATE * 2 * self.buffer_target_ms // 1000
         
-        # Output buffer - OpenAI'den gelen sesi düzgün akıtmak için
+        # Audio OUTPUT buffer — buffer AI audio before starting playback
+        # Lower = faster first audio (user hears AI response sooner)
         self.output_buffer = bytearray()
-        self.output_buffer_min_ms = 40  # 40ms buffer dolmadan çalmaya başlama (80→40ms azaltıldı, daha hızlı ilk ses)
+        self.output_buffer_min_ms = 20  # 40→20ms: faster first-byte playback
 
         # Asterisk'ten gelen audio tipi (otomatik algılama)
         self.detected_audio_type: Optional[int] = None
@@ -1975,11 +1978,22 @@ class CallBridge:
                             # After greeting, activate barge-in to suppress
                             # residual audio.delta from the interrupted response.
                             self._xai_barge_in = True
-                            logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — barge-in active, suppressing agent audio (xAI)")
+                            # Flush silence to Asterisk to override any queued audio
+                            # in the TCP/socket buffer — makes barge-in feel instant.
+                            silence_frame = b"\x00" * ASTERISK_CHUNK_BYTES
+                            for _ in range(3):  # 3 x 20ms = 60ms silence flush
+                                self.writer.write(build_audiosocket_message(MSG_AUDIO_24K, silence_frame))
+                            await self.writer.drain()
+                            logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — barge-in active, silence flush sent (xAI)")
                     else:
                         # OpenAI supports response.cancel — send it to stop generation
                         logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — clearing output buffer and cancelling response")
                         await self.openai_ws.send(json.dumps({"type": "response.cancel"}))
+                        # Flush silence to override queued audio in TCP buffer
+                        silence_frame = b"\x00" * ASTERISK_CHUNK_BYTES
+                        for _ in range(3):  # 3 x 20ms = 60ms silence flush
+                            self.writer.write(build_audiosocket_message(MSG_AUDIO_24K, silence_frame))
+                        await self.writer.drain()
 
                 elif event_type == "input_audio_buffer.speech_stopped":
                     now = time.monotonic()
