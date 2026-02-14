@@ -1,49 +1,76 @@
 from app.schemas.schemas import (
-    # Enums
+    # Enums (re-exported from models)
     UserRole,
     AgentStatus,
     CampaignStatus,
     CallStatus,
-    
+    CallOutcome,
+    RealtimeModel,
+    TranscriptModel,
+    AppointmentStatus,
+    AppointmentType,
+    LeadStatus,
+    LeadInterestType,
+    CallTag,
+    AIProvider,
+    DialListStatus,
+    DialEntryStatus,
+    DialAttemptResult,
+    DialingMode,
+
     # User
     UserBase,
     UserCreate,
     UserUpdate,
     UserResponse,
-    
+
     # Auth
     Token,
     RefreshTokenRequest,
     TokenPayload,
     LoginRequest,
-    
+
     # Agent
     PromptSections,
     VoiceSettings,
     CallSettings,
     BehaviorSettings,
     AdvancedSettings,
+    GreetingSettings,
+    InactivityMessage,
+    SmartFeatures,
+    SurveyConfig,
+    UltravoxVoiceSettings,
+    CallCost,
     AgentBase,
     AgentCreate,
     AgentUpdate,
     AgentResponse,
     AgentDetailResponse,
-    
+    AgentTariffCreate,
+    AgentTariffUpdate,
+    AgentTariffResponse,
+    AgentCallLogItem,
+    AgentCallLogResponse,
+
     # Campaign
     CampaignBase,
     CampaignCreate,
     CampaignUpdate,
     CampaignResponse,
-    
+
     # Numbers
     NumberListCreate,
     NumberListResponse,
     PhoneNumberResponse,
-    
+
     # Calls
     CallLogResponse,
+    CallCostSummary,
     RecordingResponse,
-    
+    CallTagsUpdate,
+    CallTagsResponse,
+
     # Settings
     PagePermissions,
     RolePermissionResponse,
@@ -52,53 +79,174 @@ from app.schemas.schemas import (
     SIPTrunkResponse,
     WebhookCreate,
     WebhookResponse,
-    
+
+    # Documents
+    AgentDocumentCreate,
+    AgentDocumentResponse,
+    DocumentChunkResponse,
+    DocumentSearchRequest,
+    DocumentSearchResponse,
+
+    # Appointments
+    AppointmentCreate,
+    AppointmentUpdate,
+    AppointmentResponse,
+    AppointmentListResponse,
+
+    # Leads
+    LeadCreate,
+    LeadUpdate,
+    LeadResponse,
+    LeadListResponse,
+    LeadStats,
+
+    # Survey
+    SurveyResponseCreate,
+    SurveyResponseUpdate,
+    SurveyResponseResponse,
+
+    # Dial Lists
+    DialListCreate,
+    DialListUpdate,
+    DialListResponse,
+    DialListEntryCreate,
+    DialListEntryUpdate,
+    DialListEntryBulkCreate,
+    DialListEntryResponse,
+    DialAttemptResponse,
+    DNCListCreate,
+    DNCListResponse,
+    CampaignListCreate,
+    CampaignListResponse,
+    DialHopperResponse,
+    CampaignDispositionCreate,
+    CampaignDispositionResponse,
+    ExcelUploadResponse,
+
     # Stats
     DashboardStats,
     CallStats,
     PaginatedResponse,
+    APIResponse,
+    APIErrorResponse,
 )
 
 __all__ = [
+    # Enums
     "UserRole",
     "AgentStatus",
     "CampaignStatus",
     "CallStatus",
+    "CallOutcome",
+    "RealtimeModel",
+    "TranscriptModel",
+    "AppointmentStatus",
+    "AppointmentType",
+    "LeadStatus",
+    "LeadInterestType",
+    "CallTag",
+    "AIProvider",
+    "DialListStatus",
+    "DialEntryStatus",
+    "DialAttemptResult",
+    "DialingMode",
+    # User
     "UserBase",
     "UserCreate",
     "UserUpdate",
     "UserResponse",
+    # Auth
     "Token",
     "RefreshTokenRequest",
     "TokenPayload",
     "LoginRequest",
+    # Agent
     "PromptSections",
     "VoiceSettings",
     "CallSettings",
     "BehaviorSettings",
     "AdvancedSettings",
+    "GreetingSettings",
+    "InactivityMessage",
+    "SmartFeatures",
+    "SurveyConfig",
+    "UltravoxVoiceSettings",
+    "CallCost",
     "AgentBase",
     "AgentCreate",
     "AgentUpdate",
     "AgentResponse",
     "AgentDetailResponse",
+    "AgentTariffCreate",
+    "AgentTariffUpdate",
+    "AgentTariffResponse",
+    "AgentCallLogItem",
+    "AgentCallLogResponse",
+    # Campaign
     "CampaignBase",
     "CampaignCreate",
     "CampaignUpdate",
     "CampaignResponse",
+    # Numbers
     "NumberListCreate",
     "NumberListResponse",
     "PhoneNumberResponse",
+    # Calls
     "CallLogResponse",
+    "CallCostSummary",
     "RecordingResponse",
-    "SIPTrunkCreate",
-    "SIPTrunkResponse",
+    "CallTagsUpdate",
+    "CallTagsResponse",
+    # Settings
     "PagePermissions",
     "RolePermissionResponse",
     "RolePermissionUpdate",
+    "SIPTrunkCreate",
+    "SIPTrunkResponse",
     "WebhookCreate",
     "WebhookResponse",
+    # Documents
+    "AgentDocumentCreate",
+    "AgentDocumentResponse",
+    "DocumentChunkResponse",
+    "DocumentSearchRequest",
+    "DocumentSearchResponse",
+    # Appointments
+    "AppointmentCreate",
+    "AppointmentUpdate",
+    "AppointmentResponse",
+    "AppointmentListResponse",
+    # Leads
+    "LeadCreate",
+    "LeadUpdate",
+    "LeadResponse",
+    "LeadListResponse",
+    "LeadStats",
+    # Survey
+    "SurveyResponseCreate",
+    "SurveyResponseUpdate",
+    "SurveyResponseResponse",
+    # Dial Lists
+    "DialListCreate",
+    "DialListUpdate",
+    "DialListResponse",
+    "DialListEntryCreate",
+    "DialListEntryUpdate",
+    "DialListEntryBulkCreate",
+    "DialListEntryResponse",
+    "DialAttemptResponse",
+    "DNCListCreate",
+    "DNCListResponse",
+    "CampaignListCreate",
+    "CampaignListResponse",
+    "DialHopperResponse",
+    "CampaignDispositionCreate",
+    "CampaignDispositionResponse",
+    "ExcelUploadResponse",
+    # Stats
     "DashboardStats",
     "CallStats",
     "PaginatedResponse",
+    "APIResponse",
+    "APIErrorResponse",
 ]

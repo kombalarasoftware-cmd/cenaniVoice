@@ -10,7 +10,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = '002_add_xai'
-down_revision = None  # Will be applied manually via SQL
+down_revision = '001'
 branch_labels = None
 depends_on = None
 
