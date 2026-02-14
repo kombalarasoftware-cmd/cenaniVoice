@@ -1314,11 +1314,19 @@ class CallBridge:
             logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Failed to update CallLog to CONNECTED: {e}")
 
         try:
-            # TCP_NODELAY: Disable Nagle's algorithm for lower audio latency
+            # TCP tuning for low-latency audio streaming
             sock = self.writer.get_extra_info('socket')
             if sock:
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                logger.debug(f"[{self.call_uuid[:8]}] 🔧 TCP_NODELAY enabled")
+                # Reduce TCP send buffer to minimize audio queued in kernel
+                # Default is 128KB+ which can hold seconds of audio.
+                # 8KB ≈ 170ms of 24kHz mono 16-bit audio — enough for smooth
+                # streaming but small enough for fast barge-in interruption.
+                try:
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 8192)
+                    logger.debug(f"[{self.call_uuid[:8]}] 🔧 TCP_NODELAY + SO_SNDBUF=8KB set")
+                except OSError:
+                    logger.debug(f"[{self.call_uuid[:8]}] 🔧 TCP_NODELAY enabled (SO_SNDBUF unchanged)")
 
             t_connect_start = time.monotonic()
             await self._connect_openai()
@@ -2011,19 +2019,21 @@ class CallBridge:
                             self._xai_barge_in = True
                             # Flush silence to Asterisk to override any queued audio
                             # in the TCP/socket buffer — makes barge-in feel instant.
-                            silence_frame = b"\x00" * ASTERISK_CHUNK_BYTES
-                            for _ in range(3):  # 3 x 20ms = 60ms silence flush
-                                self.writer.write(build_audiosocket_message(MSG_AUDIO_24K, silence_frame))
+                            # 15 frames × 20ms = 300ms — enough to override TCP
+                            # kernel buffer + Asterisk-side jitter buffer.
+                            silence_frame = build_audiosocket_message(MSG_AUDIO_24K, b"\x00" * ASTERISK_CHUNK_BYTES)
+                            for _ in range(15):
+                                self.writer.write(silence_frame)
                             await self.writer.drain()
-                            logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — barge-in active, silence flush sent (xAI)")
+                            logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — barge-in active, 300ms silence flush (xAI)")
                     else:
                         # OpenAI supports response.cancel — send it to stop generation
                         logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — clearing output buffer and cancelling response")
                         await self.openai_ws.send(json.dumps({"type": "response.cancel"}))
                         # Flush silence to override queued audio in TCP buffer
-                        silence_frame = b"\x00" * ASTERISK_CHUNK_BYTES
-                        for _ in range(3):  # 3 x 20ms = 60ms silence flush
-                            self.writer.write(build_audiosocket_message(MSG_AUDIO_24K, silence_frame))
+                        silence_frame = build_audiosocket_message(MSG_AUDIO_24K, b"\x00" * ASTERISK_CHUNK_BYTES)
+                        for _ in range(15):  # 15 × 20ms = 300ms silence flush
+                            self.writer.write(silence_frame)
                         await self.writer.drain()
 
                 elif event_type == "input_audio_buffer.speech_stopped":
@@ -2066,7 +2076,16 @@ class CallBridge:
                         is_playing = True
                         
                         # Buffer'dan chunk'ları gönder
+                        # Check barge-in flag EVERY iteration so we stop
+                        # writing audio the moment user starts speaking.
                         while len(self.output_buffer) >= ASTERISK_CHUNK_BYTES:
+                            # ---- Barge-in check (critical for fast interruption) ----
+                            if self._xai_barge_in:
+                                self.output_buffer.clear()
+                                is_playing = False
+                                next_send_time = None
+                                break
+
                             chunk = bytes(self.output_buffer[:ASTERISK_CHUNK_BYTES])
                             del self.output_buffer[:ASTERISK_CHUNK_BYTES]
 
