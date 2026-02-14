@@ -1774,7 +1774,7 @@ class CallBridge:
                     # This is a non-negotiable system rule: agent must always yield to customer.
                     self.last_user_activity_time = time.monotonic()
                     self.inactivity_message_index = 0  # Reset inactivity counter
-                    logger.debug(f"[{self.call_uuid[:8]}] 👂 Müşteri konuşuyor - AI yanıtı HEMEN durduruluyor")
+                    logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — clearing output buffer and cancelling response")
                     # Clear output buffer to stop AI audio immediately
                     self.output_buffer.clear()
                     is_playing = False
@@ -1784,7 +1784,7 @@ class CallBridge:
 
                 elif event_type == "input_audio_buffer.speech_stopped":
                     self.last_user_activity_time = time.monotonic()
-                    logger.debug(f"[{self.call_uuid[:8]}] 👂 Müşteri konuşmayı bitirdi")
+                    logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STOPPED")
 
                 elif event_type in ("response.audio.delta", "response.output_audio.delta"):
                     audio_b64 = event.get("delta", "")
