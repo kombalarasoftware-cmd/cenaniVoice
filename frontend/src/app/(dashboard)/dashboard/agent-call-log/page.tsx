@@ -47,6 +47,8 @@ interface AgentCallLogItem {
   price_per_second: number | null;
   tariff_cost: number | null;
   tariff_description: string | null;
+  agent_name: string | null;
+  model_used: string | null;
   summary: string | null;
   has_transcription: boolean;
 }
@@ -374,7 +376,7 @@ function TranscriptModal({
 // ─── Main Page ───────────────────────────────────────────────────
 export default function AgentCallLogPage(): React.ReactElement {
   const [agents, setAgents] = useState<AgentOption[]>([]);
-  const [selectedAgentId, setSelectedAgentId] = useState<string>('');
+  const [selectedAgentId, setSelectedAgentId] = useState<string>('all');
   const [calls, setCalls] = useState<AgentCallLogItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingAgents, setIsLoadingAgents] = useState(true);
@@ -409,9 +411,7 @@ export default function AgentCallLogPage(): React.ReactElement {
           const data = await resp.json();
           const list: AgentOption[] = data.map((a: { id: number; name: string }) => ({ id: a.id, name: a.name }));
           setAgents(list);
-          if (list.length > 0) {
-            setSelectedAgentId(String(list[0].id));
-          }
+          // Default stays 'all' — no need to auto-select first agent
         }
       } catch (e) {
         console.error('Failed to load agents:', e);
@@ -436,10 +436,12 @@ export default function AgentCallLogPage(): React.ReactElement {
       if (filters.status) params.set('status', filters.status);
       if (filters.outcome) params.set('outcome', filters.outcome);
 
-      const resp = await fetch(
-        `${API_BASE}/agents/${selectedAgentId}/call-log?${params.toString()}`,
-        { headers: headers() }
-      );
+      // Use all-agents endpoint when "All Agents" is selected
+      const url = selectedAgentId === 'all'
+        ? `${API_BASE}/agents/call-log-all?${params.toString()}`
+        : `${API_BASE}/agents/${selectedAgentId}/call-log?${params.toString()}`;
+
+      const resp = await fetch(url, { headers: headers() });
       if (resp.ok) {
         const data: AgentCallLogResponse = await resp.json();
         setCalls(data.items);
@@ -481,15 +483,17 @@ export default function AgentCallLogPage(): React.ReactElement {
   // CSV Export
   const handleExport = (): void => {
     if (calls.length === 0) return;
-    const csvHeaders = ['Date', 'Customer', 'Number', 'Duration (s)', 'Status', 'Outcome', 'Provider', 'Prefix', 'Rate/min', 'Cost', 'Campaign'];
+    const csvHeaders = ['Date', 'Agent', 'Customer', 'Number', 'Duration (s)', 'Status', 'Outcome', 'Provider', 'Model', 'Prefix', 'Rate/min', 'Cost', 'Campaign'];
     const csvRows = calls.map(c => [
       c.started_at ? formatDate(c.started_at) : '',
+      c.agent_name || '',
       c.customer_name || '',
       c.to_number || '',
       String(c.duration),
       c.status,
       c.outcome || '',
       c.provider || '',
+      c.model_used || '',
       c.matched_prefix || '',
       c.price_per_second != null ? c.price_per_second.toFixed(4) : '',
       c.tariff_cost != null ? c.tariff_cost.toFixed(4) : '',
@@ -500,7 +504,7 @@ export default function AgentCallLogPage(): React.ReactElement {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const agentName = agents.find(a => String(a.id) === selectedAgentId)?.name || 'agent';
+    const agentName = selectedAgentId === 'all' ? 'all-agents' : (agents.find(a => String(a.id) === selectedAgentId)?.name || 'agent');
     a.download = `agent-call-log-${agentName}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
@@ -523,6 +527,7 @@ export default function AgentCallLogPage(): React.ReactElement {
               disabled={isLoadingAgents}
             >
               {isLoadingAgents && <option>Loading...</option>}
+              <option value="all">All Agents</option>
               {agents.map(a => (
                 <option key={a.id} value={String(a.id)}>{a.name}</option>
               ))}
@@ -669,6 +674,9 @@ export default function AgentCallLogPage(): React.ReactElement {
               <thead>
                 <tr className="bg-muted/50 border-b border-border">
                   <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date/Time</th>
+                  {selectedAgentId === 'all' && (
+                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Agent</th>
+                  )}
                   <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Customer</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Number</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Duration</th>
@@ -710,6 +718,14 @@ export default function AgentCallLogPage(): React.ReactElement {
                         <td className="px-4 py-3 text-sm">
                           {call.started_at ? formatDate(call.started_at) : '-'}
                         </td>
+                        {selectedAgentId === 'all' && (
+                          <td className="px-4 py-3 text-sm">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary-500/10 text-primary-500">
+                              <Bot className="h-3 w-3" />
+                              {call.agent_name || '—'}
+                            </span>
+                          </td>
+                        )}
                         <td className="px-4 py-3 text-sm">
                           {call.customer_name || <span className="text-muted-foreground">—</span>}
                         </td>
@@ -751,7 +767,7 @@ export default function AgentCallLogPage(): React.ReactElement {
                       {/* Expanded Detail Row */}
                       {expandedRow === call.id && (
                         <tr className="bg-muted/20 border-b border-border">
-                          <td colSpan={10} className="px-6 py-4">
+                          <td colSpan={11} className="px-6 py-4">
                             {/* Call Details Grid */}
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                               <div>
@@ -770,6 +786,18 @@ export default function AgentCallLogPage(): React.ReactElement {
                                 <span className="text-muted-foreground">Campaign: </span>
                                 <span>{call.campaign_name || '-'}</span>
                               </div>
+                              {call.agent_name && (
+                                <div>
+                                  <span className="text-muted-foreground">Agent: </span>
+                                  <span>{call.agent_name}</span>
+                                </div>
+                              )}
+                              {call.model_used && (
+                                <div>
+                                  <span className="text-muted-foreground">Model: </span>
+                                  <span className="font-mono text-xs">{call.model_used}</span>
+                                </div>
+                              )}
                               <div>
                                 <span className="text-muted-foreground">Tariff: </span>
                                 <span>{call.tariff_description || '-'}</span>

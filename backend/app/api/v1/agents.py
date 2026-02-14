@@ -713,6 +713,129 @@ def _match_tariff(to_number: str, tariffs: list[AgentTariff]) -> AgentTariff | N
     return best
 
 
+@router.get("/call-log-all", response_model=AgentCallLogResponse)
+async def all_agents_call_log(
+    search: Optional[str] = Query(None, description="Search by phone number or customer name"),
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
+    status: Optional[str] = Query(None),
+    outcome: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get call log for ALL agents owned by this user, with tariff cost."""
+    from sqlalchemy import or_
+
+    # Get all agents owned by user
+    if current_user.role == UserRole.ADMIN:
+        user_agents = db.query(Agent).all()
+    else:
+        user_agents = db.query(Agent).filter(
+            or_(Agent.owner_id == current_user.id, Agent.is_system == True)
+        ).all()
+
+    agent_ids = [a.id for a in user_agents]
+    agent_name_map = {a.id: a.name for a in user_agents}
+
+    if not agent_ids:
+        return AgentCallLogResponse(
+            items=[], total=0, page=1, page_size=limit,
+            total_duration_seconds=0, total_tariff_cost=0.0, avg_cost_per_call=0.0,
+        )
+
+    # Load tariffs for all agents
+    all_tariffs = db.query(AgentTariff).filter(AgentTariff.agent_id.in_(agent_ids)).all()
+    tariffs_by_agent: dict[int, list[AgentTariff]] = {}
+    for t in all_tariffs:
+        tariffs_by_agent.setdefault(t.agent_id, []).append(t)
+
+    # Build query: all calls for any of the user's agents
+    query = db.query(CallLog).filter(CallLog.agent_id.in_(agent_ids))
+
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            (CallLog.to_number.ilike(search_term))
+            | (CallLog.customer_name.ilike(search_term))
+            | (CallLog.from_number.ilike(search_term))
+        )
+    if date_from:
+        query = query.filter(CallLog.started_at >= date_from)
+    if date_to:
+        query = query.filter(CallLog.started_at <= date_to)
+    if status:
+        query = query.filter(CallLog.status == status)
+    if outcome:
+        query = query.filter(CallLog.outcome == outcome)
+
+    total = query.count()
+    calls = query.order_by(CallLog.started_at.desc()).offset(skip).limit(limit).all()
+
+    # Campaign name mapping
+    campaign_ids = {c.campaign_id for c in calls if c.campaign_id}
+    campaign_map: dict[int, str] = {}
+    if campaign_ids:
+        campaigns = db.query(Campaign.id, Campaign.name).filter(Campaign.id.in_(campaign_ids)).all()
+        campaign_map = {c.id: c.name for c in campaigns}
+
+    items: list[AgentCallLogItem] = []
+    total_duration = 0
+    total_tariff_cost = 0.0
+
+    for call in calls:
+        duration = call.duration or 0
+        total_duration += duration
+
+        agent_tariffs = tariffs_by_agent.get(call.agent_id, [])
+        matched = _match_tariff(call.to_number or "", agent_tariffs)
+        tariff_cost = None
+        matched_prefix = None
+        price_ps = None
+        tariff_desc = None
+
+        if matched and duration > 0:
+            price_ps = matched.price_per_second
+            matched_prefix = matched.prefix
+            tariff_desc = matched.description
+            tariff_cost = round(duration * (price_ps / 60), 6)
+            total_tariff_cost += tariff_cost
+
+        items.append(AgentCallLogItem(
+            id=call.id,
+            call_sid=call.call_sid,
+            to_number=call.to_number,
+            from_number=call.from_number,
+            customer_name=call.customer_name,
+            status=call.status.value if hasattr(call.status, 'value') else str(call.status),
+            outcome=call.outcome.value if call.outcome and hasattr(call.outcome, 'value') else (str(call.outcome) if call.outcome else None),
+            duration=duration,
+            started_at=call.started_at,
+            ended_at=call.ended_at,
+            campaign_name=campaign_map.get(call.campaign_id) if call.campaign_id else None,
+            provider=call.provider,
+            matched_prefix=matched_prefix,
+            price_per_second=price_ps,
+            tariff_cost=tariff_cost,
+            tariff_description=tariff_desc,
+            agent_name=agent_name_map.get(call.agent_id),
+            model_used=call.model_used,
+            summary=call.summary,
+            has_transcription=bool(call.transcription) or bool(call.ultravox_call_id),
+        ))
+
+    return AgentCallLogResponse(
+        items=items,
+        total=total,
+        page=(skip // limit) + 1,
+        page_size=limit,
+        total_duration_seconds=total_duration,
+        total_tariff_cost=round(total_tariff_cost, 6),
+        avg_cost_per_call=round(total_tariff_cost / len(items), 6) if items else 0.0,
+    )
+
+
 @router.get("/{agent_id}/call-log", response_model=AgentCallLogResponse)
 async def agent_call_log(
     agent_id: int,
@@ -817,6 +940,8 @@ async def agent_call_log(
             price_per_second=price_ps,
             tariff_cost=tariff_cost,
             tariff_description=tariff_desc,
+            agent_name=agent.name,
+            model_used=call.model_used,
             summary=call.summary,
             has_transcription=bool(call.transcription) or bool(call.ultravox_call_id),
         ))
