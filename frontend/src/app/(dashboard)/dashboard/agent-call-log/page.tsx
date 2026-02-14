@@ -804,20 +804,18 @@ export default function AgentCallLogPage(): React.ReactElement {
                             )}
 
                             {/* View Transcript Button */}
-                            {call.has_transcription && (
-                              <div className="mt-4">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setTranscriptCallId(call.id);
-                                  }}
-                                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 text-white transition-colors text-sm font-medium"
-                                >
-                                  <MessageSquare className="h-4 w-4" />
-                                  View Transcript
-                                </button>
-                              </div>
-                            )}
+                            <div className="mt-4">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTranscriptCallId(call.id);
+                                }}
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 text-white transition-colors text-sm font-medium"
+                              >
+                                <MessageSquare className="h-4 w-4" />
+                                View Transcript
+                              </button>
+                            </div>
 
                             {/* Call IDs */}
                             <div className="mt-4 pt-3 border-t border-border">
