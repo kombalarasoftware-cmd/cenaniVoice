@@ -186,8 +186,6 @@ XAI_WS_URL = "wss://api.x.ai/v1/realtime"
 
 # Gemini Vertex AI WebSocket URL template
 # Format: wss://{LOCATION}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent
-# Gemini Vertex AI WebSocket URL template
-# Format: wss://{LOCATION}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent
 GEMINI_WS_URL_TEMPLATE = "wss://{location}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent"
 
 
@@ -1182,9 +1180,17 @@ class CallBridge:
                         self.agent_create_response = agent_data.get("create_response", True)
                         self.inactivity_messages = agent_data.get("inactivity_messages") or []
                         
+                        # Set provider based on model name (critical for inbound calls)
+                        if "gemini" in (self.agent_model or "").lower():
+                            self.provider = "gemini"
+                        elif "grok" in (self.agent_model or "").lower():
+                            self.provider = "xai"
+                        else:
+                            self.provider = "openai"
+                        
                         logger.info(f"[{self.call_uuid[:8]}] ✅ Agent '{agent_data['name']}' yüklendi (ARI fallback): "
                                     f"voice={self.agent_voice}, model={self.agent_model}, lang={self.agent_language}, "
-                                    f"vad={self.agent_turn_detection}, transcript={self.agent_transcript_model}")
+                                    f"vad={self.agent_turn_detection}, provider={self.provider}")
                     else:
                         logger.warning(f"[{self.call_uuid[:8]}] ⚠️ Agent ID {agent_id} database'de bulunamadı, default ayarlar kullanılıyor")
                 except Exception as e:
@@ -1228,10 +1234,10 @@ class CallBridge:
             try:
                 await conn.execute(
                     """UPDATE call_logs
-                       SET status = 'CONNECTED',
+                       SET status = 'connected'::callstatus,
                            connected_at = COALESCE(connected_at, $2)
                        WHERE call_sid = $1
-                         AND status IN ('RINGING', 'QUEUED')""",
+                         AND status::text IN ('ringing', 'queued')""",
                     self.call_uuid,
                     self.start_time,
                 )
@@ -1506,9 +1512,13 @@ class CallBridge:
         if self.provider == "xai":
             # xAI Grok session config
             # Docs: https://docs.x.ai/developers/model-capabilities/audio/voice-agent
-            xai_turn_detection = {"type": "server_vad"}
-            if self.agent_turn_detection == "server_vad":
-                xai_turn_detection = {"type": "server_vad"}
+            # xAI supports server_vad only
+            xai_turn_detection = {
+                "type": "server_vad",
+                "threshold": self.agent_vad_threshold,
+                "prefix_padding_ms": self.agent_prefix_padding_ms,
+                "silence_duration_ms": self.agent_silence_duration_ms,
+            }
             
             config = {
                 "type": "session.update",
@@ -1516,12 +1526,17 @@ class CallBridge:
                     "model": self.agent_model,  # xAI requires model in session
                     "voice": self.agent_voice,
                     "instructions": instructions,
+                    "temperature": self.agent_temperature,
                     "turn_detection": xai_turn_detection,
+                    "input_audio_transcription": {
+                        "model": "gpt-4o-transcribe",
+                    },
                     "audio": {
                         "input": {"format": {"type": "audio/pcm", "rate": 24000}},
                         "output": {"format": {"type": "audio/pcm", "rate": 24000}},
                     },
                     "tools": _build_tools(),
+                    "max_response_output_tokens": self.agent_max_output_tokens,
                 }
             }
         else:
@@ -1689,14 +1704,28 @@ class CallBridge:
             self.is_active = False
 
     async def _send_dtmf_as_text(self, digit: str):
-        """DTMF tuşunu metin olarak OpenAI'ye gönder."""
-        if self.openai_ws and self.openai_ws.state == State.OPEN:
+        """Send DTMF digit as text to the active AI provider."""
+        if not (self.openai_ws and self.openai_ws.state == State.OPEN):
+            return
+        
+        if self.provider == "gemini":
+            await self.openai_ws.send(json.dumps({
+                "clientContent": {
+                    "turns": [{
+                        "role": "user",
+                        "parts": [{"text": f"[Customer pressed DTMF key: {digit}]"}]
+                    }],
+                    "turnComplete": True
+                }
+            }))
+        else:
+            # OpenAI and xAI format
             await self.openai_ws.send(json.dumps({
                 "type": "conversation.item.create",
                 "item": {
                     "type": "message",
                     "role": "user",
-                    "content": [{"type": "input_text", "text": f"[Müşteri {digit} tuşuna bastı]"}]
+                    "content": [{"type": "input_text", "text": f"[Customer pressed DTMF key: {digit}]"}]
                 }
             }))
 
@@ -1897,6 +1926,17 @@ class CallBridge:
                 elif msg_type == MSG_DTMF:
                     digit = payload.decode("ascii", errors="replace").strip()
                     logger.info(f"[{self.call_uuid[:8]}] 📱 DTMF: {digit}")
+                    # Forward DTMF to Gemini as text instruction
+                    if self.openai_ws and self.openai_ws.state == State.OPEN:
+                        await self.openai_ws.send(json.dumps({
+                            "clientContent": {
+                                "turns": [{
+                                    "role": "user",
+                                    "parts": [{"text": f"[Customer pressed DTMF key: {digit}]"}]
+                                }],
+                                "turnComplete": True
+                            }
+                        }))
 
                 elif msg_type in (MSG_AUDIO_8K, MSG_AUDIO_16K, MSG_AUDIO_24K, MSG_AUDIO_48K):
                     self.stats["audio_frames_in"] += 1
@@ -2803,7 +2843,7 @@ class CallBridge:
                         customer.get("name", ""),
                         self.sip_code,
                         self.hangup_cause,
-                        self.customer_name or "",
+                        self.customer_data.get("phone", "") or "",  # to_number
                         int(self.agent_id) if hasattr(self, 'agent_id') and self.agent_id else None,
                         self.start_time,
                         datetime.now(),
@@ -3097,7 +3137,7 @@ async def main():
 ╠══════════════════════════════════════════════════════════════════╣
 ║  Optimizasyonlar:                                               ║
 ║    Temperature    : 0.6                                         ║
-║    VAD            : semantic_vad (eagerness: low)               ║
+║    VAD            : semantic_vad (eagerness: high)              ║
 ║    Transcription  : gpt-4o-transcribe (DB-driven)               ║
 ║    Tools          : {len(_build_tools())} (from registry)                      ║
 ║    Features       : Sentiment, Memory, Callback, QualityScore   ║
