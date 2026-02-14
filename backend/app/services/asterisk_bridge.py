@@ -1018,6 +1018,11 @@ class CallBridge:
         # incoming audio.delta until xAI starts a fresh response cycle.
         self._xai_barge_in = False
 
+        # Greeting protection — during the first response (greeting), ambient
+        # noise or AMD echo can trigger false speech_started events on xAI.
+        # Do NOT activate barge-in until the greeting has fully played.
+        self._greeting_done = False
+
         # Audio buffer - küçük chunk'ları biriktirip toplu gönderim
         # 100ms = 5x 20ms chunk → kesik ses sorununu önler
         self.audio_buffer = bytearray()
@@ -1164,12 +1169,27 @@ class CallBridge:
                     agent_data = await get_agent_from_db(agent_id)
                     
                     if agent_data:
-                        voice = agent_data["voice"] or "ash"
-                        self.agent_voice = voice if voice in self.VALID_VOICES else "ash"
-                        if voice != self.agent_voice:
-                            logger.warning(f"[{self.call_uuid[:8]}] Invalid voice '{voice}', using 'ash'")
                         self.agent_model = agent_data["model_type"]
                         self.agent_language = agent_data["language"]
+
+                        # Set provider FIRST — voice validation depends on it
+                        if "gemini" in (self.agent_model or "").lower():
+                            self.provider = "gemini"
+                            self.VALID_VOICES = GEMINI_VALID_VOICES
+                        elif "grok" in (self.agent_model or "").lower():
+                            self.provider = "xai"
+                            self.VALID_VOICES = XAI_VALID_VOICES
+                        else:
+                            self.provider = "openai"
+                            # VALID_VOICES already set to OPENAI defaults
+
+                        # Now validate voice against the correct provider's voice list
+                        default_voice = "Ara" if self.provider == "xai" else "Kore" if self.provider == "gemini" else "ash"
+                        voice = agent_data["voice"] or default_voice
+                        self.agent_voice = voice if voice in self.VALID_VOICES else default_voice
+                        if voice != self.agent_voice:
+                            logger.warning(f"[{self.call_uuid[:8]}] Invalid voice '{voice}' for {self.provider}, using '{self.agent_voice}'")
+
                         # Build complete prompt using PromptBuilder
                         from app.services.prompt_builder import PromptBuilder, PromptContext
                         ctx = PromptContext.from_dict(
@@ -1192,14 +1212,6 @@ class CallBridge:
                         self.agent_interrupt_response = True  # FORCED True — non-negotiable
                         self.agent_create_response = agent_data.get("create_response", True)
                         self.inactivity_messages = agent_data.get("inactivity_messages") or []
-                        
-                        # Set provider based on model name (critical for inbound calls)
-                        if "gemini" in (self.agent_model or "").lower():
-                            self.provider = "gemini"
-                        elif "grok" in (self.agent_model or "").lower():
-                            self.provider = "xai"
-                        else:
-                            self.provider = "openai"
                         
                         logger.info(f"[{self.call_uuid[:8]}] ✅ Agent '{agent_data['name']}' yüklendi (ARI fallback): "
                                     f"voice={self.agent_voice}, model={self.agent_model}, lang={self.agent_language}, "
@@ -1583,6 +1595,7 @@ class CallBridge:
         """Trigger initial greeting based on agent settings."""
         # If first_speaker = 'user', skip greeting and wait for customer to speak
         if self.first_speaker == "user":
+            self._greeting_done = True  # No greeting → barge-in ready immediately
             logger.info(f"[{self.call_uuid[:8]}] first_speaker=user, skipping greeting - waiting for customer")
             return
 
@@ -1793,10 +1806,16 @@ class CallBridge:
                         # interruption internally when server_vad detects speech.
                         # Sending response.cancel corrupts xAI's conversation
                         # state and breaks auto-response after user speech.
-                        # Set barge-in flag to suppress residual audio.delta
-                        # events from the interrupted response.
-                        self._xai_barge_in = True
-                        logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — barge-in active, suppressing agent audio (xAI)")
+                        if not self._greeting_done:
+                            # During greeting, DON'T activate barge-in.
+                            # AMD echo / ambient noise triggers false speech_started.
+                            # Suppressing greeting audio causes 10+ sec silence.
+                            logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED during greeting — ignoring (AMD/noise protection)")
+                        else:
+                            # After greeting, activate barge-in to suppress
+                            # residual audio.delta from the interrupted response.
+                            self._xai_barge_in = True
+                            logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — barge-in active, suppressing agent audio (xAI)")
                     else:
                         # OpenAI supports response.cancel — send it to stop generation
                         logger.info(f"[{self.call_uuid[:8]}] 👂 Speech STARTED — clearing output buffer and cancelling response")
@@ -1857,6 +1876,11 @@ class CallBridge:
                         await self.writer.drain()
                 
                 elif event_type in ("response.audio.done", "response.output_audio.done"):
+                    # Mark greeting as done after first audio response completes
+                    if not self._greeting_done:
+                        self._greeting_done = True
+                        logger.info(f"[{self.call_uuid[:8]}] ✅ Greeting audio complete — barge-in protection enabled")
+
                     # If barge-in active, just discard — don't flush residual audio
                     if self._xai_barge_in:
                         self.output_buffer.clear()
