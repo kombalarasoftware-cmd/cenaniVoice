@@ -77,6 +77,22 @@ async def list_voices(
     return {"provider": provider, "voices": voices}
 
 
+@router.get("/providers/capabilities")
+async def get_provider_capabilities_endpoint(
+    provider: Optional[str] = Query(None, description="Specific provider name. If omitted, returns all."),
+    current_user: User = Depends(get_current_user),
+):
+    """Return supported settings per AI provider for dynamic UI rendering."""
+    from app.core.provider_capabilities import get_provider_capabilities, get_all_capabilities
+
+    if provider:
+        caps = get_provider_capabilities(provider)
+        if not caps:
+            raise HTTPException(status_code=404, detail=f"Unknown provider: {provider}")
+        return {provider: caps}
+    return get_all_capabilities()
+
+
 @router.get("", response_model=List[AgentResponse])
 async def list_agents(
     status: Optional[ModelAgentStatus] = None,

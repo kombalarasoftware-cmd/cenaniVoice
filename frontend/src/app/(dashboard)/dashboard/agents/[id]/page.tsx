@@ -28,6 +28,34 @@ type RagSubTab = 'knowledge' | 'sources' | 'documents';
 type EndBehavior = 'unspecified' | 'interruptible_hangup' | 'uninterruptible_hangup';
 type SurveyQuestionType = 'yes_no' | 'multiple_choice' | 'rating' | 'open_ended';
 
+// Provider capabilities — which settings each provider supports
+interface ProviderSettings {
+  temperature: boolean;
+  max_duration: boolean;
+  record_calls: boolean;
+  auto_transcribe: boolean;
+  human_transfer: boolean;
+  turn_detection: boolean;
+  vad_threshold: boolean;
+  vad_eagerness: boolean;
+  silence_duration_ms: boolean;
+  prefix_padding_ms: boolean;
+  create_response: boolean;
+  max_output_tokens: boolean;
+  noise_reduction: boolean;
+  transcript_model: boolean;
+  greeting_uninterruptible: boolean;
+  first_message_delay: boolean;
+}
+
+interface ProviderCapability {
+  label: string;
+  description: string;
+  settings: ProviderSettings;
+}
+
+type ProviderCapabilities = Record<string, ProviderCapability>;
+
 interface SurveyQuestion {
   id: string;
   type: SurveyQuestionType;
@@ -243,8 +271,11 @@ export default function AgentEditorPage() {
   const [voiceGenderFilter, setVoiceGenderFilter] = useState<'all' | 'male' | 'female'>('all');
   const [selectedTimezone, setSelectedTimezone] = useState('Europe/Istanbul');
 
-  const [maxDuration, setMaxDuration] = useState(300);
-  const [silenceTimeout, setSilenceTimeout] = useState(10);
+  // Provider capabilities — fetched from backend
+  const [providerCaps, setProviderCaps] = useState<ProviderCapabilities | null>(null);
+
+  const maxDurationDefault = 300;
+  const [maxDuration, setMaxDuration] = useState(maxDurationDefault);
   const [recordCalls, setRecordCalls] = useState(true);
   const [autoTranscribe, setAutoTranscribe] = useState(true);
   const [humanTransfer, setHumanTransfer] = useState(true);
@@ -257,12 +288,9 @@ export default function AgentEditorPage() {
   const [vadEagerness, setVadEagerness] = useState('low');
   const [silenceDurationMs, setSilenceDurationMs] = useState(1000);
   const [prefixPaddingMs, setPrefixPaddingMs] = useState(400);
-  const [idleTimeoutMs, setIdleTimeoutMs] = useState<number | null>(null);
-  const [interruptResponse, setInterruptResponse] = useState(true);
   const [createResponse, setCreateResponse] = useState(true);
   const [noiseReduction, setNoiseReduction] = useState(true);
   const [maxOutputTokens, setMaxOutputTokens] = useState(500);
-  const [speechSpeed, setSpeechSpeed] = useState(1.0);
   const [transcriptModel, setTranscriptModel] = useState('gpt-4o-transcribe');
 
   // Smart Features (Smart Features)
@@ -357,7 +385,6 @@ export default function AgentEditorPage() {
         }
 
         setMaxDuration(data.max_duration ?? 300);
-        setSilenceTimeout(data.silence_timeout ?? 10);
         setRecordCalls(data.record_calls ?? true);
         setAutoTranscribe(data.auto_transcribe ?? true);
         setHumanTransfer(data.human_transfer ?? true);
@@ -369,12 +396,9 @@ export default function AgentEditorPage() {
         setVadEagerness(data.vad_eagerness || 'low');
         setSilenceDurationMs(data.silence_duration_ms ?? 1000);
         setPrefixPaddingMs(data.prefix_padding_ms ?? 400);
-        setIdleTimeoutMs(data.idle_timeout_ms ?? null);
-        setInterruptResponse(data.interrupt_response ?? true);
         setCreateResponse(data.create_response ?? true);
         setNoiseReduction(data.noise_reduction ?? true);
         setMaxOutputTokens(data.max_output_tokens ?? 500);
-        setSpeechSpeed(data.speech_speed ?? 1.0);
         setTranscriptModel(data.transcript_model || 'gpt-4o-transcribe');
         
         // Load inactivity messages
@@ -479,6 +503,33 @@ export default function AgentEditorPage() {
       fetchAgent();
     }
   }, [agentId]);
+
+  // Fetch provider capabilities on mount
+  useEffect(() => {
+    const fetchCapabilities = async (): Promise<void> => {
+      try {
+        const token = localStorage.getItem('access_token');
+        const headers: Record<string, string> = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+        const response = await fetch(`${API_V1}/agents/providers/capabilities`, { headers });
+        if (response.ok) {
+          const data: ProviderCapabilities = await response.json();
+          setProviderCaps(data);
+        }
+      } catch (error) {
+        console.error('Provider capabilities fetch error:', error);
+      }
+    };
+    fetchCapabilities();
+  }, []);
+
+  /** Check if a setting is supported by the currently selected provider */
+  const cap = (setting: keyof ProviderSettings): boolean => {
+    if (!providerCaps || !providerCaps[selectedProvider]) return true;
+    return providerCaps[selectedProvider].settings[setting] ?? true;
+  };
 
   const tabs = [
     { id: 'prompt' as EditorTab, label: 'Prompt' },
@@ -740,11 +791,9 @@ export default function AgentEditorPage() {
             voice: selectedVoice,
             language: selectedLanguage,
             timezone: selectedTimezone,
-            speech_speed: speechSpeed,
           },
           call_settings: {
             max_duration: maxDuration,
-            silence_timeout: silenceTimeout,
             max_retries: 3,
             retry_delay: 60,
           },
@@ -761,8 +810,6 @@ export default function AgentEditorPage() {
             vad_eagerness: vadEagerness,
             silence_duration_ms: silenceDurationMs,
             prefix_padding_ms: prefixPaddingMs,
-            idle_timeout_ms: idleTimeoutMs,
-            interrupt_response: interruptResponse,
             create_response: createResponse,
             noise_reduction: noiseReduction,
             max_output_tokens: maxOutputTokens,
@@ -1384,7 +1431,8 @@ A: Credit card, bank transfer, automatic payment order.
                   </div>
                 </div>
 
-                {/* Uninterruptible */}
+                {/* Uninterruptible - only show if provider supports it */}
+                {cap('greeting_uninterruptible') && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <label className="text-sm font-medium">Uninterruptible</label>
@@ -1410,8 +1458,10 @@ A: Credit card, bank transfer, automatic payment order.
                     </button>
                   </div>
                 </div>
+                )}
 
-                {/* First Message Delay */}
+                {/* First Message Delay - only show if provider supports it */}
+                {cap('first_message_delay') && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <label className="text-sm font-medium">First Message Delay (s)</label>
@@ -1427,6 +1477,7 @@ A: Credit card, bank transfer, automatic payment order.
                     className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
+                )}
               </div>
             )}
 
@@ -2647,9 +2698,10 @@ A: Credit card, bank transfer, automatic payment order.
                   </div>
                 </div>
 
-                {/* Toggle Switches - 2 Column Grid */}
+                {/* Toggle Switches - Dynamic based on provider */}
                 <div className="grid grid-cols-2 gap-4">
                   {/* Record Calls */}
+                  {cap('record_calls') && (
                   <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border">
                     <div>
                       <p className="text-sm font-medium">Record Calls</p>
@@ -2668,8 +2720,10 @@ A: Credit card, bank transfer, automatic payment order.
                       )} />
                     </button>
                   </div>
+                  )}
 
                   {/* Auto Transcribe */}
+                  {cap('auto_transcribe') && (
                   <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border">
                     <div>
                       <p className="text-sm font-medium">Auto Transcribe</p>
@@ -2688,11 +2742,10 @@ A: Credit card, bank transfer, automatic payment order.
                       )} />
                     </button>
                   </div>
-                </div>
+                  )}
 
-                {/* Toggle Switches Row 2 - Full Width */}
-                <div className="grid grid-cols-2 gap-4">
                   {/* Human Transfer */}
+                  {cap('human_transfer') && (
                   <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border">
                     <div>
                       <p className="text-sm font-medium">Human Transfer</p>
@@ -2711,6 +2764,7 @@ A: Credit card, bank transfer, automatic payment order.
                       )} />
                     </button>
                   </div>
+                  )}
                 </div>
 
                 {/* Divider */}
@@ -2720,9 +2774,10 @@ A: Credit card, bank transfer, automatic payment order.
                   </h3>
                 </div>
 
-                {/* Advanced Settings - 3 Column Grid */}
+                {/* Advanced Settings - Dynamic Grid */}
                 <div className="grid grid-cols-3 gap-4">
                   {/* Temperature */}
+                  {cap('temperature') && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <label className="text-sm font-medium">Temperature</label>
@@ -2739,26 +2794,10 @@ A: Credit card, bank transfer, automatic payment order.
                     />
                     <p className="text-xs text-muted-foreground">Controls randomness: 0 = deterministic, 1 = creative</p>
                   </div>
-
-                  {/* Speech Speed */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-sm font-medium">Speech Speed</label>
-                      <span className="text-sm text-muted-foreground">{speechSpeed}x</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0.5"
-                      max="2"
-                      step="0.1"
-                      value={speechSpeed}
-                      onChange={(e) => { setSpeechSpeed(parseFloat(e.target.value)); setHasChanges(true); }}
-                      className="w-full"
-                    />
-                    <p className="text-xs text-muted-foreground">Voice speed: 0.5 = slow, 1.0 = normal, 2.0 = fast</p>
-                  </div>
+                  )}
 
                   {/* Turn Detection */}
+                  {cap('turn_detection') && (
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Turn Detection</label>
                     <select
@@ -2772,8 +2811,10 @@ A: Credit card, bank transfer, automatic payment order.
                     </select>
                     <p className="text-xs text-muted-foreground">How the system detects when user stops speaking</p>
                   </div>
+                  )}
 
                   {/* VAD Threshold */}
+                  {cap('vad_threshold') && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <label className="text-sm font-medium">VAD Threshold</label>
@@ -2790,8 +2831,10 @@ A: Credit card, bank transfer, automatic payment order.
                     />
                     <p className="text-xs text-muted-foreground">Higher = less sensitive to background noise</p>
                   </div>
+                  )}
 
                   {/* User Transcript Model */}
+                  {cap('transcript_model') && (
                   <div className="space-y-2">
                     <label className="text-sm font-medium">User Transcript Model</label>
                     <select
@@ -2804,21 +2847,27 @@ A: Credit card, bank transfer, automatic payment order.
                     </select>
                     <p className="text-xs text-muted-foreground">Model for user speech transcription</p>
                   </div>
+                  )}
 
-                  {/* Silence Timeout */}
+                  {/* Max Output Tokens */}
+                  {cap('max_output_tokens') && (
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Silence Timeout (seconds)</label>
+                    <label className="text-sm font-medium">Max Output Tokens</label>
                     <input
                       type="number"
-                      value={silenceTimeout}
-                      onChange={(e) => { setSilenceTimeout(parseInt(e.target.value) || 10); setHasChanges(true); }}
+                      value={maxOutputTokens}
+                      onChange={(e) => { setMaxOutputTokens(parseInt(e.target.value) || 500); setHasChanges(true); }}
+                      min={0}
+                      max={4096}
                       className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
+                    <p className="text-xs text-muted-foreground">Maximum response length (0 = infinite)</p>
                   </div>
+                  )}
                 </div>
 
-                {/* Semantic VAD Eagerness - only show if semantic_vad selected */}
-                {turnDetection === 'semantic_vad' && (
+                {/* Semantic VAD Eagerness - only show if semantic_vad selected AND provider supports it */}
+                {cap('vad_eagerness') && turnDetection === 'semantic_vad' && (
                   <div className="space-y-2">
                     <label className="text-sm font-medium">VAD Eagerness</label>
                     <select
@@ -2838,6 +2887,7 @@ A: Credit card, bank transfer, automatic payment order.
                 {/* More Advanced Settings - 2 Column Grid */}
                 <div className="grid grid-cols-2 gap-4">
                   {/* Silence Duration */}
+                  {cap('silence_duration_ms') && (
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Silence Duration (ms)</label>
                     <input
@@ -2850,8 +2900,10 @@ A: Credit card, bank transfer, automatic payment order.
                     />
                     <p className="text-xs text-muted-foreground">How long to wait after user stops speaking (default: 800ms)</p>
                   </div>
+                  )}
 
                   {/* Prefix Padding */}
+                  {cap('prefix_padding_ms') && (
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Prefix Padding (ms)</label>
                     <input
@@ -2864,64 +2916,13 @@ A: Credit card, bank transfer, automatic payment order.
                     />
                     <p className="text-xs text-muted-foreground">Audio padding before speech starts (default: 500ms)</p>
                   </div>
-
-                  {/* Idle Timeout */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Idle Timeout (ms)</label>
-                    <input
-                      type="number"
-                      value={idleTimeoutMs ?? ''}
-                      onChange={(e) => { 
-                        const val = e.target.value;
-                        setIdleTimeoutMs(val === '' ? null : parseInt(val) || null); 
-                        setHasChanges(true); 
-                      }}
-                      min={0}
-                      max={60000}
-                      placeholder="No timeout"
-                      className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                    <p className="text-xs text-muted-foreground">Auto-close connection after inactivity (leave empty for no timeout)</p>
-                  </div>
-
-                  {/* Max Output Tokens */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Max Output Tokens</label>
-                    <input
-                      type="number"
-                      value={maxOutputTokens}
-                      onChange={(e) => { setMaxOutputTokens(parseInt(e.target.value) || 500); setHasChanges(true); }}
-                      min={0}
-                      max={4096}
-                      className="w-full px-4 py-2.5 bg-muted/30 rounded-lg text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                    <p className="text-xs text-muted-foreground">Maximum response length (0 = infinite)</p>
-                  </div>
+                  )}
                 </div>
 
-                {/* Advanced Toggles - 3 Column Grid */}
-                <div className="grid grid-cols-3 gap-4">
-                  {/* Interrupt Response Toggle */}
-                  <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border">
-                    <div>
-                      <p className="text-sm font-medium">Allow Interruption</p>
-                      <p className="text-xs text-muted-foreground">User can interrupt the AI</p>
-                    </div>
-                    <button
-                      onClick={() => { setInterruptResponse(!interruptResponse); setHasChanges(true); }}
-                      className={cn(
-                        'w-12 h-6 rounded-full transition-colors relative flex-shrink-0',
-                        interruptResponse ? 'bg-primary-500' : 'bg-muted'
-                      )}
-                    >
-                      <span className={cn(
-                        'absolute top-1 w-4 h-4 bg-white rounded-full transition-transform',
-                        interruptResponse ? 'translate-x-7' : 'translate-x-1'
-                      )} />
-                    </button>
-                  </div>
-
+                {/* Advanced Toggles - Dynamic Grid */}
+                <div className="grid grid-cols-2 gap-4">
                   {/* Create Response Toggle */}
+                  {cap('create_response') && (
                   <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border">
                     <div>
                       <p className="text-sm font-medium">Auto Create Response</p>
@@ -2940,8 +2941,10 @@ A: Credit card, bank transfer, automatic payment order.
                       )} />
                     </button>
                   </div>
+                  )}
 
                   {/* Noise Reduction Toggle */}
+                  {cap('noise_reduction') && (
                   <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border">
                     <div>
                       <p className="text-sm font-medium">Noise Reduction</p>
@@ -2960,6 +2963,7 @@ A: Credit card, bank transfer, automatic payment order.
                       )} />
                     </button>
                   </div>
+                  )}
                 </div>
               </div>
             )}
