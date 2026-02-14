@@ -1572,24 +1572,19 @@ class CallBridge:
         if self.provider == "xai":
             # xAI Grok session config
             # Docs: https://docs.x.ai/developers/model-capabilities/audio/voice-agent
-            # xAI Voice Agent API uses OpenAI-compatible protocol.
-            # Documented session params: voice, instructions, turn_detection, audio, tools
-            # Additional OpenAI-compatible params (model, temperature, modalities,
-            # input_audio_transcription) are sent for better language detection
-            # and response quality. xAI silently ignores unsupported fields.
+            # xAI Voice Agent API — ONLY documented session params:
+            #   voice, instructions, turn_detection, audio, tools
+            # WARNING: Sending undocumented params (model, temperature, modalities,
+            # input_audio_transcription) causes silent transcription degradation —
+            # xAI accepts them without error but its internal STT quality drops
+            # drastically, producing garbled text ("... devam etmek istiyorum" loops).
+            # xAI supports server_vad only (no semantic_vad, no threshold/padding)
             config = {
                 "type": "session.update",
                 "session": {
-                    "model": self.agent_model,
-                    "modalities": ["text", "audio"],
                     "voice": self.agent_voice,
                     "instructions": instructions,
-                    "temperature": self.agent_temperature,
                     "turn_detection": {"type": "server_vad"},
-                    "input_audio_transcription": {
-                        "model": "grok-2-realtime",
-                        "language": self.agent_language,
-                    },
                     "audio": {
                         "input": {"format": {"type": "audio/pcm", "rate": 24000}},
                         "output": {"format": {"type": "audio/pcm", "rate": 24000}},
@@ -1627,8 +1622,7 @@ class CallBridge:
         await self.openai_ws.send(json.dumps(config))
         if self.provider == "xai":
             logger.info(f"[{self.call_uuid[:8]}] ⚙️ Session yapılandırıldı (xAI): voice={self.agent_voice}, "
-                         f"model={self.agent_model}, lang={self.agent_language}, temp={self.agent_temperature}, "
-                         f"vad=server_vad (auto-interrupt)")
+                         f"lang={self.agent_language}, vad=server_vad (auto-interrupt)")
         else:
             # Enable adaptive VAD for OpenAI — the only provider supporting mid-call session.update
             self._adaptive_vad_enabled = True
