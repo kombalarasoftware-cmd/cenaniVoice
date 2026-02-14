@@ -149,8 +149,8 @@ class UltravoxService:
         if inactivity_messages:
             end_behavior_map = {
                 "unspecified": "END_BEHAVIOR_UNSPECIFIED",
-                "interruptible_hangup": "END_BEHAVIOR_HANGUP",
-                "uninterruptible_hangup": "END_BEHAVIOR_HANGUP",
+                "interruptible_hangup": "END_BEHAVIOR_UNSPECIFIED",
+                "uninterruptible_hangup": "END_BEHAVIOR_UNSPECIFIED",
             }
             converted = []
             for msg in inactivity_messages:
