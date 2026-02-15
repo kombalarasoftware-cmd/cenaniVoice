@@ -70,10 +70,14 @@ def _cell_to_str(cell) -> str:
     """
     if cell is None:
         return ""
-    if isinstance(cell, float):
-        # Convert whole-number floats to int (removes trailing .0)
-        if cell == cell and cell == int(cell):  # NaN check + whole check
-            return str(int(cell))
+    if isinstance(cell, (int, float)):
+        try:
+            # Convert numeric values to int if they are whole numbers
+            f = float(cell)
+            if f == f and f == int(f):  # NaN check + whole check
+                return str(int(f))
+        except (ValueError, OverflowError):
+            pass
     return str(cell)
 
 
@@ -144,6 +148,11 @@ def _parse_excel_rows(contents: bytes, filename: str, column_mapping: dict) -> L
             row_data = _extract_row(cell_values, col_indices)
             if row_data:
                 rows.append(row_data)
+            else:
+                logger.warning(
+                    "Excel row skipped — raw cells: %r",
+                    [c for c in excel_row],
+                )
 
         wb.close()
 
@@ -210,6 +219,7 @@ def _extract_row(cells: List[str], col_indices: dict) -> Optional[dict]:
     phone_raw = _sanitize_cell(cells[phone_idx])
     phone = _normalize_phone(phone_raw)
     if not phone:
+        logger.warning("Row skipped: phone_raw=%r -> normalized=None", phone_raw)
         return None
 
     row: dict = {"phone_number": phone}
