@@ -936,13 +936,20 @@ class DialList(Base):
     completed_numbers = mapped_column(Integer, default=0)
     invalid_numbers = mapped_column(Integer, default=0)
     owner_id = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    agent_id = mapped_column(Integer, ForeignKey("agents.id"), nullable=True)
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     owner = relationship("User", backref="dial_lists")
+    agent = relationship("Agent", foreign_keys=[agent_id])
     entries = relationship("DialListEntry", back_populates="dial_list", cascade="all, delete-orphan")
     campaign_lists = relationship("CampaignList", back_populates="dial_list")
+
+    @property
+    def agent_name(self) -> str | None:
+        """Return associated agent name for API responses."""
+        return self.agent.name if self.agent else None
 
 
 class DialListEntry(Base):

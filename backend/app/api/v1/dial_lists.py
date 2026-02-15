@@ -22,6 +22,7 @@ from app.models.models import (
     DialList, DialListEntry, DialAttempt, DNCList,
     CampaignList, DialHopper, CampaignDisposition,
     Campaign, DialListStatus, DialEntryStatus,
+    Agent,
 )
 from app.models import User
 from app.api.v1.auth import get_current_user
@@ -35,6 +36,7 @@ from app.schemas.schemas import (
     DialHopperResponse,
     CampaignDispositionCreate, CampaignDispositionResponse,
     ExcelUploadResponse,
+    DuplicateCheckResponse, DuplicateDetail, DuplicateListInfo,
     PaginatedResponse,
 )
 
@@ -252,9 +254,16 @@ async def create_dial_list(
     current_user: User = Depends(get_current_user),
 ) -> DialListResponse:
     """Create a new dial list."""
+    # Validate agent_id if provided
+    if data.agent_id:
+        agent = db.get(Agent, data.agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+
     dial_list = DialList(
         name=data.name,
         description=data.description,
+        agent_id=data.agent_id,
         owner_id=current_user.id,
     )
     db.add(dial_list)
@@ -399,6 +408,157 @@ async def delete_dial_list(
 
 
 # ============================================================
+# Check Duplicates (Preview)
+# ============================================================
+
+@router.post("/{list_id}/check-duplicates", response_model=DuplicateCheckResponse)
+async def check_duplicates(
+    list_id: int,
+    file: UploadFile = File(...),
+    phone_column: str = Form("A"),
+    first_name_column: Optional[str] = Form(None),
+    last_name_column: Optional[str] = Form(None),
+    title_column: Optional[str] = Form(None),
+    email_column: Optional[str] = Form(None),
+    company_column: Optional[str] = Form(None),
+    address_column: Optional[str] = Form(None),
+    timezone_column: Optional[str] = Form(None),
+    notes_column: Optional[str] = Form(None),
+    country_code: str = Form(""),
+    duplicate_mode: str = Form("file_only"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DuplicateCheckResponse:
+    """
+    Check for duplicate phone numbers BEFORE actually uploading.
+
+    duplicate_mode:
+        - file_only: only detect duplicates within the uploaded file itself
+        - same_agent: also check numbers in other lists assigned to the same agent
+        - all_system: check numbers across ALL lists in the entire system
+    """
+    dial_list = db.get(DialList, list_id)
+    if not dial_list:
+        raise HTTPException(status_code=404, detail="Dial list not found")
+
+    filename = (file.filename or "").lower()
+    if not filename.endswith((".xlsx", ".xls", ".csv")):
+        raise HTTPException(status_code=400, detail="Only .xlsx, .xls, and .csv files are supported")
+
+    contents = await file.read()
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large")
+
+    # Build column mapping
+    column_mapping = {"phone_column": phone_column}
+    if first_name_column:
+        column_mapping["first_name_column"] = first_name_column
+    if last_name_column:
+        column_mapping["last_name_column"] = last_name_column
+    if title_column:
+        column_mapping["title_column"] = title_column
+    if email_column:
+        column_mapping["email_column"] = email_column
+    if company_column:
+        column_mapping["company_column"] = company_column
+    if address_column:
+        column_mapping["address_column"] = address_column
+    if timezone_column:
+        column_mapping["timezone_column"] = timezone_column
+    if notes_column:
+        column_mapping["notes_column"] = notes_column
+
+    try:
+        rows = _parse_excel_rows(contents, filename, column_mapping)
+    except Exception as e:
+        logger.error(f"Error parsing file for duplicate check: {e}")
+        raise HTTPException(status_code=400, detail="Failed to parse file")
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="No valid rows found in file")
+
+    # Normalize all phone numbers
+    phones: list[str] = []
+    for row_data in rows:
+        phone = row_data["phone_number"]
+        if country_code:
+            normalized = _normalize_phone(phone, country_code)
+            if normalized:
+                phone = normalized
+        phones.append(phone)
+
+    total_rows = len(phones)
+
+    # --- Step 1: Within-file duplicates ---
+    seen: set[str] = set()
+    file_dup_phones: set[str] = set()
+    for p in phones:
+        if p in seen:
+            file_dup_phones.add(p)
+        else:
+            seen.add(p)
+
+    unique_phones = seen  # All unique numbers in file
+
+    # --- Step 2: System duplicates based on mode ---
+    system_dup_details: list[DuplicateDetail] = []
+    system_numbers_map: dict[str, list[DuplicateListInfo]] = {}
+
+    if duplicate_mode in ("same_agent", "all_system"):
+        # Build query for existing numbers
+        entry_q = db.query(
+            DialListEntry.phone_number,
+            DialList.id,
+            DialList.name,
+        ).join(DialList, DialListEntry.list_id == DialList.id).filter(
+            DialList.status != DialListStatus.ARCHIVED,
+            DialListEntry.phone_number.in_(list(unique_phones)),
+        )
+
+        if duplicate_mode == "same_agent" and dial_list.agent_id:
+            # Only check lists with the same agent
+            entry_q = entry_q.filter(DialList.agent_id == dial_list.agent_id)
+
+        for phone, lid, lname in entry_q.all():
+            if phone not in system_numbers_map:
+                system_numbers_map[phone] = []
+            system_numbers_map[phone].append(
+                DuplicateListInfo(list_id=lid, list_name=lname)
+            )
+
+    # Build duplicate details
+    duplicates: list[DuplicateDetail] = []
+
+    # File duplicates
+    for p in sorted(file_dup_phones):
+        duplicates.append(DuplicateDetail(
+            phone=p,
+            source="file",
+            found_in_lists=[],
+        ))
+
+    # System duplicates
+    for p, lists_info in sorted(system_numbers_map.items()):
+        duplicates.append(DuplicateDetail(
+            phone=p,
+            source="system",
+            found_in_lists=lists_info,
+        ))
+
+    all_dup_phones = file_dup_phones | set(system_numbers_map.keys())
+    clean_count = len(unique_phones) - len(unique_phones & set(system_numbers_map.keys()))
+
+    return DuplicateCheckResponse(
+        total_rows=total_rows,
+        unique_numbers=len(unique_phones),
+        file_duplicates=len(file_dup_phones),
+        system_duplicates=len(system_numbers_map),
+        duplicates=duplicates,
+        clean_count=clean_count,
+    )
+
+
+# ============================================================
 # Excel / CSV Upload
 # ============================================================
 
@@ -416,6 +576,7 @@ async def upload_file(
     timezone_column: Optional[str] = Form(None),
     notes_column: Optional[str] = Form(None),
     country_code: str = Form(""),
+    duplicate_mode: str = Form("file_only"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ExcelUploadResponse:
@@ -424,6 +585,11 @@ async def upload_file(
 
     Column mapping tells the system which spreadsheet columns map to
     which fields. Values can be column letters (A, B, ...) or header names.
+
+    duplicate_mode controls how duplicates are detected:
+        - file_only: only within-file and same-list duplicates
+        - same_agent: also skip numbers found in other lists of the same agent
+        - all_system: skip numbers found in any list across the system
     """
     dial_list = db.get(DialList, list_id)
     if not dial_list:
@@ -477,13 +643,26 @@ async def upload_file(
     # Pre-load DNC numbers for fast lookup
     dnc_numbers = set(row[0] for row in db.query(DNCList.phone_number).all())
 
-    # Pre-load existing numbers in this list
+    # Pre-load existing numbers in this list (always checked)
     existing_numbers = set(
         row[0]
         for row in db.query(DialListEntry.phone_number)
         .filter(DialListEntry.list_id == list_id)
         .all()
     )
+
+    # Extended duplicate check based on mode
+    if duplicate_mode in ("same_agent", "all_system"):
+        ext_q = db.query(DialListEntry.phone_number).join(
+            DialList, DialListEntry.list_id == DialList.id
+        ).filter(
+            DialList.status != DialListStatus.ARCHIVED,
+            DialList.id != list_id,
+        )
+        if duplicate_mode == "same_agent" and dial_list.agent_id:
+            ext_q = ext_q.filter(DialList.agent_id == dial_list.agent_id)
+        for (phone,) in ext_q.all():
+            existing_numbers.add(phone)
 
     success = 0
     errors = 0

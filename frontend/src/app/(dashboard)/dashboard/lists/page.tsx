@@ -35,8 +35,15 @@ interface DialList {
   completed_numbers: number;
   invalid_numbers: number;
   owner_id: number;
+  agent_id: number | null;
+  agent_name: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface AgentOption {
+  id: number;
+  name: string;
 }
 
 interface PaginatedResponse {
@@ -60,7 +67,19 @@ function CreateListModal({
 }): React.ReactElement | null {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [agentId, setAgentId] = useState<number | null>(null);
+  const [agents, setAgents] = useState<AgentOption[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingAgents, setIsLoadingAgents] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setIsLoadingAgents(true);
+    api.get<AgentOption[]>('/agents')
+      .then((data) => setAgents(data))
+      .catch(() => setAgents([]))
+      .finally(() => setIsLoadingAgents(false));
+  }, [open]);
 
   if (!open) return null;
 
@@ -73,10 +92,15 @@ function CreateListModal({
 
     setIsSubmitting(true);
     try {
-      await api.post('/dial-lists/', { name: name.trim(), description: description.trim() || null });
+      await api.post('/dial-lists/', {
+        name: name.trim(),
+        description: description.trim() || null,
+        agent_id: agentId,
+      });
       toast.success('List created successfully');
       setName('');
       setDescription('');
+      setAgentId(null);
       onClose();
       onCreated();
     } catch (err) {
@@ -103,6 +127,26 @@ function CreateListModal({
               autoFocus
               maxLength={255}
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Agent</label>
+            {isLoadingAgents ? (
+              <div className="flex items-center gap-2 px-4 py-2.5 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading agents...
+              </div>
+            ) : (
+              <select
+                value={agentId ?? ''}
+                onChange={(e) => setAgentId(e.target.value ? Number(e.target.value) : null)}
+                className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary-500/50 appearance-none"
+              >
+                <option value="">— No Agent —</option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+            )}
+            <p className="text-xs text-muted-foreground mt-1">Assign an agent to enable agent-level duplicate checking</p>
           </div>
           <div>
             <label className="block text-sm font-medium mb-1.5">Description</label>
@@ -375,6 +419,9 @@ export default function ListsPage(): React.ReactElement {
                       List Name
                     </th>
                     <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">
+                      Agent
+                    </th>
+                    <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">
                       Status
                     </th>
                     <th className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">
@@ -434,6 +481,13 @@ export default function ListsPage(): React.ReactElement {
                               </p>
                             )}
                           </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {list.agent_name ? (
+                          <span className="text-sm">{list.agent_name}</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </td>
                       <td className="px-4 py-3">

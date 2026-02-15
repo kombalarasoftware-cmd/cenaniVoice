@@ -43,6 +43,8 @@ interface DialList {
   completed_numbers: number;
   invalid_numbers: number;
   owner_id: number;
+  agent_id: number | null;
+  agent_name: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -85,6 +87,28 @@ interface UploadResponse {
   error_details: Array<{ row: number; phone: string; reason: string }> | null;
 }
 
+interface DuplicateListInfo {
+  list_id: number;
+  list_name: string;
+}
+
+interface DuplicateDetail {
+  phone: string;
+  source: string;
+  found_in_lists: DuplicateListInfo[];
+}
+
+interface DuplicateCheckResponse {
+  total_rows: number;
+  unique_numbers: number;
+  file_duplicates: number;
+  system_duplicates: number;
+  duplicates: DuplicateDetail[];
+  clean_count: number;
+}
+
+type DuplicateMode = 'file_only' | 'same_agent' | 'all_system';
+
 // ============ Entry Status Badge ============
 
 function EntryStatusBadge({ status }: { status: string }): React.ReactElement {
@@ -115,7 +139,7 @@ interface FilePreview {
   total_columns: number;
 }
 
-type UploadStep = 'idle' | 'previewing' | 'mapping' | 'uploading' | 'result';
+type UploadStep = 'idle' | 'previewing' | 'mapping' | 'checking' | 'duplicates' | 'uploading' | 'result';
 
 const SYSTEM_FIELDS: Array<{
   key: string;
@@ -144,11 +168,39 @@ const AUTO_DETECT_PATTERNS: Record<string, RegExp> = {
   notes: /note|açıklama|description|remark|comment/i,
 };
 
+const DUPLICATE_MODES: Array<{
+  value: DuplicateMode;
+  label: string;
+  description: string;
+  requiresAgent: boolean;
+}> = [
+  {
+    value: 'file_only',
+    label: 'File Only',
+    description: 'Check for duplicates only within the uploaded file',
+    requiresAgent: false,
+  },
+  {
+    value: 'same_agent',
+    label: 'Same Agent Lists',
+    description: 'Also check numbers in other lists assigned to the same agent',
+    requiresAgent: true,
+  },
+  {
+    value: 'all_system',
+    label: 'Entire System',
+    description: 'Check numbers across all lists in the system',
+    requiresAgent: false,
+  },
+];
+
 function UploadSection({
   listId,
+  listAgentId,
   onUploadComplete,
 }: {
   listId: number;
+  listAgentId: number | null;
   onUploadComplete: () => void;
 }): React.ReactElement {
   const router = useRouter();
@@ -156,6 +208,8 @@ function UploadSection({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<FilePreview | null>(null);
   const [uploadResult, setUploadResult] = useState<UploadResponse | null>(null);
+  const [duplicateResult, setDuplicateResult] = useState<DuplicateCheckResponse | null>(null);
+  const [duplicateMode, setDuplicateMode] = useState<DuplicateMode>('file_only');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingProgress, setProcessingProgress] = useState(0);
   const processingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -177,6 +231,7 @@ function UploadSection({
     setSelectedFile(file);
     setStep('previewing');
     setUploadResult(null);
+    setDuplicateResult(null);
 
     try {
       const formData = new FormData();
@@ -215,7 +270,7 @@ function UploadSection({
       'application/vnd.ms-excel': ['.xls'],
     },
     maxFiles: 1,
-    disabled: step === 'uploading' || step === 'previewing',
+    disabled: step === 'uploading' || step === 'previewing' || step === 'checking',
   });
 
   const handleMappingChange = (field: string, headerName: string): void => {
@@ -224,6 +279,43 @@ function UploadSection({
 
   const isPhoneMapped = mapping.phone !== '';
 
+  // Build FormData for both check-duplicates and upload
+  const buildFormData = (): FormData => {
+    const formData = new FormData();
+    if (selectedFile) formData.append('file', selectedFile);
+    formData.append('phone_column', mapping.phone);
+    if (mapping.first_name) formData.append('first_name_column', mapping.first_name);
+    if (mapping.last_name) formData.append('last_name_column', mapping.last_name);
+    if (mapping.title) formData.append('title_column', mapping.title);
+    if (mapping.email) formData.append('email_column', mapping.email);
+    if (mapping.company) formData.append('company_column', mapping.company);
+    if (mapping.address) formData.append('address_column', mapping.address);
+    if (mapping.notes) formData.append('notes_column', mapping.notes);
+    if (countryCode) formData.append('country_code', countryCode);
+    formData.append('duplicate_mode', duplicateMode);
+    return formData;
+  };
+
+  // Step: Import (check duplicates)
+  const handleImport = async (): Promise<void> => {
+    if (!selectedFile || !isPhoneMapped) return;
+    setStep('checking');
+
+    try {
+      const formData = buildFormData();
+      const result = await api.upload<DuplicateCheckResponse>(
+        `/dial-lists/${listId}/check-duplicates`,
+        formData,
+      );
+      setDuplicateResult(result);
+      setStep('duplicates');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to check duplicates');
+      setStep('mapping');
+    }
+  };
+
+  // Step: Upload (actually save to DB)
   const handleUpload = async (): Promise<void> => {
     if (!selectedFile || !isPhoneMapped) return;
     setStep('uploading');
@@ -231,25 +323,9 @@ function UploadSection({
     setProcessingProgress(0);
 
     try {
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('phone_column', mapping.phone);
-      if (mapping.first_name) formData.append('first_name_column', mapping.first_name);
-      if (mapping.last_name) formData.append('last_name_column', mapping.last_name);
-      if (mapping.title) formData.append('title_column', mapping.title);
-      if (mapping.email) formData.append('email_column', mapping.email);
-      if (mapping.company) formData.append('company_column', mapping.company);
-      if (mapping.address) formData.append('address_column', mapping.address);
-      if (mapping.notes) formData.append('notes_column', mapping.notes);
-      if (countryCode) formData.append('country_code', countryCode);
+      const formData = buildFormData();
 
       // Phase 1: File upload with real progress (0-60%)
-      const onProgress = (pct: number): void => {
-        setUploadProgress(Math.round(pct * 0.6));
-      };
-
-      // Phase 2: Server processing simulation (60-95%)
-      // Starts once file upload reaches 100%
       let serverProcessingStarted = false;
       const startProcessing = (): void => {
         if (serverProcessingStarted) return;
@@ -263,7 +339,7 @@ function UploadSection({
       };
 
       const wrappedProgress = (pct: number): void => {
-        onProgress(pct);
+        setUploadProgress(Math.round(pct * 0.6));
         if (pct >= 100) startProcessing();
       };
 
@@ -273,7 +349,6 @@ function UploadSection({
         wrappedProgress,
       );
 
-      // Phase 3: Complete!
       if (processingTimer.current) clearInterval(processingTimer.current);
       setProcessingProgress(100);
       setUploadResult(result);
@@ -281,15 +356,32 @@ function UploadSection({
       toast.success(`${result.success} numbers imported successfully`);
       onUploadComplete();
 
-      // Redirect to lists page after 2.5 seconds
       setTimeout(() => {
         router.push('/dashboard/lists');
       }, 2500);
     } catch (err) {
       if (processingTimer.current) clearInterval(processingTimer.current);
       toast.error(err instanceof Error ? err.message : 'Upload failed');
-      setStep('mapping');
+      setStep('duplicates');
     }
+  };
+
+  // Download duplicates as CSV
+  const handleDownloadDuplicates = (): void => {
+    if (!duplicateResult?.duplicates.length) return;
+    const lines = ['Phone Number,Duplicate Type,Found in Lists'];
+    for (const d of duplicateResult.duplicates) {
+      const lists = d.found_in_lists.map((l) => l.list_name).join('; ');
+      const type = d.source === 'file' ? 'In-file duplicate' : 'Existing in system';
+      lines.push(`"${d.phone}","${type}","${lists}"`);
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `duplicates_list_${listId}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleCancel = (): void => {
@@ -297,6 +389,7 @@ function UploadSection({
     setSelectedFile(null);
     setFilePreview(null);
     setUploadResult(null);
+    setDuplicateResult(null);
     setMapping({ ...emptyMapping });
   };
 
@@ -380,6 +473,19 @@ function UploadSection({
     );
   }
 
+  // ---- Step: checking — scanning for duplicates ----
+  if (step === 'checking') {
+    return (
+      <div className="mb-6">
+        <div className="rounded-2xl border border-border bg-card p-8 text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary-500 mx-auto mb-3" />
+          <p className="font-medium">Checking for duplicates...</p>
+          <p className="text-sm text-muted-foreground mt-1">{selectedFile?.name}</p>
+        </div>
+      </div>
+    );
+  }
+
   // ---- Step: uploading — full-screen progress overlay ----
   if (step === 'uploading') {
     const progressLabel = uploadProgress < 60
@@ -391,7 +497,6 @@ function UploadSection({
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
         <div className="bg-card border border-border rounded-3xl shadow-2xl w-full max-w-md p-8 mx-4 text-center">
           <div className="relative mx-auto mb-6 w-32 h-32">
-            {/* Circular progress */}
             <svg className="w-32 h-32 -rotate-90" viewBox="0 0 128 128">
               <circle cx="64" cy="64" r="56" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted/30" />
               <circle
@@ -408,8 +513,6 @@ function UploadSection({
           </div>
           <p className="text-lg font-semibold mb-1">{progressLabel}</p>
           <p className="text-sm text-muted-foreground">{selectedFile?.name}</p>
-
-          {/* Linear progress bar */}
           <div className="mt-5 h-2 bg-muted rounded-full overflow-hidden">
             <div
               className="h-full bg-primary-500 rounded-full transition-all duration-300"
@@ -475,7 +578,152 @@ function UploadSection({
     );
   }
 
-  // ---- Step: mapping (and uploading) — column mapping UI ----
+  // ---- Step: duplicates — show duplicate check results ----
+  if (step === 'duplicates' && duplicateResult) {
+    const totalDups = duplicateResult.file_duplicates + duplicateResult.system_duplicates;
+    return (
+      <div className="mb-6">
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-lg font-semibold">Duplicate Check Results</h3>
+            <button onClick={handleCancel} className="text-muted-foreground hover:text-foreground">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+            <div className="text-center p-3 rounded-xl bg-muted/50">
+              <p className="text-xl font-bold">{duplicateResult.total_rows}</p>
+              <p className="text-xs text-muted-foreground">Total Rows</p>
+            </div>
+            <div className="text-center p-3 rounded-xl bg-blue-500/5">
+              <p className="text-xl font-bold text-blue-500">{duplicateResult.unique_numbers}</p>
+              <p className="text-xs text-muted-foreground">Unique Numbers</p>
+            </div>
+            <div className="text-center p-3 rounded-xl bg-amber-500/5">
+              <p className="text-xl font-bold text-amber-500">{totalDups}</p>
+              <p className="text-xs text-muted-foreground">Duplicates Found</p>
+            </div>
+            <div className="text-center p-3 rounded-xl bg-emerald-500/5">
+              <p className="text-xl font-bold text-emerald-500">{duplicateResult.clean_count}</p>
+              <p className="text-xs text-muted-foreground">Will Import</p>
+            </div>
+          </div>
+
+          {/* Duplicate details */}
+          {totalDups > 0 && (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  <p className="text-sm font-medium">
+                    Found {totalDups} duplicate number{totalDups > 1 ? 's' : ''}
+                  </p>
+                </div>
+                <button
+                  onClick={handleDownloadDuplicates}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 text-sm font-medium transition-colors"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Duplicates
+                </button>
+              </div>
+
+              {/* Duplicate breakdown */}
+              {duplicateResult.file_duplicates > 0 && (
+                <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-muted/50 text-sm">
+                  <span className="text-muted-foreground">{duplicateResult.file_duplicates} duplicate(s) within the uploaded file</span>
+                </div>
+              )}
+              {duplicateResult.system_duplicates > 0 && (
+                <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-muted/50 text-sm">
+                  <span className="text-muted-foreground">
+                    {duplicateResult.system_duplicates} number(s) already exist in
+                    {duplicateMode === 'same_agent' ? ' same agent lists' : ' other system lists'}
+                  </span>
+                </div>
+              )}
+
+              {/* Preview first 10 duplicates */}
+              <div className="rounded-lg border border-border overflow-hidden mt-3 mb-5">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30">
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Phone</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Type</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Found In</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {duplicateResult.duplicates.slice(0, 10).map((d, i) => (
+                      <tr key={i} className="border-b border-border last:border-0">
+                        <td className="px-3 py-2 font-mono">{d.phone}</td>
+                        <td className="px-3 py-2">
+                          <span className={cn(
+                            'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium',
+                            d.source === 'file'
+                              ? 'bg-amber-500/10 text-amber-600'
+                              : 'bg-red-500/10 text-red-500'
+                          )}>
+                            {d.source === 'file' ? 'In-file' : 'System'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-muted-foreground">
+                          {d.found_in_lists.length > 0
+                            ? d.found_in_lists.map((l) => l.list_name).join(', ')
+                            : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {duplicateResult.duplicates.length > 10 && (
+                  <div className="px-3 py-2 bg-muted/20 text-xs text-muted-foreground text-center">
+                    ...and {duplicateResult.duplicates.length - 10} more (download CSV for full list)
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {totalDups === 0 && (
+            <div className="flex items-center gap-2 px-3 py-3 mb-5 rounded-xl bg-emerald-500/5 ring-1 ring-emerald-500/20">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+              <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                No duplicates found! All {duplicateResult.unique_numbers} numbers are ready to upload.
+              </p>
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleUpload}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 transition-colors text-sm font-medium"
+            >
+              <Upload className="h-4 w-4" />
+              Upload {duplicateResult.clean_count} Numbers
+            </button>
+            <button
+              onClick={() => setStep('mapping')}
+              className="px-4 py-2.5 rounded-xl border border-border hover:bg-muted transition-colors text-sm"
+            >
+              Back to Mapping
+            </button>
+            <button
+              onClick={handleCancel}
+              className="px-4 py-2.5 rounded-xl border border-border hover:bg-muted transition-colors text-sm text-muted-foreground"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Step: mapping — column mapping + duplicate mode ----
   const mappedCount = Object.values(mapping).filter(Boolean).length;
 
   return (
@@ -571,6 +819,46 @@ function UploadSection({
           <p className="text-xs text-muted-foreground">Added to numbers without country code</p>
         </div>
 
+        {/* Duplicate check mode */}
+        <div className="mb-5 px-3">
+          <p className="text-sm font-medium mb-3">Duplicate Check Mode</p>
+          <div className="space-y-2">
+            {DUPLICATE_MODES.map((mode) => {
+              const disabled = mode.requiresAgent && !listAgentId;
+              return (
+                <label
+                  key={mode.value}
+                  className={cn(
+                    'flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors',
+                    disabled
+                      ? 'opacity-50 cursor-not-allowed border-border bg-muted/20'
+                      : duplicateMode === mode.value
+                        ? 'border-primary-500 bg-primary-500/5'
+                        : 'border-border hover:bg-muted/30'
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="duplicateMode"
+                    value={mode.value}
+                    checked={duplicateMode === mode.value}
+                    onChange={() => setDuplicateMode(mode.value)}
+                    disabled={disabled}
+                    className="mt-0.5 accent-primary-500"
+                  />
+                  <div>
+                    <p className="text-sm font-medium">{mode.label}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {mode.description}
+                      {disabled && ' (assign an agent to this list first)'}
+                    </p>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Sample data preview */}
         {filePreview && filePreview.sample_rows.length > 0 && (
           <div className="mb-5 px-3">
@@ -621,14 +909,14 @@ function UploadSection({
           </div>
         )}
 
-        {/* Action buttons */}
+        {/* Action buttons — Import (check duplicates) and Cancel */}
         <div className="flex items-center gap-3 px-3">
           <button
-            onClick={handleUpload}
+            onClick={handleImport}
             disabled={!isPhoneMapped}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-500 text-white hover:bg-primary-600 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Upload className="h-4 w-4" /> Upload &amp; Import
+            <Search className="h-4 w-4" /> Import &amp; Check Duplicates
           </button>
           <button
             onClick={handleCancel}
@@ -1000,7 +1288,7 @@ export default function ListDetailPage(): React.ReactElement {
         </div>
 
         {/* Upload Section */}
-        <UploadSection listId={listId} onUploadComplete={handleRefreshAll} />
+        <UploadSection listId={listId} listAgentId={list?.agent_id ?? null} onUploadComplete={handleRefreshAll} />
 
         {/* Entries Table Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">

@@ -1069,6 +1069,7 @@ class DialListCreate(BaseModel):
     """Create a new dial list"""
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
+    agent_id: Optional[int] = None
 
 
 class DialListUpdate(BaseModel):
@@ -1076,6 +1077,7 @@ class DialListUpdate(BaseModel):
     name: Optional[str] = Field(default=None, max_length=255)
     description: Optional[str] = None
     status: Optional[DialListStatus] = None
+    agent_id: Optional[int] = None
 
 
 class DialListResponse(BaseModel):
@@ -1089,6 +1091,8 @@ class DialListResponse(BaseModel):
     completed_numbers: int
     invalid_numbers: int
     owner_id: int
+    agent_id: Optional[int] = None
+    agent_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -1254,6 +1258,29 @@ class ExcelUploadResponse(BaseModel):
     errors: int
     duplicates: int
     error_details: Optional[List[Dict[str, Any]]] = None
+
+
+class DuplicateListInfo(BaseModel):
+    """Info about which list a duplicate number was found in"""
+    list_id: int
+    list_name: str
+
+
+class DuplicateDetail(BaseModel):
+    """Detail of a single duplicate phone number"""
+    phone: str
+    source: str  # 'file' or 'system'
+    found_in_lists: List[DuplicateListInfo] = []
+
+
+class DuplicateCheckResponse(BaseModel):
+    """Response for duplicate check before upload"""
+    total_rows: int
+    unique_numbers: int
+    file_duplicates: int
+    system_duplicates: int
+    duplicates: List[DuplicateDetail] = []
+    clean_count: int  # numbers that would actually be imported
 
 
 # ============ Agent Tariff Schemas ============
