@@ -59,6 +59,24 @@ def _sanitize_cell(value: str) -> str:
     return stripped
 
 
+def _cell_to_str(cell) -> str:
+    """Convert an openpyxl cell value to a clean string.
+
+    Excel stores numbers as IEEE 754 doubles.  Phone numbers like
+    905551234567 come back as ``float`` 905551234567.0.  A naive
+    ``str()`` would yield ``'905551234567.0'`` which corrupts the
+    phone after digit-only stripping.  This helper converts
+    whole-number floats to ``int`` first so the string is clean.
+    """
+    if cell is None:
+        return ""
+    if isinstance(cell, float):
+        # Convert whole-number floats to int (removes trailing .0)
+        if cell == cell and cell == int(cell):  # NaN check + whole check
+            return str(int(cell))
+    return str(cell)
+
+
 def _normalize_phone(raw: str, default_country_code: str = "") -> Optional[str]:
     """
     Normalize a phone number to digits-only.
@@ -122,7 +140,7 @@ def _parse_excel_rows(contents: bytes, filename: str, column_mapping: dict) -> L
         col_indices = _resolve_column_indices(header, column_mapping)
 
         for excel_row in all_rows[1:]:
-            cell_values = [str(c) if c is not None else "" for c in excel_row]
+            cell_values = [_cell_to_str(c) for c in excel_row]
             row_data = _extract_row(cell_values, col_indices)
             if row_data:
                 rows.append(row_data)
@@ -327,7 +345,7 @@ async def preview_file_headers(
                 for row in all_rows[1:4]:
                     sample_rows.append(
                         [
-                            str(c).strip() if c is not None else ""
+                            _cell_to_str(c).strip() if c is not None else ""
                             for c in row[: len(headers)]
                         ]
                     )
