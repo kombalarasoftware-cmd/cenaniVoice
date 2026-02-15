@@ -587,6 +587,7 @@ async def upload_file(
     which fields. Values can be column letters (A, B, ...) or header names.
 
     duplicate_mode controls how duplicates are detected:
+        - none: no duplicate checking at all
         - file_only: only within-file and same-list duplicates
         - same_agent: also skip numbers found in other lists of the same agent
         - all_system: skip numbers found in any list across the system
@@ -643,13 +644,15 @@ async def upload_file(
     # Pre-load DNC numbers for fast lookup
     dnc_numbers = set(row[0] for row in db.query(DNCList.phone_number).all())
 
-    # Pre-load existing numbers in this list (always checked)
-    existing_numbers = set(
-        row[0]
-        for row in db.query(DialListEntry.phone_number)
-        .filter(DialListEntry.list_id == list_id)
-        .all()
-    )
+    # Pre-load existing numbers in this list (skipped for 'none' mode)
+    existing_numbers: set = set()
+    if duplicate_mode != "none":
+        existing_numbers = set(
+            row[0]
+            for row in db.query(DialListEntry.phone_number)
+            .filter(DialListEntry.list_id == list_id)
+            .all()
+        )
 
     # Extended duplicate check based on mode
     if duplicate_mode in ("same_agent", "all_system"):

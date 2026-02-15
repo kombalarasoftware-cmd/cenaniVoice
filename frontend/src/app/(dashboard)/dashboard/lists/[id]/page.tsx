@@ -107,7 +107,7 @@ interface DuplicateCheckResponse {
   clean_count: number;
 }
 
-type DuplicateMode = 'file_only' | 'same_agent' | 'all_system';
+type DuplicateMode = 'none' | 'file_only' | 'same_agent' | 'all_system';
 
 // ============ Entry Status Badge ============
 
@@ -175,6 +175,12 @@ const DUPLICATE_MODES: Array<{
   requiresAgent: boolean;
 }> = [
   {
+    value: 'none',
+    label: 'No Duplicate Check',
+    description: 'Upload all numbers without checking for duplicates',
+    requiresAgent: false,
+  },
+  {
     value: 'file_only',
     label: 'File Only',
     description: 'Check for duplicates only within the uploaded file',
@@ -209,7 +215,7 @@ function UploadSection({
   const [filePreview, setFilePreview] = useState<FilePreview | null>(null);
   const [uploadResult, setUploadResult] = useState<UploadResponse | null>(null);
   const [duplicateResult, setDuplicateResult] = useState<DuplicateCheckResponse | null>(null);
-  const [duplicateMode, setDuplicateMode] = useState<DuplicateMode>('file_only');
+  const [duplicateMode, setDuplicateMode] = useState<DuplicateMode>('none');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingProgress, setProcessingProgress] = useState(0);
   const processingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -909,15 +915,25 @@ function UploadSection({
           </div>
         )}
 
-        {/* Action buttons — Import (check duplicates) and Cancel */}
+        {/* Action buttons — Import (check duplicates) or direct Upload */}
         <div className="flex items-center gap-3 px-3">
-          <button
-            onClick={handleImport}
-            disabled={!isPhoneMapped}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-500 text-white hover:bg-primary-600 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Search className="h-4 w-4" /> Import &amp; Check Duplicates
-          </button>
+          {duplicateMode === 'none' ? (
+            <button
+              onClick={handleUpload}
+              disabled={!isPhoneMapped}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Upload className="h-4 w-4" /> Upload
+            </button>
+          ) : (
+            <button
+              onClick={handleImport}
+              disabled={!isPhoneMapped}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-500 text-white hover:bg-primary-600 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Search className="h-4 w-4" /> Import &amp; Check Duplicates
+            </button>
+          )}
           <button
             onClick={handleCancel}
             className="px-4 py-2.5 rounded-xl border border-border hover:bg-muted transition-colors text-sm"
