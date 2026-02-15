@@ -22,6 +22,7 @@ import {
   ClipboardList,
   Wand2,
   Receipt,
+  ListChecks,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useState, useEffect } from 'react';
@@ -46,6 +47,11 @@ const navigation = [
     name: 'Numbers',
     href: '/dashboard/numbers',
     icon: Phone,
+  },
+  {
+    name: 'Lists',
+    href: '/dashboard/lists',
+    icon: ListChecks,
   },
   {
     name: 'Recordings',
