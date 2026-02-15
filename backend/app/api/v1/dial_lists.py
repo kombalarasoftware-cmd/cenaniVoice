@@ -778,8 +778,8 @@ async def upload_file(
             logger.warning("UPLOAD LOOP row %d DNC: phone=%r", idx + 2, phone)
             continue
 
-        # Duplicate check
-        if phone in existing_numbers:
+        # Duplicate check (skip entirely when mode is 'none')
+        if duplicate_mode != "none" and phone in existing_numbers:
             duplicates += 1
             logger.warning("UPLOAD LOOP row %d DUP: phone=%r", idx + 2, phone)
             continue
@@ -808,7 +808,8 @@ async def upload_file(
             "dnc_flag": False,
             "custom_fields": extra_fields,
         })
-        existing_numbers.add(phone)
+        if duplicate_mode != "none":
+            existing_numbers.add(phone)
         success += 1
 
         # Flush batch every batch_size rows
