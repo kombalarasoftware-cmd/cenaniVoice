@@ -88,11 +88,17 @@ def _normalize_phone(raw: str, default_country_code: str = "") -> Optional[str]:
     Accepts E.164 (+905551234567) or local (5551234567) formats.
     """
     if not raw:
+        logger.warning("_normalize_phone: empty input")
         return None
     digits = re.sub(r"[^\d+]", "", raw.strip())
     # Strip leading + for length check
     pure_digits = digits.lstrip("+")
     if len(pure_digits) < 7 or len(pure_digits) > 15:
+        logger.warning(
+            "_normalize_phone REJECTED: raw=%r -> digits=%r -> "
+            "pure_digits=%r (len=%d, need 7-15)",
+            raw, digits, pure_digits, len(pure_digits),
+        )
         return None
     # Add country code if not present and a default is provided
     if default_country_code and not digits.startswith("+"):
@@ -138,19 +144,43 @@ def _parse_excel_rows(contents: bytes, filename: str, column_mapping: dict) -> L
 
         all_rows = list(ws.iter_rows(values_only=True))
         if not all_rows:
+            logger.warning("Excel file has no rows at all")
             return rows
 
         header = [str(c) if c else "" for c in all_rows[0]]
         col_indices = _resolve_column_indices(header, column_mapping)
 
-        for excel_row in all_rows[1:]:
+        logger.warning(
+            "UPLOAD DEBUG: header=%r, column_mapping=%r, "
+            "resolved_indices=%r, total_data_rows=%d",
+            header, column_mapping, col_indices, len(all_rows) - 1,
+        )
+
+        for row_num, excel_row in enumerate(all_rows[1:], start=2):
             cell_values = [_cell_to_str(c) for c in excel_row]
+
+            # Log every row's phone cell for debugging
+            phone_idx = col_indices.get("phone_number")
+            raw_phone_cell = None
+            if phone_idx is not None and phone_idx < len(excel_row):
+                raw_phone_cell = excel_row[phone_idx]
+            logger.warning(
+                "UPLOAD DEBUG row %d: raw_phone_cell=%r (type=%s), "
+                "cell_to_str=%r, all_cells=%r",
+                row_num,
+                raw_phone_cell,
+                type(raw_phone_cell).__name__,
+                cell_values[phone_idx] if phone_idx is not None and phone_idx < len(cell_values) else "NO_IDX",
+                cell_values,
+            )
+
             row_data = _extract_row(cell_values, col_indices)
             if row_data:
                 rows.append(row_data)
             else:
                 logger.warning(
-                    "Excel row skipped — raw cells: %r",
+                    "UPLOAD DEBUG row %d SKIPPED: raw_excel_cells=%r",
+                    row_num,
                     [c for c in excel_row],
                 )
 
