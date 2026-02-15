@@ -46,7 +46,9 @@ logger = logging.getLogger(__name__)
 MAX_UPLOAD_BYTES = getattr(settings, "MAX_UPLOAD_SIZE_MB", 10) * 1024 * 1024
 
 # Characters that indicate Excel formula injection
-_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+# Note: '+' is NOT included because it's legitimate in phone numbers
+# (E.164 format) and poses minimal injection risk.
+_FORMULA_PREFIXES = ("=", "-", "@", "\t", "\r")
 
 
 def _sanitize_cell(value: str) -> str:
@@ -67,18 +69,29 @@ def _cell_to_str(cell) -> str:
     ``str()`` would yield ``'905551234567.0'`` which corrupts the
     phone after digit-only stripping.  This helper converts
     whole-number floats to ``int`` first so the string is clean.
+
+    Also handles scientific notation strings like ``'4.92167E+12'``
+    which may appear when data is exported through certain tools.
     """
     if cell is None:
         return ""
     if isinstance(cell, (int, float)):
         try:
-            # Convert numeric values to int if they are whole numbers
             f = float(cell)
             if f == f and f == int(f):  # NaN check + whole check
                 return str(int(f))
         except (ValueError, OverflowError):
             pass
-    return str(cell)
+    # Handle scientific notation strings (e.g. "4.92167E+12")
+    s = str(cell)
+    if "e+" in s.lower() or "e-" in s.lower():
+        try:
+            f = float(s)
+            if f == f and f == int(f):
+                return str(int(f))
+        except (ValueError, OverflowError):
+            pass
+    return s
 
 
 def _normalize_phone(raw: str, default_country_code: str = "") -> Optional[str]:
@@ -90,18 +103,22 @@ def _normalize_phone(raw: str, default_country_code: str = "") -> Optional[str]:
     if not raw:
         logger.warning("_normalize_phone: empty input")
         return None
-    digits = re.sub(r"[^\d+]", "", raw.strip())
-    # Strip leading + for length check
-    pure_digits = digits.lstrip("+")
+    cleaned = raw.strip()
+    # Remember if there was a leading +
+    has_plus = cleaned.startswith("+")
+    # Remove everything except digits
+    pure_digits = re.sub(r"\D", "", cleaned)
     if len(pure_digits) < 7 or len(pure_digits) > 15:
         logger.warning(
-            "_normalize_phone REJECTED: raw=%r -> digits=%r -> "
-            "pure_digits=%r (len=%d, need 7-15)",
-            raw, digits, pure_digits, len(pure_digits),
+            "_normalize_phone REJECTED: raw=%r -> pure_digits=%r "
+            "(len=%d, need 7-15)",
+            raw, pure_digits, len(pure_digits),
         )
         return None
+    # Reconstruct with optional leading +
+    digits = ("+" + pure_digits) if has_plus else pure_digits
     # Add country code if not present and a default is provided
-    if default_country_code and not digits.startswith("+"):
+    if default_country_code and not has_plus:
         digits = default_country_code + pure_digits
     return digits
 
