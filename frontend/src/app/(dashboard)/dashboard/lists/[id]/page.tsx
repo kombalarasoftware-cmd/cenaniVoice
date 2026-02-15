@@ -2,7 +2,7 @@
 
 import { Header } from '@/components/layout/header';
 import { cn } from '@/lib/utils';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useParams, useRouter } from 'next/navigation';
@@ -151,10 +151,14 @@ function UploadSection({
   listId: number;
   onUploadComplete: () => void;
 }): React.ReactElement {
+  const router = useRouter();
   const [step, setStep] = useState<UploadStep>('idle');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<FilePreview | null>(null);
   const [uploadResult, setUploadResult] = useState<UploadResponse | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const processingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const [countryCode, setCountryCode] = useState('');
 
   const [mapping, setMapping] = useState<Record<string, string>>({
@@ -223,6 +227,8 @@ function UploadSection({
   const handleUpload = async (): Promise<void> => {
     if (!selectedFile || !isPhoneMapped) return;
     setStep('uploading');
+    setUploadProgress(0);
+    setProcessingProgress(0);
 
     try {
       const formData = new FormData();
@@ -237,12 +243,50 @@ function UploadSection({
       if (mapping.notes) formData.append('notes_column', mapping.notes);
       if (countryCode) formData.append('country_code', countryCode);
 
-      const result = await api.upload<UploadResponse>(`/dial-lists/${listId}/upload`, formData);
+      // Phase 1: File upload with real progress (0-60%)
+      const onProgress = (pct: number): void => {
+        setUploadProgress(Math.round(pct * 0.6));
+      };
+
+      // Phase 2: Server processing simulation (60-95%)
+      // Starts once file upload reaches 100%
+      let serverProcessingStarted = false;
+      const startProcessing = (): void => {
+        if (serverProcessingStarted) return;
+        serverProcessingStarted = true;
+        let p = 60;
+        processingTimer.current = setInterval(() => {
+          p += Math.random() * 4 + 1;
+          if (p > 95) p = 95;
+          setProcessingProgress(Math.round(p));
+        }, 200);
+      };
+
+      const wrappedProgress = (pct: number): void => {
+        onProgress(pct);
+        if (pct >= 100) startProcessing();
+      };
+
+      const result = await api.uploadWithProgress<UploadResponse>(
+        `/dial-lists/${listId}/upload`,
+        formData,
+        wrappedProgress,
+      );
+
+      // Phase 3: Complete!
+      if (processingTimer.current) clearInterval(processingTimer.current);
+      setProcessingProgress(100);
       setUploadResult(result);
       setStep('result');
-      toast.success(`Uploaded: ${result.success} numbers imported`);
+      toast.success(`${result.success} numbers imported successfully`);
       onUploadComplete();
+
+      // Redirect to lists page after 2.5 seconds
+      setTimeout(() => {
+        router.push('/dashboard/lists');
+      }, 2500);
     } catch (err) {
+      if (processingTimer.current) clearInterval(processingTimer.current);
       toast.error(err instanceof Error ? err.message : 'Upload failed');
       setStep('mapping');
     }
@@ -319,6 +363,10 @@ function UploadSection({
     );
   }
 
+  const displayProgress = step === 'uploading'
+    ? Math.max(uploadProgress, processingProgress)
+    : 100;
+
   // ---- Step: previewing — loading spinner ----
   if (step === 'previewing') {
     return (
@@ -332,53 +380,96 @@ function UploadSection({
     );
   }
 
-  // ---- Step: result — upload results ----
+  // ---- Step: uploading — full-screen progress overlay ----
+  if (step === 'uploading') {
+    const progressLabel = uploadProgress < 60
+      ? 'Uploading file...'
+      : processingProgress < 95
+        ? 'Processing numbers...'
+        : 'Finishing up...';
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="bg-card border border-border rounded-3xl shadow-2xl w-full max-w-md p-8 mx-4 text-center">
+          <div className="relative mx-auto mb-6 w-32 h-32">
+            {/* Circular progress */}
+            <svg className="w-32 h-32 -rotate-90" viewBox="0 0 128 128">
+              <circle cx="64" cy="64" r="56" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted/30" />
+              <circle
+                cx="64" cy="64" r="56" fill="none" stroke="currentColor" strokeWidth="8"
+                className="text-primary-500 transition-all duration-300"
+                strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 56}`}
+                strokeDashoffset={`${2 * Math.PI * 56 * (1 - displayProgress / 100)}`}
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-3xl font-bold">{displayProgress}%</span>
+            </div>
+          </div>
+          <p className="text-lg font-semibold mb-1">{progressLabel}</p>
+          <p className="text-sm text-muted-foreground">{selectedFile?.name}</p>
+
+          {/* Linear progress bar */}
+          <div className="mt-5 h-2 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary-500 rounded-full transition-all duration-300"
+              style={{ width: `${displayProgress}%` }}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            {displayProgress < 100 ? 'Please wait, do not close this page...' : 'Almost done!'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Step: result — upload complete, auto-redirect ----
   if (step === 'result' && uploadResult) {
     return (
-      <div className="mb-6">
-        <div className="rounded-2xl border border-border bg-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-              Upload Complete
-            </h3>
-            <button onClick={handleCancel} className="text-sm text-primary-500 hover:underline">
-              Upload Another
-            </button>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="bg-card border border-border rounded-3xl shadow-2xl w-full max-w-md p-8 mx-4 text-center">
+          <div className="mx-auto mb-5 w-16 h-16 flex items-center justify-center rounded-full bg-emerald-500/10">
+            <CheckCircle2 className="h-10 w-10 text-emerald-500" />
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="text-center p-3 rounded-xl bg-muted/50">
-              <p className="text-lg font-bold">{uploadResult.total}</p>
+          <h3 className="text-xl font-bold mb-4">Upload Complete!</h3>
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            <div className="p-3 rounded-xl bg-muted/50">
+              <p className="text-2xl font-bold">{uploadResult.total}</p>
               <p className="text-xs text-muted-foreground">Total Rows</p>
             </div>
-            <div className="text-center p-3 rounded-xl bg-emerald-500/5">
-              <p className="text-lg font-bold text-emerald-500">{uploadResult.success}</p>
+            <div className="p-3 rounded-xl bg-emerald-500/5">
+              <p className="text-2xl font-bold text-emerald-500">{uploadResult.success}</p>
               <p className="text-xs text-muted-foreground">Imported</p>
             </div>
-            <div className="text-center p-3 rounded-xl bg-amber-500/5">
-              <p className="text-lg font-bold text-amber-500">{uploadResult.duplicates}</p>
+            <div className="p-3 rounded-xl bg-amber-500/5">
+              <p className="text-2xl font-bold text-amber-500">{uploadResult.duplicates}</p>
               <p className="text-xs text-muted-foreground">Duplicates</p>
             </div>
-            <div className="text-center p-3 rounded-xl bg-red-500/5">
-              <p className="text-lg font-bold text-red-500">{uploadResult.errors}</p>
+            <div className="p-3 rounded-xl bg-red-500/5">
+              <p className="text-2xl font-bold text-red-500">{uploadResult.errors}</p>
               <p className="text-xs text-muted-foreground">Errors</p>
             </div>
           </div>
           {uploadResult.error_details && uploadResult.error_details.length > 0 && (
-            <div className="mt-3 max-h-32 overflow-y-auto">
+            <div className="text-left mb-4 max-h-24 overflow-y-auto">
               <p className="text-xs font-medium text-muted-foreground mb-1">Error Details:</p>
-              {uploadResult.error_details.slice(0, 10).map((err, i) => (
+              {uploadResult.error_details.slice(0, 5).map((err, i) => (
                 <p key={i} className="text-xs text-red-500">
                   Row {err.row}: {err.phone} — {err.reason}
                 </p>
               ))}
-              {uploadResult.error_details.length > 10 && (
+              {uploadResult.error_details.length > 5 && (
                 <p className="text-xs text-muted-foreground">
-                  ...and {uploadResult.error_details.length - 10} more
+                  ...and {uploadResult.error_details.length - 5} more
                 </p>
               )}
             </div>
           )}
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Redirecting to Lists...
+          </div>
         </div>
       </div>
     );
@@ -534,19 +625,14 @@ function UploadSection({
         <div className="flex items-center gap-3 px-3">
           <button
             onClick={handleUpload}
-            disabled={step === 'uploading' || !isPhoneMapped}
+            disabled={!isPhoneMapped}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-500 text-white hover:bg-primary-600 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {step === 'uploading' ? (
-              <><Loader2 className="h-4 w-4 animate-spin" /> Uploading...</>
-            ) : (
-              <><Upload className="h-4 w-4" /> Upload &amp; Import</>
-            )}
+            <Upload className="h-4 w-4" /> Upload &amp; Import
           </button>
           <button
             onClick={handleCancel}
-            disabled={step === 'uploading'}
-            className="px-4 py-2.5 rounded-xl border border-border hover:bg-muted transition-colors text-sm disabled:opacity-50"
+            className="px-4 py-2.5 rounded-xl border border-border hover:bg-muted transition-colors text-sm"
           >
             Cancel
           </button>

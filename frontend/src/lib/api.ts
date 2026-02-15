@@ -202,6 +202,57 @@ export const api = {
   },
 
   /**
+   * Upload file with progress tracking via XMLHttpRequest.
+   * onProgress receives a value 0-100.
+   */
+  uploadWithProgress: <T = unknown>(
+    path: string,
+    formData: FormData,
+    onProgress: (percent: number) => void,
+    options?: { includeAuth?: boolean },
+  ): Promise<T> => {
+    const url = path.startsWith('http') ? path : `${API_V1}${path}`;
+    return new Promise<T>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url);
+
+      const token = getAuthToken();
+      if (token && (options?.includeAuth ?? true)) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          onProgress(pct);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText) as T);
+          } catch {
+            reject(new Error('Invalid JSON response'));
+          }
+        } else {
+          try {
+            const err = JSON.parse(xhr.responseText);
+            reject(new Error(err.detail || `Upload Error: ${xhr.status}`));
+          } catch {
+            reject(new Error(`Upload Error: ${xhr.status}`));
+          }
+        }
+      });
+
+      xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+      xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
+
+      xhr.send(formData);
+    });
+  },
+
+  /**
    * Create EventSource for SSE streams
    */
   eventSourceUrl: (path: string): string => {
