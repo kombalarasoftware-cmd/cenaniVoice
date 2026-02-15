@@ -699,6 +699,11 @@ async def upload_file(
     if not rows:
         raise HTTPException(status_code=400, detail="No valid rows found in file")
 
+    logger.warning(
+        "UPLOAD LOOP DEBUG: parsed_rows=%d, duplicate_mode=%s, list_id=%d",
+        len(rows), duplicate_mode, list_id,
+    )
+
     # Pre-load DNC numbers for fast lookup
     dnc_numbers = set(row[0] for row in db.query(DNCList.phone_number).all())
 
@@ -725,6 +730,11 @@ async def upload_file(
         for (phone,) in ext_q.all():
             existing_numbers.add(phone)
 
+    logger.warning(
+        "UPLOAD LOOP DEBUG: dnc_count=%d, pre_existing_count=%d",
+        len(dnc_numbers), len(existing_numbers),
+    )
+
     success = 0
     errors = 0
     duplicates = 0
@@ -748,11 +758,13 @@ async def upload_file(
             dnc_count += 1
             errors += 1
             error_details.append({"row": idx + 2, "phone": phone, "reason": "DNC listed"})
+            logger.warning("UPLOAD LOOP row %d DNC: phone=%r", idx + 2, phone)
             continue
 
         # Duplicate check
         if phone in existing_numbers:
             duplicates += 1
+            logger.warning("UPLOAD LOOP row %d DUP: phone=%r", idx + 2, phone)
             continue
 
         # Build custom_fields for extra columns (title, address, etc.)
@@ -796,6 +808,12 @@ async def upload_file(
     dial_list.active_numbers += success
 
     db.commit()
+
+    logger.warning(
+        "UPLOAD RESULT: total=%d, success=%d, errors=%d, "
+        "duplicates=%d, dnc=%d",
+        len(rows), success, errors, duplicates, dnc_count,
+    )
 
     return ExcelUploadResponse(
         total=len(rows),
