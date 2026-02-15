@@ -25,6 +25,7 @@ import {
   User,
   Building2,
   Mail,
+  MapPin,
   Clock,
   X,
   ChevronDown,
@@ -108,6 +109,41 @@ function EntryStatusBadge({ status }: { status: string }): React.ReactElement {
 
 // ============ Upload Section ============
 
+interface FilePreview {
+  headers: string[];
+  sample_rows: string[][];
+  total_columns: number;
+}
+
+type UploadStep = 'idle' | 'previewing' | 'mapping' | 'uploading' | 'result';
+
+const SYSTEM_FIELDS: Array<{
+  key: string;
+  label: string;
+  required: boolean;
+  icon: React.ReactNode;
+}> = [
+  { key: 'phone', label: 'Phone Number', required: true, icon: <Phone className="h-4 w-4" /> },
+  { key: 'first_name', label: 'First Name', required: false, icon: <User className="h-4 w-4" /> },
+  { key: 'last_name', label: 'Last Name', required: false, icon: <User className="h-4 w-4" /> },
+  { key: 'title', label: 'Title (Mr/Mrs)', required: false, icon: <User className="h-4 w-4" /> },
+  { key: 'email', label: 'Email', required: false, icon: <Mail className="h-4 w-4" /> },
+  { key: 'company', label: 'Company', required: false, icon: <Building2 className="h-4 w-4" /> },
+  { key: 'address', label: 'Address', required: false, icon: <MapPin className="h-4 w-4" /> },
+  { key: 'notes', label: 'Notes', required: false, icon: <FileSpreadsheet className="h-4 w-4" /> },
+];
+
+const AUTO_DETECT_PATTERNS: Record<string, RegExp> = {
+  phone: /phone|telefon|tel|gsm|cep|mobile|numara|nummer/i,
+  first_name: /first.?name|firstname|^isim$|^ad$|^adı$|^vorname$/i,
+  last_name: /last.?name|lastname|surname|soyad|^nachname$/i,
+  title: /title|ünvan|unvan|hitap|cinsiyet|salutation|anrede/i,
+  email: /e?.?mail|e-posta|eposta/i,
+  company: /company|şirket|sirket|firma|organi[sz]ation|kurum/i,
+  address: /address|adres/i,
+  notes: /note|açıklama|description|remark|comment/i,
+};
+
 function UploadSection({
   listId,
   onUploadComplete,
@@ -115,25 +151,55 @@ function UploadSection({
   listId: number;
   onUploadComplete: () => void;
 }): React.ReactElement {
-  const [isUploading, setIsUploading] = useState(false);
-  const [showMapping, setShowMapping] = useState(false);
+  const [step, setStep] = useState<UploadStep>('idle');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<FilePreview | null>(null);
   const [uploadResult, setUploadResult] = useState<UploadResponse | null>(null);
-  const [columnMapping, setColumnMapping] = useState({
-    phone_column: 'A',
-    first_name_column: '',
-    last_name_column: '',
-    email_column: '',
-    company_column: '',
-    notes_column: '',
-  });
   const [countryCode, setCountryCode] = useState('');
 
-  const handleFileDrop = (acceptedFiles: File[]): void => {
-    if (acceptedFiles.length > 0) {
-      setSelectedFile(acceptedFiles[0]);
-      setShowMapping(true);
-      setUploadResult(null);
+  const [mapping, setMapping] = useState<Record<string, string>>({
+    phone: '', first_name: '', last_name: '', title: '',
+    email: '', company: '', address: '', notes: '',
+  });
+
+  const emptyMapping: Record<string, string> = {
+    phone: '', first_name: '', last_name: '', title: '',
+    email: '', company: '', address: '', notes: '',
+  };
+
+  const handleFileDrop = async (acceptedFiles: File[]): Promise<void> => {
+    if (!acceptedFiles.length) return;
+    const file = acceptedFiles[0];
+    setSelectedFile(file);
+    setStep('previewing');
+    setUploadResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const preview = await api.upload<FilePreview>('/dial-lists/preview-headers', formData);
+      setFilePreview(preview);
+
+      // Auto-detect column mapping from header names
+      const autoMap: Record<string, string> = { ...emptyMapping };
+      const usedHeaders = new Set<string>();
+
+      for (const [field, pattern] of Object.entries(AUTO_DETECT_PATTERNS)) {
+        for (const h of preview.headers) {
+          if (!usedHeaders.has(h) && pattern.test(h)) {
+            autoMap[field] = h;
+            usedHeaders.add(h);
+            break;
+          }
+        }
+      }
+
+      setMapping(autoMap);
+      setStep('mapping');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to read file headers');
+      setStep('idle');
+      setSelectedFile(null);
     }
   };
 
@@ -145,44 +211,54 @@ function UploadSection({
       'application/vnd.ms-excel': ['.xls'],
     },
     maxFiles: 1,
-    disabled: isUploading,
+    disabled: step === 'uploading' || step === 'previewing',
   });
 
-  const handleUpload = async (): Promise<void> => {
-    if (!selectedFile) return;
+  const handleMappingChange = (field: string, headerName: string): void => {
+    setMapping((prev) => ({ ...prev, [field]: headerName }));
+  };
 
-    setIsUploading(true);
+  const isPhoneMapped = mapping.phone !== '';
+
+  const handleUpload = async (): Promise<void> => {
+    if (!selectedFile || !isPhoneMapped) return;
+    setStep('uploading');
+
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
-      formData.append('phone_column', columnMapping.phone_column || 'A');
-      if (columnMapping.first_name_column) formData.append('first_name_column', columnMapping.first_name_column);
-      if (columnMapping.last_name_column) formData.append('last_name_column', columnMapping.last_name_column);
-      if (columnMapping.email_column) formData.append('email_column', columnMapping.email_column);
-      if (columnMapping.company_column) formData.append('company_column', columnMapping.company_column);
-      if (columnMapping.notes_column) formData.append('notes_column', columnMapping.notes_column);
+      formData.append('phone_column', mapping.phone);
+      if (mapping.first_name) formData.append('first_name_column', mapping.first_name);
+      if (mapping.last_name) formData.append('last_name_column', mapping.last_name);
+      if (mapping.title) formData.append('title_column', mapping.title);
+      if (mapping.email) formData.append('email_column', mapping.email);
+      if (mapping.company) formData.append('company_column', mapping.company);
+      if (mapping.address) formData.append('address_column', mapping.address);
+      if (mapping.notes) formData.append('notes_column', mapping.notes);
       if (countryCode) formData.append('country_code', countryCode);
 
       const result = await api.upload<UploadResponse>(`/dial-lists/${listId}/upload`, formData);
       setUploadResult(result);
-      toast.success(`Uploaded: ${result.success} numbers added`);
+      setStep('result');
+      toast.success(`Uploaded: ${result.success} numbers imported`);
       onUploadComplete();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Upload failed');
-    } finally {
-      setIsUploading(false);
+      setStep('mapping');
     }
   };
 
-  const handleCancelMapping = (): void => {
-    setShowMapping(false);
+  const handleCancel = (): void => {
+    setStep('idle');
     setSelectedFile(null);
+    setFilePreview(null);
     setUploadResult(null);
+    setMapping({ ...emptyMapping });
   };
 
   const handleDownloadTemplate = (): void => {
     const csvContent =
-      'phone,first_name,last_name,email,company,notes\n+905551234567,John,Smith,john@example.com,Acme Corp,Priority customer\n+905559876543,Jane,Doe,jane@example.com,Beta LLC,New lead\n';
+      'phone,first_name,last_name,title,email,company,address,notes\n+905551234567,Ahmet,Yılmaz,Mr,ahmet@example.com,ABC Corp,Istanbul,VIP customer\n+905559876543,Ayşe,Demir,Mrs,ayse@example.com,XYZ Ltd,,New lead\n';
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -192,17 +268,24 @@ function UploadSection({
     URL.revokeObjectURL(url);
   };
 
-  return (
-    <div className="mb-6">
-      {!showMapping ? (
+  const getSampleValue = (headerName: string): string => {
+    if (!headerName || !filePreview?.sample_rows.length) return '—';
+    const idx = filePreview.headers.indexOf(headerName);
+    if (idx < 0) return '—';
+    return filePreview.sample_rows[0]?.[idx] || '—';
+  };
+
+  // ---- Step: idle — drop zone ----
+  if (step === 'idle') {
+    return (
+      <div className="mb-6">
         <div
           {...getRootProps()}
           className={cn(
             'relative rounded-2xl border-2 border-dashed p-6 transition-all cursor-pointer',
             isDragActive
               ? 'border-primary-500 bg-primary-500/5'
-              : 'border-border hover:border-primary-500/50',
-            isUploading && 'pointer-events-none opacity-60'
+              : 'border-border hover:border-primary-500/50'
           )}
         >
           <input {...getInputProps()} />
@@ -232,151 +315,243 @@ function UploadSection({
             </button>
           </div>
         </div>
-      ) : (
+      </div>
+    );
+  }
+
+  // ---- Step: previewing — loading spinner ----
+  if (step === 'previewing') {
+    return (
+      <div className="mb-6">
+        <div className="rounded-2xl border border-border bg-card p-8 text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary-500 mx-auto mb-3" />
+          <p className="font-medium">Reading file headers...</p>
+          <p className="text-sm text-muted-foreground mt-1">{selectedFile?.name}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Step: result — upload results ----
+  if (step === 'result' && uploadResult) {
+    return (
+      <div className="mb-6">
         <div className="rounded-2xl border border-border bg-card p-6">
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <FileSpreadsheet className="h-5 w-5 text-primary-500" />
-              <div>
-                <p className="font-medium">{selectedFile?.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {selectedFile && (selectedFile.size / 1024).toFixed(1)} KB
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+              Upload Complete
+            </h3>
+            <button onClick={handleCancel} className="text-sm text-primary-500 hover:underline">
+              Upload Another
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="text-center p-3 rounded-xl bg-muted/50">
+              <p className="text-lg font-bold">{uploadResult.total}</p>
+              <p className="text-xs text-muted-foreground">Total Rows</p>
+            </div>
+            <div className="text-center p-3 rounded-xl bg-emerald-500/5">
+              <p className="text-lg font-bold text-emerald-500">{uploadResult.success}</p>
+              <p className="text-xs text-muted-foreground">Imported</p>
+            </div>
+            <div className="text-center p-3 rounded-xl bg-amber-500/5">
+              <p className="text-lg font-bold text-amber-500">{uploadResult.duplicates}</p>
+              <p className="text-xs text-muted-foreground">Duplicates</p>
+            </div>
+            <div className="text-center p-3 rounded-xl bg-red-500/5">
+              <p className="text-lg font-bold text-red-500">{uploadResult.errors}</p>
+              <p className="text-xs text-muted-foreground">Errors</p>
+            </div>
+          </div>
+          {uploadResult.error_details && uploadResult.error_details.length > 0 && (
+            <div className="mt-3 max-h-32 overflow-y-auto">
+              <p className="text-xs font-medium text-muted-foreground mb-1">Error Details:</p>
+              {uploadResult.error_details.slice(0, 10).map((err, i) => (
+                <p key={i} className="text-xs text-red-500">
+                  Row {err.row}: {err.phone} — {err.reason}
                 </p>
-              </div>
-            </div>
-            <button onClick={handleCancelMapping} className="text-muted-foreground hover:text-foreground">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-
-          {/* Column Mapping */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Phone Column *</label>
-              <input
-                type="text"
-                value={columnMapping.phone_column}
-                onChange={(e) => setColumnMapping({ ...columnMapping, phone_column: e.target.value })}
-                placeholder="A or phone"
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">First Name</label>
-              <input
-                type="text"
-                value={columnMapping.first_name_column}
-                onChange={(e) => setColumnMapping({ ...columnMapping, first_name_column: e.target.value })}
-                placeholder="B or first_name"
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Last Name</label>
-              <input
-                type="text"
-                value={columnMapping.last_name_column}
-                onChange={(e) => setColumnMapping({ ...columnMapping, last_name_column: e.target.value })}
-                placeholder="C or last_name"
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Email</label>
-              <input
-                type="text"
-                value={columnMapping.email_column}
-                onChange={(e) => setColumnMapping({ ...columnMapping, email_column: e.target.value })}
-                placeholder="D or email"
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Company</label>
-              <input
-                type="text"
-                value={columnMapping.company_column}
-                onChange={(e) => setColumnMapping({ ...columnMapping, company_column: e.target.value })}
-                placeholder="E or company"
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Country Code</label>
-              <input
-                type="text"
-                value={countryCode}
-                onChange={(e) => setCountryCode(e.target.value)}
-                placeholder="e.g. +90"
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-              />
-            </div>
-          </div>
-
-          <p className="text-xs text-muted-foreground mb-4">
-            Enter column letters (A, B, C...) or header names to map your spreadsheet columns.
-            Phone column is required. DNC and duplicate checks are automatic.
-          </p>
-
-          {/* Upload button */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleUpload}
-              disabled={isUploading}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-500 text-white hover:bg-primary-600 transition-colors text-sm font-medium disabled:opacity-50"
-            >
-              {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              {isUploading ? 'Uploading...' : 'Upload & Import'}
-            </button>
-            <button
-              onClick={handleCancelMapping}
-              className="px-4 py-2 rounded-xl border border-border hover:bg-muted transition-colors text-sm"
-            >
-              Cancel
-            </button>
-          </div>
-
-          {/* Upload Result */}
-          {uploadResult && (
-            <div className="mt-4 rounded-xl bg-muted/50 p-4">
-              <h4 className="font-medium mb-2">Upload Results</h4>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="text-center">
-                  <p className="text-lg font-bold">{uploadResult.total}</p>
-                  <p className="text-xs text-muted-foreground">Total Rows</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-lg font-bold text-emerald-500">{uploadResult.success}</p>
-                  <p className="text-xs text-muted-foreground">Imported</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-lg font-bold text-amber-500">{uploadResult.duplicates}</p>
-                  <p className="text-xs text-muted-foreground">Duplicates</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-lg font-bold text-red-500">{uploadResult.errors}</p>
-                  <p className="text-xs text-muted-foreground">Errors</p>
-                </div>
-              </div>
-              {uploadResult.error_details && uploadResult.error_details.length > 0 && (
-                <div className="mt-3 max-h-32 overflow-y-auto">
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Error Details:</p>
-                  {uploadResult.error_details.slice(0, 10).map((err, i) => (
-                    <p key={i} className="text-xs text-red-500">
-                      Row {err.row}: {err.phone} — {err.reason}
-                    </p>
-                  ))}
-                  {uploadResult.error_details.length > 10 && (
-                    <p className="text-xs text-muted-foreground">
-                      ...and {uploadResult.error_details.length - 10} more
-                    </p>
-                  )}
-                </div>
+              ))}
+              {uploadResult.error_details.length > 10 && (
+                <p className="text-xs text-muted-foreground">
+                  ...and {uploadResult.error_details.length - 10} more
+                </p>
               )}
             </div>
           )}
         </div>
-      )}
+      </div>
+    );
+  }
+
+  // ---- Step: mapping (and uploading) — column mapping UI ----
+  const mappedCount = Object.values(mapping).filter(Boolean).length;
+
+  return (
+    <div className="mb-6">
+      <div className="rounded-2xl border border-border bg-card p-6">
+        {/* File info header */}
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-500/10">
+              <FileSpreadsheet className="h-5 w-5 text-primary-500" />
+            </div>
+            <div>
+              <p className="font-medium">{selectedFile?.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {selectedFile && (selectedFile.size / 1024).toFixed(1)} KB &middot; {filePreview?.headers.length ?? 0} columns detected
+              </p>
+            </div>
+          </div>
+          <button onClick={handleCancel} className="text-muted-foreground hover:text-foreground">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Mapping progress */}
+        <div className="flex items-center gap-2 mb-5">
+          <div className="h-1.5 flex-1 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary-500 rounded-full transition-all"
+              style={{ width: `${(mappedCount / SYSTEM_FIELDS.length) * 100}%` }}
+            />
+          </div>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {mappedCount}/{SYSTEM_FIELDS.length} mapped
+          </span>
+        </div>
+
+        {/* Column mapping */}
+        <div className="space-y-2 mb-5">
+          <div className="hidden sm:grid grid-cols-[200px_1fr_140px] gap-3 px-3 py-1.5">
+            <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">System Field</span>
+            <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Excel Column</span>
+            <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Sample</span>
+          </div>
+          {SYSTEM_FIELDS.map((field) => (
+            <div
+              key={field.key}
+              className={cn(
+                'grid grid-cols-1 sm:grid-cols-[200px_1fr_140px] gap-2 sm:gap-3 items-center px-3 py-2.5 rounded-xl transition-colors',
+                field.required && !mapping[field.key]
+                  ? 'bg-red-500/5 ring-1 ring-red-500/20'
+                  : mapping[field.key]
+                    ? 'bg-emerald-500/5 ring-1 ring-emerald-500/10'
+                    : 'bg-muted/30'
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">{field.icon}</span>
+                <span className="text-sm font-medium">
+                  {field.label}
+                  {field.required && <span className="text-red-500 ml-0.5">*</span>}
+                </span>
+              </div>
+              <select
+                value={mapping[field.key]}
+                onChange={(e) => handleMappingChange(field.key, e.target.value)}
+                className={cn(
+                  'w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 bg-background appearance-none',
+                  mapping[field.key] ? 'border-emerald-500/30 text-foreground' : 'border-border text-muted-foreground'
+                )}
+              >
+                <option value="">— Not Mapped —</option>
+                {(filePreview?.headers ?? []).map((h) => (
+                  <option key={h} value={h}>{h}</option>
+                ))}
+              </select>
+              <span className="text-xs text-muted-foreground truncate hidden sm:block" title={getSampleValue(mapping[field.key])}>
+                {mapping[field.key] ? getSampleValue(mapping[field.key]) : '—'}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Country code */}
+        <div className="flex flex-wrap items-center gap-3 mb-5 px-3">
+          <label className="text-sm font-medium whitespace-nowrap">Country Code</label>
+          <input
+            type="text"
+            value={countryCode}
+            onChange={(e) => setCountryCode(e.target.value)}
+            placeholder="e.g. +90 (optional)"
+            className="w-40 px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+          />
+          <p className="text-xs text-muted-foreground">Added to numbers without country code</p>
+        </div>
+
+        {/* Sample data preview */}
+        {filePreview && filePreview.sample_rows.length > 0 && (
+          <div className="mb-5 px-3">
+            <p className="text-xs font-medium text-muted-foreground mb-2">
+              Preview (first {filePreview.sample_rows.length} rows)
+            </p>
+            <div className="rounded-lg border border-border overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    {filePreview.headers.map((h, i) => (
+                      <th key={i} className="text-left px-3 py-1.5 font-medium text-muted-foreground whitespace-nowrap">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filePreview.sample_rows.slice(0, 3).map((row, ri) => (
+                    <tr key={ri} className="border-b border-border last:border-0">
+                      {row.map((cell, ci) => (
+                        <td key={ci} className="px-3 py-1.5 whitespace-nowrap">{cell || '—'}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Validation messages */}
+        {!isPhoneMapped && (
+          <div className="flex items-center gap-2 px-3 py-2.5 mb-4 rounded-xl bg-red-500/5 ring-1 ring-red-500/20">
+            <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
+            <p className="text-sm text-red-600 dark:text-red-400">
+              Phone Number column must be mapped to upload. Select the column containing phone numbers.
+            </p>
+          </div>
+        )}
+
+        {mapping.title && mapping.first_name && (
+          <div className="flex items-center gap-2 px-3 py-2.5 mb-4 rounded-xl bg-blue-500/5 ring-1 ring-blue-500/20">
+            <CheckCircle2 className="h-4 w-4 text-blue-500 flex-shrink-0" />
+            <p className="text-sm text-blue-600 dark:text-blue-400">
+              Title + Name mapped — agent will use personalized greeting (e.g. &quot;Ahmet Bey&quot;, &quot;Mr Smith&quot;)
+            </p>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-3 px-3">
+          <button
+            onClick={handleUpload}
+            disabled={step === 'uploading' || !isPhoneMapped}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-500 text-white hover:bg-primary-600 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {step === 'uploading' ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Uploading...</>
+            ) : (
+              <><Upload className="h-4 w-4" /> Upload &amp; Import</>
+            )}
+          </button>
+          <button
+            onClick={handleCancel}
+            disabled={step === 'uploading'}
+            className="px-4 py-2.5 rounded-xl border border-border hover:bg-muted transition-colors text-sm disabled:opacity-50"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

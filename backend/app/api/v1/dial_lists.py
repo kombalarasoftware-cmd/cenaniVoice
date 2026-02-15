@@ -139,8 +139,10 @@ def _resolve_column_indices(header: List[str], mapping: dict) -> dict:
         "phone_column": "phone_number",
         "first_name_column": "first_name",
         "last_name_column": "last_name",
+        "title_column": "title",
         "email_column": "email",
         "company_column": "company",
+        "address_column": "address",
         "timezone_column": "timezone",
         "notes_column": "notes",
     }
@@ -261,6 +263,77 @@ async def create_dial_list(
     return DialListResponse.model_validate(dial_list)
 
 
+@router.post("/preview-headers")
+async def preview_file_headers(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """
+    Preview Excel/CSV file headers and sample rows.
+    Returns column headers and first 3 data rows for the column mapping UI.
+    """
+    filename = (file.filename or "").lower()
+    if not filename.endswith((".xlsx", ".xls", ".csv")):
+        raise HTTPException(
+            status_code=400,
+            detail="Only .xlsx, .xls, and .csv files are supported",
+        )
+
+    contents = await file.read()
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large")
+
+    headers: List[str] = []
+    sample_rows: List[List[str]] = []
+
+    if filename.endswith(".csv"):
+        text_content = contents.decode("utf-8-sig", errors="replace")
+        reader = csv.reader(io.StringIO(text_content))
+        header_row = next(reader, None)
+        if header_row:
+            headers = [h.strip() for h in header_row if h and h.strip()]
+            for i, row in enumerate(reader):
+                if i >= 3:
+                    break
+                sample_rows.append(
+                    [str(c).strip() if c else "" for c in row[: len(headers)]]
+                )
+    else:
+        try:
+            import openpyxl
+        except ImportError:
+            raise HTTPException(status_code=500, detail="openpyxl required")
+
+        wb = openpyxl.load_workbook(
+            io.BytesIO(contents), read_only=True, data_only=True
+        )
+        ws = wb.active
+        if ws:
+            all_rows = list(ws.iter_rows(values_only=True))
+            if all_rows:
+                headers = [
+                    str(c).strip() if c else f"Column {i + 1}"
+                    for i, c in enumerate(all_rows[0])
+                ]
+                for row in all_rows[1:4]:
+                    sample_rows.append(
+                        [
+                            str(c).strip() if c is not None else ""
+                            for c in row[: len(headers)]
+                        ]
+                    )
+        wb.close()
+
+    if not headers:
+        raise HTTPException(status_code=400, detail="No headers found in file")
+
+    return {
+        "headers": headers,
+        "sample_rows": sample_rows,
+        "total_columns": len(headers),
+    }
+
+
 @router.get("/{list_id}", response_model=DialListResponse)
 async def get_dial_list(
     list_id: int,
@@ -336,8 +409,10 @@ async def upload_file(
     phone_column: str = Form("A"),
     first_name_column: Optional[str] = Form(None),
     last_name_column: Optional[str] = Form(None),
+    title_column: Optional[str] = Form(None),
     email_column: Optional[str] = Form(None),
     company_column: Optional[str] = Form(None),
+    address_column: Optional[str] = Form(None),
     timezone_column: Optional[str] = Form(None),
     notes_column: Optional[str] = Form(None),
     country_code: str = Form(""),
@@ -376,10 +451,14 @@ async def upload_file(
         column_mapping["first_name_column"] = first_name_column
     if last_name_column:
         column_mapping["last_name_column"] = last_name_column
+    if title_column:
+        column_mapping["title_column"] = title_column
     if email_column:
         column_mapping["email_column"] = email_column
     if company_column:
         column_mapping["company_column"] = company_column
+    if address_column:
+        column_mapping["address_column"] = address_column
     if timezone_column:
         column_mapping["timezone_column"] = timezone_column
     if notes_column:
@@ -436,6 +515,13 @@ async def upload_file(
             duplicates += 1
             continue
 
+        # Build custom_fields for extra columns (title, address, etc.)
+        extra_fields: dict = {}
+        if row_data.get("title"):
+            extra_fields["title"] = row_data["title"]
+        if row_data.get("address"):
+            extra_fields["address"] = row_data["address"]
+
         # Build mapping for bulk insert
         batch.append({
             "list_id": list_id,
@@ -451,7 +537,7 @@ async def upload_file(
             "call_attempts": 0,
             "max_attempts": 3,
             "dnc_flag": False,
-            "custom_fields": {},
+            "custom_fields": extra_fields,
         })
         existing_numbers.add(phone)
         success += 1
